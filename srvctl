@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.03.31-15:59:48
-# version 1.3.5
+# Last update:2014.04.05-06:53:51
+# version 1.3.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -14,7 +14,7 @@
 ## If user is root or runs on root privileges, continiue.
 if [ "$UID" -ne "0" ]
 then
-  echo "Root privileges needed to run this script. Exiting."
+  echo "Root privileges needed to run this script."
   ## Attemt to get root privileges with sudo, and run the script
   ## sudo bash $0 $1 $2 $3 $4 $5 $6 $7 $8 $9
   exit
@@ -24,12 +24,13 @@ fi
 if [ -z "$1" ]
   then
     echo "srvctl command [argument]"
+    ## TODO a more detailed manul. .)
 fi
 
-## some date
-NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
-## Configuration defaults
+
+
+## Configuration defaults - Overwrite in config!
 MSG="## srvctl modification. $NOW"
 
 ## logfile
@@ -41,15 +42,38 @@ TMP=/temp
 ## The main /srv folder
 SRV=/srv
 
+## Used for certificate generation
+ssl_password="no_pass"
+
 ## Import custom configuration directives
-source /etc/srvctl/config
+source /etc/srvctl/config 2> /dev/null
+
+## Some way to figure out, .. is this script running in the srvctl container, or on the host system?
+if mount | grep -q 'on /var/srvctl' 
+then
+  ## We are in a container of srvctl for sure
+  #echo CONTAINER $(hostname)
+  onHS=false
+  onVE=true
+else
+  ## We are propably on the host
+  #echo HOST $(hostname)
+  onHS=true
+  onVE=false
+fi
+
+## some date
+NOW=$(date +%Y.%m.%d-%H:%M:%S)
+
+CMD=$1
+ARG=$2
 
 ## Lablib functions
 
 function bak {
     ## create a backup of the file, with the same name, same location .bak extension
     ## filename=$1
-    echo $MSG >> $1.bak
+    echo $MSG" (bak)" >> $1.bak
     cat $1 >> $1.bak
     #echo $1" has a .bak file"
 }
@@ -90,6 +114,8 @@ function add_conf {
     fi
 }
 
+## Lablib functions end here.
+
 ## constants
 
 green='\e[0;32m'
@@ -98,30 +124,75 @@ NC='\e[0m' # No Color
 
 ## srvctl functions
 
+function argument {
+
+if [ -z "$ARG" ]
+then
+    echo "No $1 supplied .."
+    exit
+fi
+
+eval $1=$ARG
+
+}
+
 function to_ip {
 
-local __counter=$1
-local __c=$(( 1 + $__counter / 250 ))
-local __d=$(( 1 + $__counter % 250 ))
+	local __counter=$1
+	local __c=$(( 1 + $__counter / 250 ))
+	local __d=$(( 1 + $__counter % 250 ))
 
-echo $__c"."$__d
+	echo $__c"."$__d
 }
 
 function to_mac {
 
-local __counter=$1
-local __c=$(( 1 + $__counter / 250 ))
-local __d=$(( 1 + $__counter % 250 ))
+	local __counter=$1
+	local __c=$(( 1 + $__counter / 250 ))
+	local __d=$(( 1 + $__counter % 250 ))
 
-echo $(printf '%x\n'  $__c)":"$(printf '%x\n'  $__d)
+	echo $(printf '%x\n'  $__c)":"$(printf '%x\n'  $__d)
 }
 
 
-echo "Running $0 $1 $2 $3 $4 $5 $6 ( $SRV $TMP $LOG )"
+function restart_pound {
+
+	systemctl restart pound.service
+	service_status=$(systemctl is-active pound.service)
+
+	if [ $service_status == "active" ]
+	then 
+	  ## Pound, our web-front should never stop.
+	  ## Make a copy of configs, just to make sure.
+	  ## bak files are for humans, we do a last-cfg here.
+	
+	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.last-cfg
+	  cat /etc/pound-includes.cfg >  /etc/pound-includes.last-cfg 	
+
+	else
+
+	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.fail-cfg
+	  cat /etc/pound-includes.cfg >  /etc/pound-includes.fail-cfg
+	  cat /etc/pound-certificates.last-cfg > /etc/pound-certificates.cfg
+	  cat /etc/pound-includes.last-cfg >  /etc/pound-includes.cfg
+
+	  systemctl restart pound.service
+
+	fi
+
+	## Display status
+  	systemctl status  pound.service
+
+}
+
+
+## srvctl functions end here.
+
+echo "Running $0 $1 $2 $3 $4 $5 $6 ( $SRV $TMP $LOG ) $(hostname) VE: $onVE"
 
 
 
-if [ "$1" == "uninstall" ]
+if [ "$CMD" == "uninstall" ] && $onHS
 then
 
 	yum -y remove libvirt*
@@ -134,7 +205,7 @@ then
 
 fi
 
-if [ "$1" == "install-init" ]
+if [ "$CMD" == "install-init" ] && $onHS
 then
 
 ### WEB
@@ -372,7 +443,7 @@ Include "/etc/pound-includes.cfg"
 
 yum -y install postfix
 
-set_file /etc/postfix/main.cf '## D250 Laboratories configuration directives
+set_file /etc/postfix/main.cf '## srvctl configuration directives
 ## Listen on ..
 inet_interfaces = all
 
@@ -389,7 +460,7 @@ systemctl enable postfix.service
 systemctl start postfix.service
 
 
-## We will mainly use these files to copy over to clients
+## We will mainly use these files to copy over to clients. Main thing is: info should not be aliased.
 set_file /etc/aliases '
 #
 #  Aliases in this file will NOT be expanded in the header from
@@ -489,6 +560,8 @@ decode:		root
 #root:		marc
 '
 
+
+
 newaliases
 
 ## IMAP4S proxy
@@ -497,7 +570,7 @@ yum -y install perdition
 
 ## TODO: install certtificates!!
 
-echo "Install you rcertificates for perdition! "
+echo "Install your certificates for perdition! "
 
 set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
 ## Logging settings
@@ -591,7 +664,7 @@ fi # install
 
 
 ## This is mainly for dev! This should be disabled in production!
-if [ "$1" == "reset-install" ]
+if [ "$CMD" == "reset-install" ] && $onHS
 then
 
  for C in $(ls $SRV)
@@ -613,12 +686,33 @@ then
  echo 'DONE!'
 fi
 
+##### srvctl general functions
+
+## start or restart service
+if [ "$CMD" == "restart" ] && $onHS
+then
+argument service
+
+	if [ "$ARG" == "pound" ]
+	then
+
+	  restart_pound	
+	
+	else
+
+	systemctl restart $ARG.service
+	systemctl status  $ARG.service
+
+	fi ## pound.service
+
+
+fi ## start
 
 
 #### srvctl run functions
 
 ## report status
-if [ "$1" == "status" ]
+if [ "$CMD" == "status" ] && $onHS
 then
  for C in $(lxc-ls)
  do
@@ -652,7 +746,7 @@ then
 fi
 
 ## startall
-if [ "$1" == "start-all" ]
+if [ "$CMD" == "start-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
@@ -687,7 +781,7 @@ then
 fi
 
 ## killall
-if [ "$1" == "kill-all" ]
+if [ "$CMD" == "kill-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
@@ -709,7 +803,7 @@ then
 fi
 
 ## stopall
-if [ "$1" == "stop-all" ]
+if [ "$CMD" == "stop-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
@@ -732,8 +826,11 @@ then
 fi
 
 ## exec-all 'something' (or with "")ssh  
-if [ "$1" == "exec-all" ]
+if [ "$CMD" == "exec-all" ] && $onHS
 then
+
+argument command
+
  for C in $(lxc-ls)
  do
 
@@ -746,7 +843,7 @@ then
 	if [ "$state" == "RUNNING" ]
 	then
  	echo $C $state
-	ssh $C "$2"
+	ssh $C "$ARG"
 	else
  	echo $C $state
 	fi
@@ -754,7 +851,7 @@ then
 fi
 
 ## regenerate configs 
-if [ "$1" == "regenerate" ]
+if [ "$CMD" == "regenerate" ] && $onHS
 then
 
 echo '' > $TMP/known_hosts
@@ -780,60 +877,56 @@ echo '' > $TMP/known_hosts
  	echo $C $state
 	fi
 ## TODO continiue
-	
+	## FIX: echo 'Cert "/srv/'$dn'/cert/'$dn'.pem"' >> pound-certificates.cfg
 
  done	
 fi
 
 ## reMOVE host
-if [ "$1" == "remove" ]
+if [ "$CMD" == "remove" ] && $onHS
 then
 
-if [ -z "$2" ]
-then
-    echo "No host supplied .."
-    exit
-fi
+argument dn 
 
-lxc-stop -k -n $2
+lxc-stop -k -n $ARG
 
-sed_file /etc/pound-certificates.cfg 'Cert "/srv/'$2 '## REMOVED '$2' '$NOW
-sed_file /etc/pound-includes.cfg 'Include "/etc/pound/'$2'.conf"' '## REMOVED '$2' '$NOW
+sed_file /etc/pound-certificates.cfg 'Cert "/srv/'$dn '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-includes.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
 
-rsync -a '/etc/pound/'$2'.conf' $TMP
-rm -fr '/etc/pound/'$2'.conf'
+rsync -a '/etc/pound/'$dn'.conf' $TMP
+rm -fr '/etc/pound/'$dn'.conf'
 
-if [ -d "$SRV/$2" ]; then
+if [ -d "$SRV/$dn" ]; then
   echo "Container folder does exists"
   ## trash it! .. to TMP
 
-  rsync -a $SRV/$2 $TMP
-  rm -fr $SRV/$2 $TMP
+  rsync -a $SRV/$dn $TMP
+  rm -fr $SRV/$dn $TMP
 
 fi
 
-
-systemctl restart pound.service
-systemctl status pound.service
-
+restart_pound
 
 fi ## reMOVE
 
 ## add new host
-if [ "$1" == "add" ]
+if [ "$CMD" == "add" ] && $onHS
 then
-	if [ -d $SRV/$2 ]; then
-	  echo "$SRV/$2 already exists! Exiting"
+
+argument dn 
+
+	if [ -d $SRV/$dn ]; then
+	  echo "$SRV/$dn already exists! Exiting"
 	  exit 11
 	fi
 
 	## $dn - domain name
-	dn=$(echo $2 | grep -P '(?=^.{6,254}$)(^(?:(?!\d+\.)[a-zA-Z0-9_\-]{1,63}\.?)+(?:[a-zA-Z]{2,})$)')
+	dn=$(echo $dn | grep -P '(?=^.{6,254}$)(^(?:(?!\d+\.)[a-zA-Z0-9_\-]{1,63}\.?)+(?:[a-zA-Z]{2,})$)')
 	## Is'nt it a FQDN?
 
 	if [ -z "$dn" ]
 	then
-	  echo "$2 failed the domain regexp check. Exiting."
+	  echo "$dn failed the domain regexp check. Exiting."
 	  exit 10
 	else
 	  echo "$dn is a valid domain name."
@@ -962,18 +1055,18 @@ home_mailbox = Maildir/
 
 	## Prepare Certificate creation
 
-	mkdir $rootfs/etc/pki/https
-	##cd $rootfs/etc/pki/https
+	mkdir $SRV/$dn/cert
+	##cd $SRV/$dn/cert
 
-	ssl_password="xxxxxx"
+
 	ssl_days=1085
-	ssl_random=$rootfs/etc/pki/https/random.txt
-	ssl_config=$rootfs/etc/pki/https/config.txt
-	ssl_key=$rootfs/etc/pki/https/$dn.key
-	ssl_org=$rootfs/etc/pki/https/$dn.key.org
-	ssl_crt=$rootfs/etc/pki/https/$dn.crt
-	ssl_csr=$rootfs/etc/pki/https/$dn.csr
-	ssl_pem=$rootfs/etc/pki/https/$dn.pem
+	ssl_random=$SRV/$dn/cert/random.txt
+	ssl_config=$SRV/$dn/cert/$dn.txt
+	ssl_key=$SRV/$dn/cert/$dn.key
+	ssl_org=$SRV/$dn/cert/$dn.key.org
+	ssl_crt=$SRV/$dn/cert/$dn.crt
+	ssl_csr=$SRV/$dn/cert/$dn.csr
+	ssl_pem=$SRV/$dn/cert/$dn.pem
 
 	set_file $ssl_config "       RANDFILE               = $ssl_random
 
@@ -1001,7 +1094,7 @@ home_mailbox = Maildir/
 	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
 
 	## Step 1: Generate a Private Key
-	openssl genrsa -des3 -passout pass:xxxxxx -out $ssl_key 2048
+	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
 
 	## Step 2: Generate a CSR (Certificate Signing Request)
 
@@ -1033,8 +1126,8 @@ End'
 	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
 	echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-includes.cfg
 
-	systemctl restart pound.service
-	systemctl status pound.service
+	restart_pound
+	
 
 # START ## Start the container maybe
 	lxc-start -n $dn -d	
@@ -1052,6 +1145,330 @@ End'
 fi ## srvctl add
 
 
+################### CLIENT FUNCTIONS ###########
+#exit
+#!/bin/bash
+################################################
 
-exit
+
+
+##ln -s /var/srvctl/srvctl /bin/srvctl
+
+if [ "$CMD" == "install-wordpress" ] && $onVE
+then
+
+echo install-wordpress
+
+yum -y install wordpress
+yum -y install php
+yum -y install mariadb mariadb-server 
+systemctl start mariadb.service
+systemctl enable mariadb.service
+systemctl restart httpd.service
+
+fi ## install-wordpress
+
+if [ "$CMD" == "import" ] && $onVE
+then
+echo "import db "$2
+
+mysql < $2
+
+mysql -u root -e "show databases;"
+
+fi ## import db
+
+if [ "$CMD" == "config" ] && $onVE
+then
+
+echo config
+
+## chmod
+chown -R apache:apache /var/www/html/*
+
+if [ -f /var/www/html/wp-config.php ]; then
+    echo "wp-config.php detected!"
+
+rm -rf /var/www/stats
+
+sed -i 's/\r$//' /var/www/html/wp-config.php
+
+cat /var/www/html/wp-config.php | grep "DB_NAME"
+db_db=$(cat /var/www/html/wp-config.php | grep "DB_NAME")
+db_dbf=${db_db:19:-3}
+
+## Override
+#db_dbf="drdugo_sevsam"
+
+echo $db_dbf
+
+
+mysql < /var/srvctl/20140324010005/$db_dbf.sql
+
+mysql -u root -e "show databases;"
+
+owner=$(echo $db_dbf | cut -f1 -d"_" )
+
+echo $owner > /etc/owner
+
+cat /var/www/html/wp-config.php | grep "DB_USER"
+db_u=$(cat /var/www/html/wp-config.php | grep "DB_USER")
+db_usr=${db_u:19:-3}
+
+## Override
+#db_usr="drdugo_sevsam"
+
+echo $db_usr
+
+cat /var/www/html/wp-config.php | grep "DB_PASSWORD"
+db_p=$(cat /var/www/html/wp-config.php | grep "DB_PASSWORD")
+db_pwd=${db_p:23:-3}
+
+## Override
+#db_pwd="zt7Er34W"
+
+echo $db_pwd
+
+
+SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+
+echo "(WORDPRESS) $SQL"
+
+mysql -u root -e "$SQL"
+
+fi ## wordpress
+
+if [ -f /var/www/html/configuration.php ]; then
+    echo "Joomla configuration.php detected!"
+
+rm -rf /var/www/stats
+
+sed -i 's/\r$//' /var/www/html/configuration.php
+
+cat /var/www/html/configuration.php | grep "db "
+db_db=$(cat /var/www/html/configuration.php | grep "db ")
+db_dbf=${db_db:12:-2}
+
+## Override
+#db_dbf="drdugo_sevsam"
+
+echo $db_dbf
+
+
+mysql < /var/srvctl/20140324010005/$db_dbf.sql
+
+mysql -u root -e "show databases;"
+
+owner=$(echo $db_dbf | cut -f1 -d"_" )
+
+echo $owner > /etc/owner
+
+cat /var/www/html/configuration.php | grep '$user '
+db_u=$(cat /var/www/html/configuration.php | grep '$user ')
+db_usr=${db_u:14:-2}
+
+## Override
+#db_usr="drdugo_sevsam"
+
+echo $db_usr
+
+cat /var/www/html/configuration.php | grep "password "
+db_p=$(cat /var/www/html/configuration.php | grep "password ")
+db_pwd=${db_p:18:-2}
+
+## Override
+#db_pwd="zt7Er34W"
+
+echo $db_pwd
+
+#exit
+SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+
+echo "(JOOMLA) $SQL"
+
+mysql -u root -e "$SQL"
+
+mkdir /log
+
+sed_file /var/www/html/configuration.php "log_path = '" "log_path = '/log'; // '"
+sed_file /var/www/html/configuration.php "tmp_path = '" "tmp_path = '/tmp'; // '"
+chmod 644 /var/www/html/configuration.php
+
+fi ## joomla
+
+
+## save these params
+conf=/etc/mysqluser.conf
+echo 'dbf:'$db_dbf > $conf
+echo 'usr:'$db_usr >> $conf
+echo 'pwd:'$db_pwd >> $conf
+
+
+cf=/etc/httpd/conf.d/$(hostname).conf
+
+echo '## srvctl generated' >> $cf
+echo '<Directory /var/www/html>' >> $cf
+
+cat /var/www/html/.htaccess >> $cf
+
+echo '' >> $cf
+echo '</Directory>' >> $cf
+echo '' >> $cf
+
+systemctl restart httpd.service
+
+fi ## config-
+
+if [ "$CMD" == "prefix" ] && $onVE
+then
+echo prefix-wordpress URI
+
+ln -s /var/www/html /var/www/html/$2
+
+cf=/etc/httpd/conf.d/$(hostname).conf
+
+echo '## srvctl generated' >> $cf
+echo '<Directory /var/www/html>' >> $cf
+echo ' <IfModule mod_rewrite.c>' >> $cf
+echo '  RewriteEngine On' >> $cf
+echo '  RewriteBase /'$2'/' >> $cf
+echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
+echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
+echo '  RewriteRule . /index.php [L]' >> $cf
+echo ' </IfModule>' >> $cf
+echo '</Directory>' >> $cf
+echo '' >> $cf
+
+systemctl restart httpd.service
+
+fi ## prefix wordpress URI
+
+# instead of /usr/bin/mysql_secure_installation
+## .. and setup mysqldump.conf
+
+if [ "$CMD" == "secure" ] && $onVE
+then
+
+## generate password on array based variable
+declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
+l=${#arr[@]}
+pw=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
+
+echo "Set database root password to: "$pw
+
+mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
+mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+mysql -u root -e "DROP DATABASE test;"
+
+SQL="UPDATE mysql.user SET Password=PASSWORD('$pw') WHERE User='root'; flush privileges;"
+mysql -u root -e "$SQL"
+echo mysql -u root -e "$SQL"
+
+
+## set up backup params
+conf=/etc/mysqldump.conf
+echo '[client]' > $conf
+echo 'user=root' >> $conf
+echo 'password='$pw >> $conf
+
+
+
+
+fi ## secure
+
+
+if [ "$CMD" == "mailconf" ] && $onVE
+then
+
+echo '@'$(hostname)' root' > /etc/postfix/virtual
+postmap /etc/postfix/virtual
+
+echo '# srvctl setup - D250 Laboratories
+## Listen on ..
+inet_interfaces = all
+
+## Catch all maildefined in ..
+virtual_alias_maps = hash:/etc/postfix/virtual
+
+## And send it to ..
+home_mailbox = Maildir/
+' >> /etc/postfix/main.cf
+
+systemctl restart postfix.service
+systemctl status postfix.service
+
+fi ## mailconf
+
+if [ "$CMD" == "backup" ] && $onVE
+then
+
+old_backup=$(ls -d /var/www/backup/*)
+
+BACKUP_POINT="/var/www/backup/"$(date +%Y_%m_%d__%H_%M_%S)
+mkdir -p $BACKUP_POINT
+
+## All Databases into a single file?
+# mysqldump --defaults-file=/etc/mysqldump.conf --all-databases >$BACKUP_POINT/all-databases.sql
+
+succ=1
+## create backup for each database
+for i in `echo "show databases" | mysql --defaults-file=/etc/mysqldump.conf | grep -v Database`; do 
+    if [ "$i" != "information_schema" ] && [ "$i" != "performance_schema" ] 
+    then 
+    mysqldump --defaults-file=/etc/mysqldump.conf --databases $i > $BACKUP_POINT/$i.sql
+    if [ "$?" -eq 0 ]
+     then
+         echo "OK:   "$i
+        else
+         echo "ERROR "$i
+         echo $err
+         succ=0
+        fi
+    fi
+done
+
+if [ "$succ" -gt 0 ]
+then
+    echo 'All databases have a backup in '$BACKUP_POINT
+
+    if [ "$2" == "clean" ]
+    then
+     rm -fr $old_backup
+    fi
+fi
+
+fi ## backup db
+
+
+if [ "$CMD" == "adduser" ] && $onVE
+then
+
+ if [ -z "$2" ]
+  then
+    echo "No username argument supplied"
+    exit 11
+ fi
+
+
+declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
+l=${#arr[@]}
+password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
+
+adduser $2
+echo $password | passwd $2 --stdin
+
+echo $password > /home/$2/.password
+
+echo "User: $2 password: $passwordd set on $(hostname)"
+
+fi ## adduser
+
+if [ "$CMD" == "fix-postfix" ] && $onVE
+then
+
+sed_file /etc/postfix/main.cf 'virtual_alias_maps' '# virtual_alias_maps'
+systemctl restart postfix.service
+systemctl status postfix.service
+
+fi
 
