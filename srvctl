@@ -1,0 +1,1057 @@
+#!/bin/bash
+# Last update:2014.03.31-15:59:48
+# version 1.3.5
+#
+# Server Controll script for Fedora with LXC containers
+#
+# D250 Laboratories / D250.hu
+# Author: István király
+# LaKing@D250.hu
+# 
+## Source URL
+#URL="http://d250.hu/scripts/install-workstation.sh"
+
+## If user is root or runs on root privileges, continiue.
+if [ "$UID" -ne "0" ]
+then
+  echo "Root privileges needed to run this script. Exiting."
+  ## Attemt to get root privileges with sudo, and run the script
+  ## sudo bash $0 $1 $2 $3 $4 $5 $6 $7 $8 $9
+  exit
+fi
+
+## check for arguments
+if [ -z "$1" ]
+  then
+    echo "srvctl command [argument]"
+fi
+
+## some date
+NOW=$(date +%Y.%m.%d-%H:%M:%S)
+
+## Configuration defaults
+MSG="## srvctl modification. $NOW"
+
+## logfile
+LOG=/var/log/srvctl.log
+
+## temporal backup and work directory
+TMP=/temp
+
+## The main /srv folder
+SRV=/srv
+
+## Import custom configuration directives
+source /etc/srvctl/config
+
+## Lablib functions
+
+function bak {
+    ## create a backup of the file, with the same name, same location .bak extension
+    ## filename=$1
+    echo $MSG >> $1.bak
+    cat $1 >> $1.bak
+    #echo $1" has a .bak file"
+}
+
+function set_file {
+    ## cerate a file with the content overwriting everything
+    ## filename=$1 content=$2
+
+    if [ -f $1 ];
+     then bak $1
+    fi
+    echo "creating "$1
+    echo "$2" > $1
+}
+
+function sed_file {
+    ## used to replace a line in a file
+    ## filename=$1 oldline=$2 newline=$3
+    bak $1
+    cat $1 > $1.tmp
+    sed "s|$2|$3|" $1.tmp > $1
+    rm $1.tmp
+}
+
+function add_conf {
+    ## check if the content string is present, and add if necessery
+    ## filename=$1 content=$2
+
+    if [ -f $1 ];
+     then bak $1
+    fi
+
+    if grep -q $2 "$1"; then
+     echo "adding "$1
+     echo "$2" > $1
+    else
+     echo $1" already has "$1
+    fi
+}
+
+## constants
+
+green='\e[0;32m'
+red='\e[0;31m'
+NC='\e[0m' # No Color
+
+## srvctl functions
+
+function to_ip {
+
+local __counter=$1
+local __c=$(( 1 + $__counter / 250 ))
+local __d=$(( 1 + $__counter % 250 ))
+
+echo $__c"."$__d
+}
+
+function to_mac {
+
+local __counter=$1
+local __c=$(( 1 + $__counter / 250 ))
+local __d=$(( 1 + $__counter % 250 ))
+
+echo $(printf '%x\n'  $__c)":"$(printf '%x\n'  $__d)
+}
+
+
+echo "Running $0 $1 $2 $3 $4 $5 $6 ( $SRV $TMP $LOG )"
+
+
+
+if [ "$1" == "uninstall" ]
+then
+
+	yum -y remove libvirt*
+	rm -rf /etc/libvirt
+
+	bak /etc/hosts
+
+	echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
+	echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
+
+fi
+
+if [ "$1" == "install-init" ]
+then
+
+### WEB
+
+    ## LXC is also part of docker-io
+    #yum install docker-io
+    
+    ## lxc can be installed as rpm
+    #yum -y install lxc lxc-templates
+
+    ## packages needed for compilation and for running
+    yum -y groupinstall "Development Tools"
+    yum -y install automake
+    yum -y install graphviz
+    yum -y install libcap-devel
+    
+    ## to compile it from source
+    ## git clone git://github.com/lxc/lxc
+
+    ## we use a version-release now.
+    ver="1.0.2"
+
+    cd /root
+    rm -rf lxc
+
+    wget https://github.com/lxc/lxc/archive/lxc-$ver.zip
+    unzip lxc-$ver.zip
+    mv lxc-lxc-$ver lxc
+ 
+    cd lxc 
+    ./autogen.sh
+    ./configure
+    make
+    make install
+
+    ## Add export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+    #echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" >> /root/.bash_profile
+    add_conf "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" /root/.bash_profile
+
+
+    ## enable networking via libvirt
+    yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
+
+    defnet=/etc/libvirt/qemu/networks/default.xml
+
+    ## TODO check if file .. is already set up
+    bak $defnet
+    head -n 5 $defnet.bak > $defnet
+    echo '  <ip address="10.10.0.1" netmask="255.255.0.0">' >> $defnet
+    echo '    <dhcp>' >> $defnet
+    echo '      <range start="10.10.0.2" end="10.10.0.254"/>' >> $defnet
+    echo '    </dhcp>' >> $defnet
+    echo '  </ip>' >> $defnet
+    echo '</network>' >> $defnet
+
+    systemctl restart libvirtd.service
+    systemctl enable libvirtd.service
+
+#### RESTART REQUIRED HERE
+
+    ## reverse proxy
+    yum -y install Pound
+
+    ## srvctl
+    mkdir -p /etc/srvctl
+
+    if [ -f /etc/srvctl/counter ];
+    then
+     echo "Counter exists."
+    else
+     echo "Counter does not exist. Creating."
+     echo '0' > /etc/srvctl/counter
+    fi
+
+    ## setup srvctl enviroment
+    mkdir -p $SRV
+    mkdir -p $TMP
+    mkdir -p /var/srvctl
+    mkdir -p /etc/srvctl
+
+    ## this will save a little space. 
+    cp /usr/lib/locale/locale-archive /var/srvctl 
+
+    ## TODO: I'm not a distro engineer, but I think there is space for optimalisation.
+
+## Networking with libvirt
+	yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
+
+	set_file /etc/libvirt/qemu/networks/default.xml '<network>
+  <name>default</name>
+  <uuid>00000000-0000-aaaa-aaaa-aaaaaaaaaaaa</uuid>
+  <bridge name="inet-br"/>
+  <mac address="00:00:00:AA:AA:AA"/>
+  <forward/>
+  <ip address="192.168.0.1" netmask="255.255.0.0">
+    <dhcp>
+      <range start="192.168.0.2" end="192.168.255.254"/>
+    </dhcp>
+  </ip>
+</network>
+'
+
+set_file /etc/libvirt/qemu/networks/primary.xml '<network>
+  <name>primary</name>
+  <uuid>00000000-0000-2010-0010-000000000001</uuid>
+  <bridge name="srv-net"/>
+  <mac address="00:00:10:10:00:01"/>
+  <forward/>
+  <ip address="10.10.0.1" netmask="255.255.0.0"></ip>
+</network>'
+
+## TODO, .. I think the primary interface - with a gateway - is enough. The default should be kept though.
+
+    ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml
+
+    systemctl enable libvirtd.service
+    systemctl start  libvirtd.service
+    systemctl status libvirtd.service
+
+    ## default path for containers
+
+    echo "lxc.lxcpath="$SRV > /usr/local/etc/lxc/lxc.conf
+
+    ## just in case
+    bak /etc/hosts
+
+    ## create ssh key for root
+    if [ ! -f /root/.ssh/id_rsa.pub ]; then
+    ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
+    fi
+
+    ## Customisations in our template
+    cd /usr/local/share/lxc/templates
+
+    set_file lxc-fedora-srv '#!/bin/bash
+
+## password array based variable
+declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
+l=${#arr[@]}
+root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
+
+'
+    chmod 755 lxc-fedora-srv
+
+    cat lxc-fedora >> lxc-fedora-srv
+## TODO remove second #!/bin/bash
+
+    ## disable the root password redefining force
+    sed_file lxc-fedora-srv 'chroot $rootfs_path passwd -e root' '## srvctl-disabled: chroot $rootfs_path passwd -e root'
+    sed_file lxc-fedora-srv 'Container rootfs and config have been created.' 'Container rootfs and config have been created."'
+    ## and do not display the dialog for that subject
+    sed_file lxc-fedora-srv 'Edit the config file to check/enable networking setup.' 'exit 0'
+
+    ## Add additional default packages - NOTE: After modifocation of this in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
+    sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail dovecot"'
+
+
+    ## The pound-served custom error documents
+
+set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 414</b> @ '$(hostname)'<br />
+Request URI is too long.
+</font><p></body>'
+
+set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 500</b> @ '$(hostname)'<br />
+An internal server error occurred. Please try again later.
+</font><p></body>'
+
+set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 501</b> @ '$(hostname)'<br />
+Request URI is too long.
+</font><p></body>'
+
+set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 503</b> @ '$(hostname)'<br />
+The service is not available. Please try again later.
+</font><p></body>'
+
+
+    ## Pound is a reverse Proxy for http
+    yum -y install Pound
+    bak /etc/pound.cfg
+
+    mkdir /etc/pound
+
+    set_file /etc/pound.cfg '## srvctl pound.cfg
+User "pound"
+Group "pound"
+Control "/var/lib/pound/pound.cfg"
+
+## Default loglevel is 1
+# LogLevel    3
+
+ListenHTTP
+          Address 0.0.0.0
+          Port    80
+
+    Err414 "/var/www/html/414.html"
+    Err500 "/var/www/html/500.html"
+    Err501 "/var/www/html/501.html"
+    Err503 "/var/www/html/503.html"
+
+
+
+End
+ListenHTTPS
+         Address 0.0.0.0
+         Port    443
+         Include "/etc/pound-certificates.cfg"
+
+    Err414 "/var/www/html/414.html"
+    Err500 "/var/www/html/500.html"
+    Err501 "/var/www/html/501.html"
+    Err503 "/var/www/html/503.html"
+
+End
+
+Include "/etc/pound-includes.cfg"
+'
+	echo '## srvctl pound-certificates.cfg' >> /etc/pound-certificates.cfg
+	echo '## srvctl pound-includes.cfg' >> /etc/pound-includes.cfg
+
+	systemctl enable pound.service
+
+    ## You can increase the amount of open files and thus the amount of client connections by using "ulimit -n ". 
+    ## For example, to allow pound to accept 5,000 connections and forward 5,000 connection to back end servers (10,000 total) use "ulimit -n 10000".
+    ulimit -n 100000
+
+    ## Hint from Tamás Papp to fix Error: Too many open files
+    sysctl fs.inotify.max_user_watches=81920
+    sysctl fs.inotify.max_user_instances=1024
+
+### E-mail
+
+yum -y install postfix
+
+set_file /etc/postfix/main.cf '## D250 Laboratories configuration directives
+## Listen on ..
+inet_interfaces = all
+
+## use /etc/hosts instead of dns-query
+lmtp_host_lookup = native
+smtp_host_lookup = native
+
+## dont forget to postmap /etc/postfix/relaydomains
+relay_domains = $mydomain, hash:/etc/postfix/relaydomains
+'
+
+postmap /etc/postfix/relaydomains
+systemctl enable postfix.service
+systemctl start postfix.service
+
+
+## We will mainly use these files to copy over to clients
+set_file /etc/aliases '
+#
+#  Aliases in this file will NOT be expanded in the header from
+#  Mail, but WILL be visible over networks or from /bin/mail.
+#
+#	>>>>>>>>>>	The program "newaliases" must be run after
+#	>> NOTE >>	this file is updated for any changes to
+#	>>>>>>>>>>	show through to sendmail.
+#
+
+# Basic system aliases -- these MUST be present.
+mailer-daemon:	postmaster
+postmaster:	root
+
+# General redirections for pseudo accounts.
+bin:		root
+daemon:		root
+adm:		root
+lp:		root
+sync:		root
+shutdown:	root
+halt:		root
+mail:		root
+news:		root
+uucp:		root
+operator:	root
+games:		root
+gopher:		root
+ftp:		root
+nobody:		root
+radiusd:	root
+nut:		root
+dbus:		root
+vcsa:		root
+canna:		root
+wnn:		root
+rpm:		root
+nscd:		root
+pcap:		root
+apache:		root
+webalizer:	root
+dovecot:	root
+fax:		root
+quagga:		root
+radvd:		root
+pvm:		root
+amandabackup:	root
+privoxy:	root
+ident:		root
+named:		root
+xfs:		root
+gdm:		root
+mailnull:	root
+postgres:	root
+sshd:		root
+smmsp:		root
+postfix:	root
+netdump:	root
+ldap:		root
+squid:		root
+ntp:		root
+mysql:		root
+desktop:	root
+rpcuser:	root
+rpc:		root
+nfsnobody:	root
+
+ingres:		root
+system:		root
+toor:		root
+manager:	root
+dumper:		root
+abuse:		root
+
+newsadm:	root #news
+newsadmin:	root #news
+usenet:		root #news
+ftpadm:		root #ftp
+ftpadmin:	root #ftp
+ftp-adm:	root #ftp
+ftp-admin:	root #ftp
+www:		webmaster
+webmaster:	root
+noc:		root
+security:	root
+hostmaster:	root
+#info:		postmaster
+#marketing:	postmaster
+#sales:		postmaster
+#support:	postmaster
+
+
+# trap decode to catch security attacks
+decode:		root
+
+# Person who should get roots mail
+#root:		marc
+'
+
+newaliases
+
+## IMAP4S proxy
+
+yum -y install perdition
+
+## TODO: install certtificates!!
+
+echo "Install you rcertificates for perdition! "
+
+set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
+## Logging settings
+
+# Turn on verbose debuging.
+debug
+#quiet
+
+# Log all comminication recieved from end-users or real servers or sent from perdition.
+# Note: debug must be in effect for this option to take effect.
+
+connection_logging
+
+log_facility mail
+
+## Basic settings
+
+bind_address 0.0.0.0 ## NOTE: possibly listen only on the external-facing interface, and local-dovecot only on 127.0.0.1
+
+domain_delimiter @
+
+
+#### IMPORTANT .. the symbolic link .so.0 does not work. Full path is needed to real file.
+map_library /usr/lib64/libperditiondb_posix_regex.so.0.0.0
+map_library_opt /etc/perdition/popmap.re
+
+no_lookup
+
+ok_line "Reverse-proxy IMAP4S service lookup OK!"
+
+protocol IMAP4S
+
+## If no matches found in popmap.re
+outgoing_server localhost
+
+## This is also doing some error reporting, but it works
+pid_file /var/run/perdition.pid
+
+strip_domain remote_login
+
+## For the default dovecot config, no ssl verification is needed
+ssl_no_cert_verify
+ssl_no_cn_verify
+'
+
+set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
+
+# (.*)@'$(hostname)': localhost
+
+## you may add email domains here that should be located at localhost.
+
+(.*)@(.*): $2
+'
+
+
+systemctl start perdition-imap4s.service
+systemctl status perdition-imap4s.service
+echo "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+
+## TODO: firewall-config. open tcp port 993 permanently
+
+## TODO install dovecot, add listen = 127.0.0.1 to dovecot.conf
+## and enable
+  # Postfix smtp-auth ### ENABLE with srvctl!
+  #unix_listener /var/spool/postfix/private/auth {
+  #  mode = 0666
+  #}
+
+## TODO Create SMTPD Auth proxy method
+
+## some quick links for root
+## this has no real imporance so it can be any directory for your convinience
+mkdir /shortcuts
+cd /shortcuts
+
+ln -s /srv
+ln -s /etc/hosts
+ln -s /etc/pound.cfg
+ln -s /etc/pound-certificates.cfg
+ln -s /etc/pound-includes.cfg
+ln -s /etc/pound
+ln -s /var/srvctl/srvctl srvctl-client
+ln -s /usr/bin/srvctl srvctl-server
+ln -s /usr/local/etc/lxc/lxc.conf
+ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
+ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
+
+
+
+fi # install
+
+
+## This is mainly for dev! This should be disabled in production!
+if [ "$1" == "reset-install" ]
+then
+
+ for C in $(ls $SRV)
+ do
+	lxc-stop -k -n $C
+ done
+
+ rm -rf /srv/*
+ rm -rf /root/.ssh/known_hosts
+ rm -rf /etc/pound/*
+
+ echo '## srvctl pound-certificates.cfg' > /etc/pound-certificates.cfg
+ echo '## srvctl pound-includes.cfg' > /etc/pound-includes.cfg
+ systemctl stop pound.service
+
+ echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
+ echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
+
+ echo 'DONE!'
+fi
+
+
+
+#### srvctl run functions
+
+## report status
+if [ "$1" == "status" ]
+then
+ for C in $(lxc-ls)
+ do
+	info=''
+	state='UNKNOWN'
+	ipv4=''
+	ip='MISSING'
+	ping_ms=''
+	ms='STOPPED'
+	pcs=''
+	ps=''
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	ipv4=$(cat $SRV/$C/config | grep "lxc.network.ipv4")
+	ip=${ipv4:19:-2}
+
+	if [ "$state" == "RUNNING" ]
+	then
+	ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
+	ms=${green}${ping_ms:23:5}"ms"${NC}
+	else
+	ms=${red}$state${NC}
+	fi
+
+	ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip | tail -c 5)
+ 	echo -e $C $ip $ms $ps
+
+ done	
+fi
+
+## startall
+if [ "$1" == "start-all" ]
+then
+ for C in $(lxc-ls)
+ do
+	info=''
+	state='UNKNOWN'
+	ipv4=''
+	ip='MISSING'
+	ping_ms=''
+	ms='STOPPED'
+	pcs=''
+	ps=''
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	ipv4=$(cat $SRV/$C/config | grep "lxc.network.ipv4")
+	ip=${ipv4:19:-2}
+
+	if [ "$state" == "RUNNING" ]
+	then
+	ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
+	ms=${green}${ping_ms:23:5}"ms"${NC}
+	else
+	lxc-start -n $C -d
+	ms="STARTED"
+	fi
+
+	ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip | tail -c 5)	
+ 	echo -e $C $ip $ms $ps
+
+ done	
+fi
+
+## killall
+if [ "$1" == "kill-all" ]
+then
+ for C in $(lxc-ls)
+ do
+	info=''
+	state='UNKNOWN'
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	if [ "$state" == "RUNNING" ]
+	then
+	lxc-stop -k -n $C
+	state="KILLING"
+	fi
+	
+ 	echo $C $state
+
+ done	
+fi
+
+## stopall
+if [ "$1" == "stop-all" ]
+then
+ for C in $(lxc-ls)
+ do
+
+	info=''
+	state='UNKNOWN'
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	if [ "$state" == "RUNNING" ]
+	then
+	ssh $C shutdown -P now
+	state="SHUTDWN"
+	fi
+	
+ 	echo $C $state
+
+ done	
+fi
+
+## exec-all 'something' (or with "")ssh  
+if [ "$1" == "exec-all" ]
+then
+ for C in $(lxc-ls)
+ do
+
+	info=''
+	state='UNKNOWN'
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	if [ "$state" == "RUNNING" ]
+	then
+ 	echo $C $state
+	ssh $C "$2"
+	else
+ 	echo $C $state
+	fi
+ done	
+fi
+
+## regenerate configs 
+if [ "$1" == "regenerate" ]
+then
+
+echo '' > $TMP/known_hosts
+
+ for C in $(lxc-ls)
+ do
+
+	info=''
+	state='UNKNOWN'
+
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+
+	if [ "$state" == "RUNNING" ]
+	then
+ 	echo $C $state
+
+## TODO fix here
+
+	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> $TMP/known_hosts &
+	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> $TMP/known_hosts &
+	else
+ 	echo $C $state
+	fi
+## TODO continiue
+	
+
+ done	
+fi
+
+## reMOVE host
+if [ "$1" == "remove" ]
+then
+
+if [ -z "$2" ]
+then
+    echo "No host supplied .."
+    exit
+fi
+
+lxc-stop -k -n $2
+
+sed_file /etc/pound-certificates.cfg 'Cert "/srv/'$2 '## REMOVED '$2' '$NOW
+sed_file /etc/pound-includes.cfg 'Include "/etc/pound/'$2'.conf"' '## REMOVED '$2' '$NOW
+
+rsync -a '/etc/pound/'$2'.conf' $TMP
+rm -fr '/etc/pound/'$2'.conf'
+
+if [ -d "$SRV/$2" ]; then
+  echo "Container folder does exists"
+  ## trash it! .. to TMP
+
+  rsync -a $SRV/$2 $TMP
+  rm -fr $SRV/$2 $TMP
+
+fi
+
+
+systemctl restart pound.service
+systemctl status pound.service
+
+
+fi ## reMOVE
+
+## add new host
+if [ "$1" == "add" ]
+then
+	if [ -d $SRV/$2 ]; then
+	  echo "$SRV/$2 already exists! Exiting"
+	  exit 11
+	fi
+
+	## $dn - domain name
+	dn=$(echo $2 | grep -P '(?=^.{6,254}$)(^(?:(?!\d+\.)[a-zA-Z0-9_\-]{1,63}\.?)+(?:[a-zA-Z]{2,})$)')
+	## Is'nt it a FQDN?
+
+	if [ -z "$dn" ]
+	then
+	  echo "$2 failed the domain regexp check. Exiting."
+	  exit 10
+	else
+	  echo "$dn is a valid domain name."
+	fi 
+
+
+	counter=$(($(cat /etc/srvctl/counter)+1))
+	echo $counter >  /etc/srvctl/counter
+
+	echo "Adding host #$counter $dn"
+
+	## This arguiment is given as enviroment variable
+	root_prompt_password=no
+
+	## templates are usually in /usr/local/share/lxc/templates, lxc-fedora-srv has to be installed!
+	lxc-create -n $dn -t fedora-srv
+
+	#mkdir -p $SRV/$dn 
+	
+	cfg=$SRV/$dn/config
+	rootfs=$SRV/$dn/rootfs
+
+	mac=$(to_mac $counter)
+	ip=$(to_ip $counter)	
+
+	echo "# Template for srvctl created fedora container" >	$cfg
+	echo "lxc.network.type = veth" >> $cfg
+	echo "lxc.network.flags = up" >> $cfg
+	echo "lxc.network.link = inet-br" >> $cfg
+	echo "lxc.network.hwaddr = 00:00:00:aa:"$mac >> $cfg
+	echo "" >> $cfg
+
+	echo "lxc.network.type = veth" >> $cfg
+	echo "lxc.network.flags = up" >> $cfg
+	echo "lxc.network.link = srv-net" >> $cfg
+	echo "lxc.network.hwaddr = 00:00:10:10:"$mac >> $cfg
+	echo "lxc.network.ipv4 = 10.10."$ip"/8" >> $cfg
+	echo "" >> $cfg
+
+	echo "lxc.rootfs = $SRV/$dn/rootfs" >> $cfg
+	echo "lxc.include = /usr/local/share/lxc/config/fedora.common.conf" >> $cfg
+	echo "lxc.utsname = $dn" >> $cfg
+	echo "lxc.autodev = 1" >> $cfg
+	echo "" >> $cfg
+	echo "lxc.mount.entry=/var/srvctl $SRV/$dn/rootfs/var/srvctl none ro,bind 0 0" >> $cfg
+
+
+	mkdir -m 700 $SRV/$dn/rootfs/root/.ssh
+	cat /root/.ssh/id_rsa.pub > $SRV/$dn/rootfs/root/.ssh/authorized_keys
+	chmod 700 $SRV/$dn/rootfs/root/.ssh/authorized_keys
+
+	## Container should be in the same timezone as the host.
+	rsync -a /etc/localtime $SRV/$dn/rootfs/etc
+
+	## Container should have the same aliases as the host. (Important here is to disable info)
+	rsync -a /etc/aliases $SRV/$dn/rootfs/etc
+	rsync -a /etc/aliases.db $SRV/$dn/rootfs/etc
+
+	cat '
+
+# srvctl setup - D250 Laboratories
+## Listen on ..
+inet_interfaces = all
+
+## If required Catch all mail defined in ..
+# virtual_alias_maps = hash:/etc/postfix/catchall
+
+## And send it to ..
+home_mailbox = Maildir/
+
+	' >> $SRV/$dn/rootfs/etc/postfix/main.cf
+
+	echo "@$dn root" > $SRV/$dn/rootfs/etc/postfix/catchall
+	postmap $SRV/$dn/rootfs/etc/postfix/catchall
+
+
+
+	## Add IP to hosts file
+	echo "10.10.$ip		$dn"  >> /etc/hosts
+	echo "10.10.$ip		mail.$dn"  >> /etc/hosts
+	echo ""  >> /etc/hosts
+
+	echo "$dn #$ip"  >> /etc/postfix/relaydomains
+
+	postmap /etc/postfix/relaydomains
+
+	## enable the webserver
+	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
+	ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
+	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
+	ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
+
+	## set (fix?) hostname
+	echo $dn > $rootfs/etc/hostname
+
+	## to ease life, we also have a mysql root password in this file
+	ln -s $rootfs/etc/mysqldump.conf $SRV/$dn
+
+	## and we keep a note about the owner
+	ln -s ./rootfs/etc/owner $SRV/$dn
+
+	
+	## set default index page 
+	index=$rootfs/var/www/html/index.html
+	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
+	<img src="lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
+	<p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">' > $index
+
+	echo '<b>'$dn'</b> @ '$(hostname) >> $index
+
+	echo '</font><p></body>' >> $index
+
+	cp /var/www/html/lablogo.png $rootfs/var/www/html
+	cp /var/www/html/favicon.ico $rootfs/var/www/html
+
+	## make the installation smaller	
+	rm $rootfs/usr/lib/locale/locale-archive
+	mkdir $rootfs/var/srvctl
+	ln -s /var/srvctl/locale-archive $rootfs/usr/lib/locale/locale-archive 
+	
+	rm -rf $rootfs/var/cache/yum/*
+
+	## add symlink to client-srvctl
+
+	ln -s /var/srvctl/srvctl $rootfs/bin/srvctl
+
+	## Prepare Certificate creation
+
+	mkdir $rootfs/etc/pki/https
+	##cd $rootfs/etc/pki/https
+
+	ssl_password="xxxxxx"
+	ssl_days=1085
+	ssl_random=$rootfs/etc/pki/https/random.txt
+	ssl_config=$rootfs/etc/pki/https/config.txt
+	ssl_key=$rootfs/etc/pki/https/$dn.key
+	ssl_org=$rootfs/etc/pki/https/$dn.key.org
+	ssl_crt=$rootfs/etc/pki/https/$dn.crt
+	ssl_csr=$rootfs/etc/pki/https/$dn.csr
+	ssl_pem=$rootfs/etc/pki/https/$dn.pem
+
+	set_file $ssl_config "       RANDFILE               = $ssl_random
+
+        [ req ]
+        default_bits           = 2048
+        default_keyfile        = keyfile.pem
+        distinguished_name     = req_distinguished_name
+        attributes             = req_attributes
+        prompt                 = no
+        output_password        = $ssl_password
+
+        [ req_distinguished_name ]
+        C                      = HU
+        ST                     = Hungary
+        L                      = Budapest
+        O                      = D250 Laboratories
+        OU                     = The Lab CA
+        CN                     = $dn
+        emailAddress           = webmaster@$dn
+
+ 	[ req_attributes ]
+        challengePassword              = A challenge password"
+
+
+	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
+
+	## Step 1: Generate a Private Key
+	openssl genrsa -des3 -passout pass:xxxxxx -out $ssl_key 2048
+
+	## Step 2: Generate a CSR (Certificate Signing Request)
+
+	openssl req -new -passin pass:$ssl_password -passout pass:$ssl_password -key $ssl_key -out $ssl_csr -days $ssl_days -config $ssl_config
+	
+	## Step 3: Remove Passphrase from Key
+
+	cp $ssl_key $ssl_org
+	openssl rsa -passin pass:$ssl_password -in $ssl_org -out $ssl_key	
+	
+	## Step 4: Generating a Self-Signed Certificate
+	## later on, use signed certificates, eg. verisign, startssl or netlock.hu
+	## To use your own CA openssl ca -batch -out $ssl_crt -config /etc/pki/[YOU_AS_CA]/openssl.cnf -passin pass:[YOU_AS_CA_PASS] -in $ssl_csr
+	## We will generate now a self-signed certificate
+	openssl x509 -req -days $ssl_days -passin pass:$ssl_password  -in $ssl_csr -signkey $ssl_key -out $ssl_crt
+
+	## Eventually create a certificate keychain in pem format
+	cat $ssl_key >  $ssl_pem
+	cat $ssl_crt >> $ssl_pem
+
+	set_file /etc/pound/$dn.conf '## srvctl '$dn'
+Service
+                  HeadRequire "Host:.*'$dn'.*"
+                  BackEnd
+                      Address 10.10.'$ip'
+                      Port    80
+                  End
+End'
+	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
+	echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-includes.cfg
+
+	systemctl restart pound.service
+	systemctl status pound.service
+
+# START ## Start the container maybe
+	lxc-start -n $dn -d	
+
+	echo "srvctl: $dn - 10.10."$ip" started."
+
+	## Add to host's root's known_hosts after the container booted
+	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts)) &
+	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> /root/.ssh/known_hosts)) &
+
+
+	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
+	## My attempts to do so, did not workk, therefore I kept this concept of the containers sitting together on srv-net with static IP's
+
+fi ## srvctl add
+
+
+
+exit
+
