@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-21:56:18
-# version 1.4.9
+# Last update:2014.04.06-22:01:15
+# version 1.5.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1463,10 +1463,14 @@ fi ## prefix wordpress URI
 if [ "$CMD" == "secure" ] && $onVE
 then
 
+
 systemctl stop mysqld.service
 
-mysqld_safe --skip-grant-tables &
+sleep 1000
 
+systemctl status mysqld.service
+mysqld_safe --skip-grant-tables &
+sleep 1000
 
 ## generate password on array based variable
 declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
@@ -1474,7 +1478,7 @@ l=${#arr[@]}
 pw=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
 
 
-echo "Set database root password to: "$pw
+log "Set database root password to: "$pw
 
 mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
 mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
