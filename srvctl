@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-22:01:15
-# version 1.5.0
+# Last update:2014.04.06-22:04:34
+# version 1.5.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1466,11 +1466,11 @@ then
 
 systemctl stop mysqld.service
 
-sleep 1000
+sleep 1
 
 systemctl status mysqld.service
 mysqld_safe --skip-grant-tables &
-sleep 1000
+sleep 1
 
 ## generate password on array based variable
 declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
