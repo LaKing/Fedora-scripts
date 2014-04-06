@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-06:35:06
-# version 1.4.6
+# Last update:2014.04.06-06:45:56
+# version 1.4.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1516,9 +1516,11 @@ fi ## mailconf
 if [ "$CMD" == "backup" ] && $onVE
 then
 
-old_backup=$(ls -d /var/www/backup/*)
+log "Creating backup of Mysql/Mariadb databases."
 
-BACKUP_POINT="/var/www/backup/"$(date +%Y_%m_%d__%H_%M_%S)
+old_backup=$(ls -d /root/backup/*)
+
+BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
 mkdir -p $BACKUP_POINT
 
 ## All Databases into a single file?
@@ -1541,7 +1543,7 @@ for i in `echo "show databases" | mysql --defaults-file=/etc/mysqldump.conf | gr
     fi
 done
 
-if [ "$succ" -gt 0 ]
+if [ $succ -gt 0 ]
 then
     echo 'All databases have a backup in '$BACKUP_POINT
 
