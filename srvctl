@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-06:09:30
-# version 1.4.5
+# Last update:2014.04.06-06:35:06
+# version 1.4.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -714,6 +714,7 @@ log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem
 
 ## TODO Create SMTPD Auth proxy method
 
+log "Creating devel-shortcuts in /shortcuts"
 ## some quick links for root
 ## this has no real imporance so it can be any directory for your convinience
 mkdir /shortcuts
@@ -732,9 +733,18 @@ ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
 ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
 
 
+log "Reboot required. Please verify srv-net functionality."
+
+if [ -s /root/.ssh/authorized_keys  ]
+then
+  log "ATTENTION! Disabled password based ssh login. ADD YOUR SSH KEY!"
+  sed_file /etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
+  echo "Note: to undo, you may run:  cat /etc/ssh/sshd_config.bak > /etc/ssh/sshd_config"
+fi
 
 fi # install
 
+#### COMMANDS ####
 
 ## This is mainly for dev! This should be disabled in production!
 if [ "$CMD" == "reset-install" ] && $onHS
