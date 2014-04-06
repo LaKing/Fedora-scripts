@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-03:50:46
-# version 1.4.3
+# Last update:2014.04.06-04:15:03
+# version 1.4.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1026,10 +1026,15 @@ then
 
 
 	## This arguiment is given as enviroment variable
-	root_prompt_password=no
+	#root_prompt_password=no
 
+
+	log "Create container."
 	## templates are usually in /usr/local/share/lxc/templates, lxc-fedora-srv has to be installed!
 	lxc-create -n $dn -t fedora-srv
+
+	log "Container created."
+	## TODO check, if it really is.
 
 	#mkdir -p $SRV/$dn 
 	
@@ -1104,7 +1109,7 @@ home_mailbox = Maildir/
 	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
 	ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
 	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
-	ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
+	##ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
 
 	## set (fix?) hostname
 	echo $dn > $rootfs/etc/hostname
@@ -1141,6 +1146,7 @@ home_mailbox = Maildir/
 	ln -s /var/srvctl/srvctl $rootfs/bin/srvctl
 
 	## Prepare Certificate creation
+	log "Create certificate."
 
 	mkdir $SRV/$dn/cert
 	##cd $SRV/$dn/cert
@@ -1219,19 +1225,25 @@ End'
 	  echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-pridomains.cfg
 	fi
 
+	log "Restarting Pound."
 	restart_pound
 	
 
-# START ## Start the container maybe
+	#### START #### 
+	log "Starting container."	
+
+	## Start the container maybe
 	lxc-start -n $dn -d	
 
-	echo "srvctl: $dn - 10.10."$ip" started."
+	# TODO install and configure dovecot
+
+	log "$dn - 10.10."$ip" started."
 
 	## Add to host's root's known_hosts after the container booted
 	echo '' >> /root/.ssh/known_hosts
 	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts)) &
 	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> /root/.ssh/known_hosts)) &
-
+	
 
 	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
 	## My attempts to do so, did not workk, therefore I kept this concept of the containers sitting together on srv-net with static IP's
