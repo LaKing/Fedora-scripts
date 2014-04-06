@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-04:15:03
-# version 1.4.4
+# Last update:2014.04.06-06:09:30
+# version 1.4.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -725,7 +725,6 @@ ln -s /etc/pound.cfg
 ln -s /etc/pound-certificates.cfg
 ln -s /etc/pound-pridomains.cfg
 ln -s /etc/pound-subdomains.cfg
-ln -s /etc/pound
 ln -s /var/srvctl/srvctl srvctl-client
 ln -s /usr/bin/srvctl srvctl-server
 ln -s /usr/local/etc/lxc/lxc.conf
@@ -970,19 +969,18 @@ argument dn
 
 lxc-stop -k -n $ARG
 
-sed_file /etc/pound-certificates.cfg 'Cert "/srv/'$dn '## REMOVED '$dn' '$NOW
-sed_file /etc/pound-pridomains.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
-sed_file /etc/pound-subdomains.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-certificates.cfg  'Cert "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-pridomains.cfg 'Include "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-subdomains.cfg 'Include "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
 
-rsync -a '/etc/pound/'$dn'.conf' $TMP
-rm -fr '/etc/pound/'$dn'.conf'
+
 
 if [ -d "$SRV/$dn" ]; then
   echo "Container folder does exists"
   ## trash it! .. to TMP
 
   rsync -a $SRV/$dn $TMP
-  rm -fr $SRV/$dn $TMP
+  rm -fr $SRV/$dn
 
 fi
 
@@ -1208,7 +1206,7 @@ home_mailbox = Maildir/
 	cat $ssl_key >  $ssl_pem
 	cat $ssl_crt >> $ssl_pem
 
-	set_file /etc/pound/$dn.conf '## srvctl '$dn'
+	set_file $SRV/$dn/pound '## srvctl '$dn'
 Service
                   HeadRequire "Host:.*'$dn'.*"
                   BackEnd
@@ -1220,9 +1218,9 @@ End'
 
 	if $SUBDOMAIN 
 	then
-	  echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-subdomains.cfg
+	  echo 'Include "'$SRV'/'$dn'/pound' >> /etc/pound-subdomains.cfg
 	else
-	  echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-pridomains.cfg
+	  echo 'Include "'$SRV'/'$dn'/pound' >> /etc/pound-pridomains.cfg
 	fi
 
 	log "Restarting Pound."
