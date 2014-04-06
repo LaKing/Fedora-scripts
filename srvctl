@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-02:32:35
-# version 1.4.2
+# Last update:2014.04.06-03:50:46
+# version 1.4.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -382,7 +382,9 @@ root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RAND
     sed_file lxc-fedora-srv 'Edit the config file to check/enable networking setup.' 'exit 0'
 
     ## Add additional default packages - NOTE: After modifocation of this in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
-    sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail dovecot"'
+    sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail"'
+
+## TODO / ISSUE : dovecot can not be added, as it freezes the install process
 
 
     log "Install Pound Reverse Proxy for HTTP" 
@@ -1226,6 +1228,7 @@ End'
 	echo "srvctl: $dn - 10.10."$ip" started."
 
 	## Add to host's root's known_hosts after the container booted
+	echo '' >> /root/.ssh/known_hosts
 	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts)) &
 	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> /root/.ssh/known_hosts)) &
 
