@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.03.31-15:59:48
-# version 1.3.5
+# Last update:2014.04.06-02:31:16
+# version 1.4.1
 #
 # Installer script for Fedora
 #
@@ -216,18 +216,18 @@ function sed_file {
 }
 
 function add_conf {
-    ## check if the content string is present, and add if necessery
+    ## check if the content string is present, and add if necessery. Single-line content only.
     ## filename=$1 content=$2
 
     if [ -f $1 ];
      then bak $1
     fi
 
-    if grep -q $2 "$1"; then
-     echo "adding "$1
-     echo "$2" > $1
+    if grep -q "$2" $1; then
+     echo $1" already has "$2
     else
-     echo $1" already has "$1
+     echo "adding "$2
+     echo "$2" >> $1
     fi
 }
 

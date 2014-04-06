@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.05-06:53:51
-# version 1.3.9
+# Last update:2014.04.06-02:31:16
+# version 1.4.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -24,7 +24,7 @@ fi
 if [ -z "$1" ]
   then
     echo "srvctl command [argument]"
-    ## TODO a more detailed manul. .)
+    ## TODO a more detailed manual. .)
 fi
 
 
@@ -70,6 +70,15 @@ ARG=$2
 
 ## Lablib functions
 
+## constants
+
+green='\e[32m'
+red='\e[31m'
+blue='\e[34m'
+yellow='\e[33m'
+
+NC='\e[0m' # No Color
+
 function bak {
     ## create a backup of the file, with the same name, same location .bak extension
     ## filename=$1
@@ -99,28 +108,34 @@ function sed_file {
 }
 
 function add_conf {
-    ## check if the content string is present, and add if necessery
+    ## check if the content string is present, and add if necessery. Single-line content only.
     ## filename=$1 content=$2
 
     if [ -f $1 ];
      then bak $1
     fi
 
-    if grep -q $2 "$1"; then
-     echo "adding "$1
-     echo "$2" > $1
+    if grep -q "$2" $1; then
+     echo $1" already has "$2
     else
-     echo $1" already has "$1
+     echo "adding "$2
+     echo "$2" >> $1
     fi
 }
 
+function log {
+    ## create a log entry
+    echo -e ${yellow}$1${NC}
+    echo $NOW': '$1 >> $LOG
+}
+
+function err {
+    ## create a log entry
+    echo -e ${red}$1${NC}
+    echo $NOW': '$1 >> $LOG
+}
+
 ## Lablib functions end here.
-
-## constants
-
-green='\e[0;32m'
-red='\e[0;31m'
-NC='\e[0m' # No Color
 
 ## srvctl functions
 
@@ -167,14 +182,17 @@ function restart_pound {
 	  ## bak files are for humans, we do a last-cfg here.
 	
 	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.last-cfg
-	  cat /etc/pound-includes.cfg >  /etc/pound-includes.last-cfg 	
-
+	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.last-cfg 	
+	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.last-cfg 
 	else
 
 	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.fail-cfg
-	  cat /etc/pound-includes.cfg >  /etc/pound-includes.fail-cfg
+	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.fail-cfg
+	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.fail-cfg
+
 	  cat /etc/pound-certificates.last-cfg > /etc/pound-certificates.cfg
-	  cat /etc/pound-includes.last-cfg >  /etc/pound-includes.cfg
+	  cat /etc/pound-pridomains.last-cfg >  /etc/pound-pridomains.cfg
+	  cat /etc/pound-subdomains.last-cfg >  /etc/pound-subdomains.cfg
 
 	  systemctl restart pound.service
 
@@ -188,9 +206,16 @@ function restart_pound {
 
 ## srvctl functions end here.
 
-echo "Running $0 $1 $2 $3 $4 $5 $6 ( $SRV $TMP $LOG ) $(hostname) VE: $onVE"
+log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2"
 
 
+if [ "$CMD" == "--version" ] && $onHS
+then
+
+  echo 'srvctl: '$(head $0 | grep "# version ")
+  echo 'LXC: '$(lxc-info --version)
+
+fi
 
 if [ "$CMD" == "uninstall" ] && $onHS
 then
@@ -205,7 +230,7 @@ then
 
 fi
 
-if [ "$CMD" == "install-init" ] && $onHS
+if [ "$CMD" == "update-install" ] && $onHS
 then
 
 ### WEB
@@ -217,6 +242,7 @@ then
     #yum -y install lxc lxc-templates
 
     ## packages needed for compilation and for running
+    log "Install Development Tools"
     yum -y groupinstall "Development Tools"
     yum -y install automake
     yum -y install graphviz
@@ -225,8 +251,11 @@ then
     ## to compile it from source
     ## git clone git://github.com/lxc/lxc
 
+
     ## we use a version-release now.
     ver="1.0.2"
+
+    log "Install LXC "$ver
 
     cd /root
     rm -rf lxc
@@ -235,61 +264,25 @@ then
     unzip lxc-$ver.zip
     mv lxc-lxc-$ver lxc
  
-    cd lxc 
+    cd lxc
+
+    log "LXC-building: autogen"
     ./autogen.sh
+
+    log "LXC-building: configure"
     ./configure
+
+    log "LXC-building: make"
     make
+
+    log "LXC-building: install"
     make install
 
     ## Add export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
     #echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" >> /root/.bash_profile
     add_conf "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" /root/.bash_profile
 
-
-    ## enable networking via libvirt
-    yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
-
-    defnet=/etc/libvirt/qemu/networks/default.xml
-
-    ## TODO check if file .. is already set up
-    bak $defnet
-    head -n 5 $defnet.bak > $defnet
-    echo '  <ip address="10.10.0.1" netmask="255.255.0.0">' >> $defnet
-    echo '    <dhcp>' >> $defnet
-    echo '      <range start="10.10.0.2" end="10.10.0.254"/>' >> $defnet
-    echo '    </dhcp>' >> $defnet
-    echo '  </ip>' >> $defnet
-    echo '</network>' >> $defnet
-
-    systemctl restart libvirtd.service
-    systemctl enable libvirtd.service
-
-#### RESTART REQUIRED HERE
-
-    ## reverse proxy
-    yum -y install Pound
-
-    ## srvctl
-    mkdir -p /etc/srvctl
-
-    if [ -f /etc/srvctl/counter ];
-    then
-     echo "Counter exists."
-    else
-     echo "Counter does not exist. Creating."
-     echo '0' > /etc/srvctl/counter
-    fi
-
-    ## setup srvctl enviroment
-    mkdir -p $SRV
-    mkdir -p $TMP
-    mkdir -p /var/srvctl
-    mkdir -p /etc/srvctl
-
-    ## this will save a little space. 
-    cp /usr/lib/locale/locale-archive /var/srvctl 
-
-    ## TODO: I'm not a distro engineer, but I think there is space for optimalisation.
+    log "Configure libvirt network"
 
 ## Networking with libvirt
 	yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
@@ -315,7 +308,8 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
   <mac address="00:00:10:10:00:01"/>
   <forward/>
   <ip address="10.10.0.1" netmask="255.255.0.0"></ip>
-</network>'
+</network>
+'
 
 ## TODO, .. I think the primary interface - with a gateway - is enough. The default should be kept though.
 
@@ -324,6 +318,32 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
     systemctl enable libvirtd.service
     systemctl start  libvirtd.service
     systemctl status libvirtd.service
+
+
+#### RESTART REQUIRED HERE
+
+    ## srvctl
+    mkdir -p /etc/srvctl
+
+    if [ -f /etc/srvctl/counter ];
+    then
+     log "Counter exists."
+    else
+     log "Counter does not exist. Creating."
+     echo '0' > /etc/srvctl/counter
+    fi
+
+    ## setup srvctl enviroment
+    mkdir -p $SRV
+    mkdir -p $TMP
+    mkdir -p /var/srvctl
+    mkdir -p /etc/srvctl
+
+    ## this will save a little space. 
+    cp /usr/lib/locale/locale-archive /var/srvctl 
+
+    ## TODO: I'm not a distro engineer, but I think there is space for optimalisation.
+
 
     ## default path for containers
 
@@ -336,6 +356,8 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
     if [ ! -f /root/.ssh/id_rsa.pub ]; then
     ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
     fi
+
+    log "Create Custom template"
 
     ## Customisations in our template
     cd /usr/local/share/lxc/templates
@@ -351,7 +373,7 @@ root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RAND
     chmod 755 lxc-fedora-srv
 
     cat lxc-fedora >> lxc-fedora-srv
-## TODO remove second #!/bin/bash
+    ## cosmetical TODO remove second #!/bin/bash
 
     ## disable the root password redefining force
     sed_file lxc-fedora-srv 'chroot $rootfs_path passwd -e root' '## srvctl-disabled: chroot $rootfs_path passwd -e root'
@@ -362,6 +384,8 @@ root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RAND
     ## Add additional default packages - NOTE: After modifocation of this in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
     sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail dovecot"'
 
+
+    log "Install Pound Reverse Proxy for HTTP" 
 
     ## The pound-served custom error documents
 
@@ -391,6 +415,7 @@ The service is not available. Please try again later.
     bak /etc/pound.cfg
 
     mkdir /etc/pound
+
 
     set_file /etc/pound.cfg '## srvctl pound.cfg
 User "pound"
@@ -424,11 +449,14 @@ ListenHTTPS
 
 End
 
-Include "/etc/pound-includes.cfg"
+Include "/etc/pound-pridomains.cfg"
+Include "/etc/pound-subdomains.cfg"
+
+#Include the default host here."
 '
 	echo '## srvctl pound-certificates.cfg' >> /etc/pound-certificates.cfg
-	echo '## srvctl pound-includes.cfg' >> /etc/pound-includes.cfg
-
+	echo '## srvctl primary domains' >> /etc/pound-pridomains.cfg
+	echo '## srvctl subdomains' >> /etc/pound-subdomains.cfg
 	systemctl enable pound.service
 
     ## You can increase the amount of open files and thus the amount of client connections by using "ulimit -n ". 
@@ -443,7 +471,19 @@ Include "/etc/pound-includes.cfg"
 
 yum -y install postfix
 
-set_file /etc/postfix/main.cf '## srvctl configuration directives
+pc=/etc/postfix/main.cf
+
+sed_file $pc 'inet_interfaces = localhost' '#inet_interfaces = localhost'
+
+
+if grep -q  '## srvctl postfix configuration directives' $pc; then
+ log "Skipping Postfix configuration, as it seems to be configured."
+else
+
+echo '
+## srvctl postfix configuration directives
+## RECIEVING
+
 ## Listen on ..
 inet_interfaces = all
 
@@ -453,12 +493,42 @@ smtp_host_lookup = native
 
 ## dont forget to postmap /etc/postfix/relaydomains
 relay_domains = $mydomain, hash:/etc/postfix/relaydomains
-'
+
+## SENDING
+## SMTPS
+smtpd_tls_CAfile =    /etc/postfix/postfix-ca-bundle.pem
+smtpd_tls_cert_file = /etc/postfix/postfix.crt.pem
+smtpd_tls_key_file =  /etc/postfix/postfix.key.pem
+smtpd_tls_security_level = may
+smtpd_use_tls = yes
+
+## We use cyrus for PAM authentication of local users
+smtpd_sasl_type = cyrus
+
+## We could use dovecot too.
+#smtpd_sasl_type = dovecot
+#smtpd_sasl_path = private/auth
+
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_authenticated_header = yes
+smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated
+##, check_recipient_access, reject_unauth_destination
+smtpd_sasl_local_domain = d250.hu
+
+## Max 25MB mail size
+message_size_limit=26214400 
+' >> $pc
+
+fi
+
+
+echo '# srvctl postfix relaydomains' >> /etc/postfix/relaydomains
 
 postmap /etc/postfix/relaydomains
 systemctl enable postfix.service
 systemctl start postfix.service
 
+log "Set /etc/aliases"
 
 ## We will mainly use these files to copy over to clients. Main thing is: info should not be aliased.
 set_file /etc/aliases '
@@ -576,7 +646,7 @@ set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
 ## Logging settings
 
 # Turn on verbose debuging.
-debug
+#debug
 #quiet
 
 # Log all comminication recieved from end-users or real servers or sent from perdition.
@@ -588,7 +658,8 @@ log_facility mail
 
 ## Basic settings
 
-bind_address 0.0.0.0 ## NOTE: possibly listen only on the external-facing interface, and local-dovecot only on 127.0.0.1
+## NOTE: possibly listen only on the external-facing interface, and local-dovecot only on 127.0.0.1
+bind_address 0.0.0.0 
 
 domain_delimiter @
 
@@ -625,10 +696,10 @@ set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
 (.*)@(.*): $2
 '
 
-
+systemctl enable perdition-imap4s.service
 systemctl start perdition-imap4s.service
 systemctl status perdition-imap4s.service
-echo "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
 
 ## TODO: firewall-config. open tcp port 993 permanently
 
@@ -650,7 +721,8 @@ ln -s /srv
 ln -s /etc/hosts
 ln -s /etc/pound.cfg
 ln -s /etc/pound-certificates.cfg
-ln -s /etc/pound-includes.cfg
+ln -s /etc/pound-pridomains.cfg
+ln -s /etc/pound-subdomains.cfg
 ln -s /etc/pound
 ln -s /var/srvctl/srvctl srvctl-client
 ln -s /usr/bin/srvctl srvctl-server
@@ -667,6 +739,10 @@ fi # install
 if [ "$CMD" == "reset-install" ] && $onHS
 then
 
+### As I said, ONLY if you really need this.
+log "WARNING! Command disabled."
+exit
+
  for C in $(ls $SRV)
  do
 	lxc-stop -k -n $C
@@ -677,7 +753,9 @@ then
  rm -rf /etc/pound/*
 
  echo '## srvctl pound-certificates.cfg' > /etc/pound-certificates.cfg
- echo '## srvctl pound-includes.cfg' > /etc/pound-includes.cfg
+ echo '## srvctl pound-pridomains.cfg' > /etc/pound-pridomains.cfg
+ echo '## srvctl pound-subdomains.cfg' > /etc/pound-subdomains.cfg
+
  systemctl stop pound.service
 
  echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
@@ -891,7 +969,8 @@ argument dn
 lxc-stop -k -n $ARG
 
 sed_file /etc/pound-certificates.cfg 'Cert "/srv/'$dn '## REMOVED '$dn' '$NOW
-sed_file /etc/pound-includes.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-pridomains.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
+sed_file /etc/pound-subdomains.cfg 'Include "/etc/pound/'$dn'.conf"' '## REMOVED '$dn' '$NOW
 
 rsync -a '/etc/pound/'$dn'.conf' $TMP
 rm -fr '/etc/pound/'$dn'.conf'
@@ -913,10 +992,10 @@ fi ## reMOVE
 if [ "$CMD" == "add" ] && $onHS
 then
 
-argument dn 
+	argument dn 
 
 	if [ -d $SRV/$dn ]; then
-	  echo "$SRV/$dn already exists! Exiting"
+	  err "$SRV/$dn already exists! Exiting"
 	  exit 11
 	fi
 
@@ -926,17 +1005,23 @@ argument dn
 
 	if [ -z "$dn" ]
 	then
-	  echo "$dn failed the domain regexp check. Exiting."
+	  err "$dn failed the domain regexp check. Exiting."
 	  exit 10
-	else
-	  echo "$dn is a valid domain name."
-	fi 
-
+	fi
 
 	counter=$(($(cat /etc/srvctl/counter)+1))
 	echo $counter >  /etc/srvctl/counter
 
-	echo "Adding host #$counter $dn"
+	if (( $(echo $dn | grep -o "\." | grep -c "\.") > 1 )) 
+	then 
+	SUBDOMAIN=true
+	log "Adding subdomain #$counter $dn"
+	else
+	SUBDOMAIN=false
+	log "Adding domain #$counter $dn"
+	fi
+
+
 
 	## This arguiment is given as enviroment variable
 	root_prompt_password=no
@@ -952,7 +1037,7 @@ argument dn
 	mac=$(to_mac $counter)
 	ip=$(to_ip $counter)	
 
-	echo "# Template for srvctl created fedora container" >	$cfg
+	echo "# Template for srvctl created fedora container #"$counter >	$cfg
 	echo "lxc.network.type = veth" >> $cfg
 	echo "lxc.network.flags = up" >> $cfg
 	echo "lxc.network.link = inet-br" >> $cfg
@@ -987,7 +1072,7 @@ argument dn
 
 	cat '
 
-# srvctl setup - D250 Laboratories
+# srvctl configuration
 ## Listen on ..
 inet_interfaces = all
 
@@ -1124,7 +1209,13 @@ Service
                   End
 End'
 	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
-	echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-includes.cfg
+
+	if $SUBDOMAIN 
+	then
+	  echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-subdomains.cfg
+	else
+	  echo 'Include "/etc/pound/'$dn'.conf"' >> /etc/pound-pridomains.cfg
+	fi
 
 	restart_pound
 	
