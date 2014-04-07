@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.06-22:04:34
-# version 1.5.1
+# Last update:2014.04.07-02:42:28
+# version 1.6.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -800,38 +800,158 @@ fi ## start
 
 #### srvctl run functions
 
-## report status
-if [ "$CMD" == "status" ] && $onHS
-then
- for C in $(lxc-ls)
- do
-	info=''
-	state='UNKNOWN'
+
+function set_is_running {
+	
+	info=$(lxc-info -s -n $C)
+	state=${info:16}
+	if [ "$state" == "RUNNING" ]
+	then
+	  is_running=true
+	else
+	  is_running=false
+	fi
+}
+
+
+function get_info {
+
+	printf ${NC}"%-48s"${NC} $C
+}
+
+function get_ip {
+
 	ipv4=''
-	ip='MISSING'
-	ping_ms=''
+	ip=$(cat $SRV/$C/config.ipv4)
+
+	if [ -z $ip ] 
+	then
+	  ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
+	  ip=${ipv4:19:-2}
+	  echo $ip > $SRV/$C/config.ipv4
+	fi
+
+	printf ${NC}"%-14s"${NC} $ip
+
+}
+
+function get_state {
+
 	ms='STOPPED'
 	pcs=''
-	ps=''
+	msc=${red}	
+
+	ip=$(cat $SRV/$C/config.ipv4)
 
 	info=$(lxc-info -s -n $C)
 	state=${info:16}
 
-	ipv4=$(cat $SRV/$C/config | grep "lxc.network.ipv4")
-	ip=${ipv4:19:-2}
-
-	if [ "$state" == "RUNNING" ]
+	if [ "$state" == "RUNNING" ] && [ ! -z "$ip" ]
 	then
 	ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
-	ms=${green}${ping_ms:23:5}"ms"${NC}
+	msc=$green
+	ms=${ping_ms:23:5}"ms"
 	else
-	ms=${red}$state${NC}
+	ms=$state
 	fi
+	
+	printf ${msc}"%-8s"${NC} $ms
 
-	ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip | tail -c 5)
- 	echo -e $C $ip $ms $ps
 
- done	
+}
+
+function get_pound_state {
+
+	ps='none'
+	if [ ! -z $ip ] 
+	then
+	  ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip'' | tail -c 5)
+	  
+	fi
+	printf ${yellow}"%-5s"${NC} $ps
+
+}
+
+function get_disk_usage {
+
+	du=$(du -hs $SRV/$C | head -c 4 )
+
+	printf ${yellow}"%-5s"${NC} $du
+}
+
+function get_dig {
+
+	dig=$(nslookup $C | grep -A 3 answer | tail -n 2 | head -n 1)
+
+	printf ${yellow}"%-16s"${NC} ${dig:10}
+}
+
+function get_users {
+
+	touch $SRV/$C/users
+
+	users=$(cat $SRV/$C/users | sed ':a;N;$!ba;s/\n/|/g')
+
+	printf ${yellow}"%-16s"${NC} ${users:0:16}
+}
+
+## report status
+if [ "$CMD" == "status" ] && $onHS
+then
+	echo ''
+
+	printf ${yellow}"%-8s"${NC} "STATUS"
+	printf ${yellow}"%-48s"${NC} "HOSTNAME"
+	
+	echo ''
+
+ for C in $(lxc-ls)
+ do
+	get_state
+	get_info
+
+	echo ''
+ done
+
+	echo ''
+	
+fi
+
+## report status
+if [ "$CMD" == "status-all" ] && $onHS
+then
+	echo "hostname: "$(hostname)
+	echo "Uptime:   "$(uptime)
+	free -h | head -n 2
+
+	echo ''
+
+	printf ${yellow}"%-16s"${NC} "DNSLOOKUP"
+	printf ${yellow}"%-14s"${NC} "IP-LOCAL"
+	printf ${yellow}"%-5s"${NC} "HTTP"
+	printf ${yellow}"%-5s"${NC} "DISK"
+	printf ${yellow}"%-16s"${NC} "USERs"
+	printf ${yellow}"%-8s"${NC} "STATUS"
+
+	printf ${yellow}"%-48s"${NC} "HOSTNAME"
+	
+	echo ''
+
+ for C in $(lxc-ls)
+ do
+	get_dig
+	get_ip
+	get_pound_state
+	get_disk_usage
+	get_users
+	get_state
+	get_info
+
+	echo ''
+ done
+
+	echo ''
+	
 fi
 
 ## startall
@@ -839,32 +959,25 @@ if [ "$CMD" == "start-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
-	info=''
-	state='UNKNOWN'
-	ipv4=''
-	ip='MISSING'
-	ping_ms=''
-	ms='STOPPED'
-	pcs=''
-	ps=''
 
-	info=$(lxc-info -s -n $C)
-	state=${info:16}
-
-	ipv4=$(cat $SRV/$C/config | grep "lxc.network.ipv4")
-	ip=${ipv4:19:-2}
-
-	if [ "$state" == "RUNNING" ]
+	set_is_running
+	
+	if ! $is_running
 	then
-	ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
-	ms=${green}${ping_ms:23:5}"ms"${NC}
+	  printf ${yellow}"%-8s"${NC} "STARTED"	
 	else
-	lxc-start -n $C -d
-	ms="STARTED"
+	  get_state
+	fi	
+
+	get_info
+
+	if ! $is_running
+	then
+	  lxc-start -n $C -d
 	fi
 
-	ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip | tail -c 5)	
- 	echo -e $C $ip $ms $ps
+	echo ''
+
 
  done	
 fi
@@ -874,19 +987,25 @@ if [ "$CMD" == "kill-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
-	info=''
-	state='UNKNOWN'
 
-	info=$(lxc-info -s -n $C)
-	state=${info:16}
+	set_is_running
 
-	if [ "$state" == "RUNNING" ]
+	if $is_running
 	then
-	lxc-stop -k -n $C
-	state="KILLING"
+	  printf ${yellow}"%-8s"${NC} "KILLING"		
+	else
+	get_state
 	fi
+
+	get_info
+
+	if $is_running
+	then
+	  lxc-stop -k -n $C
+	fi
+
+	echo ''	
 	
- 	echo $C $state
 
  done	
 fi
@@ -897,19 +1016,50 @@ then
  for C in $(lxc-ls)
  do
 
-	info=''
-	state='UNKNOWN'
+	set_is_running
 
-	info=$(lxc-info -s -n $C)
-	state=${info:16}
-
-	if [ "$state" == "RUNNING" ]
+	if $is_running
 	then
-	ssh $C shutdown -P now
-	state="SHUTDWN"
+	  printf ${yellow}"%-8s"${NC} "SHUTDWN"	
+	else 
+	get_state
 	fi
-	
- 	echo $C $state
+
+	get_info
+
+	if $is_running
+	then
+	  ssh $C shutdown -P now
+	fi
+
+	echo ''	
+
+ done	
+fi
+
+## stopall
+if [ "$CMD" == "reboot-all" ] && $onHS
+then
+ for C in $(lxc-ls)
+ do
+
+	set_is_running
+
+	if $is_running
+	then
+	  printf ${yellow}"%-8s"${NC} "REBOOT!"	
+	else 
+	get_state
+	fi
+
+	get_info
+
+	if $is_running
+	then
+	  ssh $C reboot
+	fi
+
+	echo ''	
 
  done	
 fi
@@ -923,19 +1073,15 @@ argument command
  for C in $(lxc-ls)
  do
 
-	info=''
-	state='UNKNOWN'
-
-	info=$(lxc-info -s -n $C)
-	state=${info:16}
-
-	if [ "$state" == "RUNNING" ]
-	then
- 	echo $C $state
 	ssh $C "$ARG"
-	else
- 	echo $C $state
-	fi
+
+	get_ip
+	get_pound_state
+	get_state
+	get_info
+
+	echo ''	
+
  done	
 fi
 
@@ -1022,6 +1168,8 @@ then
 	counter=$(($(cat /etc/srvctl/counter)+1))
 	echo $counter >  /etc/srvctl/counter
 
+	echo $counter > $SRV/$dn/config.counter
+
 	if (( $(echo $dn | grep -o "\." | grep -c "\.") > 1 )) 
 	then 
 	SUBDOMAIN=true
@@ -1051,6 +1199,8 @@ then
 
 	mac=$(to_mac $counter)
 	ip=$(to_ip $counter)	
+
+	echo "10.10."$ip > $SRV/$dn/config.ipv4
 
 	echo "# Template for srvctl created fedora container #"$counter >	$cfg
 	echo "lxc.network.type = veth" >> $cfg
@@ -1464,13 +1614,37 @@ if [ "$CMD" == "secure" ] && $onVE
 then
 
 
+
+test=$(mysql --defaults-file=/etc/mysqldump.conf -e "show databases" | grep Database)
+
+if [ "$test" == "Database" ] 
+then
+echo OK
+exit
+else
+echo "Could not enter mysql!"
+fi
+
 systemctl stop mysqld.service
 
 sleep 1
 
-systemctl status mysqld.service
+#systemctl status mysqld.service
+
 mysqld_safe --skip-grant-tables &
-sleep 1
+
+sleep 10
+
+test=$(mysql --defaults-file=/etc/mysqldump.conf -e "show databases" | grep Database)
+if [ "$test" == "Database" ] 
+then
+echo OK
+
+else
+echo "Could not re-enter mysql!"
+exit
+fi
+
 
 ## generate password on array based variable
 declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
@@ -1480,9 +1654,9 @@ pw=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]
 
 log "Set database root password to: "$pw
 
-mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
-mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-mysql -u root -e "DROP DATABASE test;"
+#mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
+#mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+#mysql -u root -e "DROP DATABASE test;"
 
 SQL="UPDATE mysql.user SET Password=PASSWORD('$pw') WHERE User='root'; flush privileges;"
 mysql -u root -e "$SQL"
@@ -1494,6 +1668,8 @@ conf=/etc/mysqldump.conf
 echo '[client]' > $conf
 echo 'user=root' >> $conf
 echo 'password='$pw >> $conf
+
+
 
 
 reboot
