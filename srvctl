@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-07:56:12
-# version 1.6.6
+# Last update:2014.04.07-08:07:31
+# version 1.6.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1331,12 +1331,16 @@ then
 
 		cert_status=$(openssl verify $SRV/$C/cert/$C.pem | tail -n 1)
 
+		
+
 		if [ "$cert_status" == "OK" ]
 		then 
 			echo 'Cert "'$SRV/$C/cert/$C.pem'"' >> $TMP/pound-certificates.cfg
 		else
-			echo "ERROR - CERTIFICATE CHECK FAILED ON "$C
-			all_ok=false
+			## TODO check! Pound accepts certificates without ca-certs, openssl verify does not! ass -CACert option? 
+			echo 'Cert "'$SRV/$C/cert/$C.pem'"' >> $TMP/pound-certificates.cfg
+			echo "WARNING! - CERTIFICATE CHECK FAILED ON "$C
+			#all_ok=false .. for now we degrade this error to a warning.
 		fi
 
 
