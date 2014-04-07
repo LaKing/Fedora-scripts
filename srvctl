@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-07:38:51
-# version 1.6.5
+# Last update:2014.04.07-07:56:12
+# version 1.6.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1382,6 +1382,26 @@ rsync -a $TMP/pound-certificates.cfg /etc
 
 rsync -a $TMP/known_hosts /root/.ssh
 
+
+  ## First of all, make sure all users we have defined for sites, are all present.
+ log "Updateing user-list."
+ for C in $(lxc-ls)
+ do
+	
+	for U in $(cat $SRV/$C/users)
+	do
+		
+		
+		#echo "User: $U at $C"
+
+		## if the user doesent exists ... well, create it.
+		add_user
+
+	done
+ done
+
+
+
   ## for regular users
   for U in $(ls /home)
   do
@@ -1394,9 +1414,13 @@ rsync -a $TMP/known_hosts /root/.ssh
 	  create_keypair
 	fi
 
-	bak /home/$U/.ssh/known_hosts
+	if [ -f /home/$U/.ssh/known_hosts ]
+	then
+		bak /home/$U/.ssh/known_hosts
+	fi
 	rsync -a $TMP/known_hosts /home/$U/.ssh
 	chown $U:$U /home/$U/.ssh/known_hosts
+
 
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then
@@ -1420,11 +1444,6 @@ rsync -a $TMP/known_hosts /root/.ssh
 	for U in $(cat $SRV/$C/users)
 	do
 		
-		
-		#echo "User: $U at $C"
-
-		## if the user doesent exists ... well, create it.
-		add_user
 
 		## Add users local public key to container root user
 		if [ -f /home/$U/.ssh/id_rsa.pub ]
@@ -1436,7 +1455,11 @@ rsync -a $TMP/known_hosts /root/.ssh
 		fi
 
 		mkdir -p /home/$U/$C/mnt
-		echo "lxc.mount.entry=/home/$U/$C/mnt $SRV/$C/rootfs/mnt none rw,bind 0 0" >> $mnt
+		chown -R $U:$U /home/$U/$C
+
+		mkdir -p $SRV/$C/rootfs/mnt/$U
+
+		echo "lxc.mount.entry=/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $mnt
 
 	done
  done
