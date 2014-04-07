@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-07:30:46
-# version 1.6.2
+# Last update:2014.04.07-07:36:32
+# version 1.6.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1394,7 +1394,9 @@ rsync -a $TMP/known_hosts /root/.ssh
 	  create_keypair
 	fi
 
+	bak /home/$U/.ssh/known_hosts
 	rsync -a $TMP/known_hosts /home/$U/.ssh
+
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then
 	  rsync -a /root/.ssh/authorized_keys /home/$U/.ssh
