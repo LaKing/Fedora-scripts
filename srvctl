@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-08:07:31
-# version 1.6.7
+# Last update:2014.04.07-17:24:06
+# version 1.6.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1254,6 +1254,7 @@ then
  echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
  echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
  echo '' >> $TMP/hosts
+ echo '' > $TMP/relaydomains
 
  for C in $(lxc-ls)
  do
@@ -1274,11 +1275,19 @@ then
 		all_ok=false
 	else
  	  echo $ip'		'$C >>  $TMP/hosts
+	  echo $ip'		mail.'$C >>  $TMP/hosts
+	  echo ''  >>  $TMP/hosts
+
+	  echo $C' #' >>  $TMP/relaydomains
 	fi
  done ## regenerated etc_hosts
 
  bak /etc/hosts
  rsync -a $TMP/hosts /etc
+
+ bak /etc/postfix/relaydomains
+ rsync -a $TMP/relaydomains /etc/postfix/relaydomains
+ postmap /etc/postfix/relaydomains
 
  ## regenerate known hosts
  echo '# srvctl generated' > $TMP/known_hosts
