@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-07:37:58
-# version 1.6.4
+# Last update:2014.04.07-07:38:51
+# version 1.6.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1396,7 +1396,7 @@ rsync -a $TMP/known_hosts /root/.ssh
 
 	bak /home/$U/.ssh/known_hosts
 	rsync -a $TMP/known_hosts /home/$U/.ssh
-	chmod $U:$U /home/$U/.ssh/known_hosts
+	chown $U:$U /home/$U/.ssh/known_hosts
 
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then

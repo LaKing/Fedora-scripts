@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-07:37:58
-# version 1.6.4
+# Last update:2014.04.07-07:38:51
+# version 1.6.5
 #
 # Installer script for Fedora
 #
