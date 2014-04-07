@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-02:42:28
-# version 1.6.1
+# Last update:2014.04.07-07:30:46
+# version 1.6.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -44,6 +44,12 @@ SRV=/srv
 
 ## Used for certificate generation
 ssl_password="no_pass"
+
+## Company codename
+CMP="D250 laboratories"
+
+## Company domain name
+CDN="d250.hu"
 
 ## Import custom configuration directives
 source /etc/srvctl/config 2> /dev/null
@@ -203,6 +209,144 @@ function restart_pound {
 
 }
 
+function create_certificate { ## for container $C
+
+	## Prepare Certificate creation
+	log "Create certificate."
+
+	mkdir $SRV/$C/cert
+	##cd $SRV/$C/cert
+
+
+	ssl_days=1085
+	ssl_random=$SRV/$C/cert/random.txt
+	ssl_config=$SRV/$C/cert/$C.txt
+	ssl_key=$SRV/$C/cert/$C.key
+	ssl_org=$SRV/$C/cert/$C.key.org
+	ssl_crt=$SRV/$C/cert/$C.crt
+	ssl_csr=$SRV/$C/cert/$C.csr
+	ssl_pem=$SRV/$C/cert/$C.pem
+
+	set_file $ssl_config "       RANDFILE               = $ssl_random
+
+        [ req ]
+        default_bits           = 2048
+        default_keyfile        = keyfile.pem
+        distinguished_name     = req_distinguished_name
+        attributes             = req_attributes
+        prompt                 = no
+        output_password        = $ssl_password
+
+        [ req_distinguished_name ]
+        C                      = HU
+        ST                     = Hungary
+        L                      = Budapest
+        O                      = $CMP
+        OU                     = The Lab CA
+        CN                     = $C
+        emailAddress           = webmaster@$C
+
+ 	[ req_attributes ]
+        challengePassword              = A challenge password"
+
+
+	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
+
+	## Step 1: Generate a Private Key
+	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
+
+	## Step 2: Generate a CSR (Certificate Signing Request)
+
+	openssl req -new -passin pass:$ssl_password -passout pass:$ssl_password -key $ssl_key -out $ssl_csr -days $ssl_days -config $ssl_config
+	
+	## Step 3: Remove Passphrase from Key
+
+	cp $ssl_key $ssl_org
+	openssl rsa -passin pass:$ssl_password -in $ssl_org -out $ssl_key	
+	
+	## Step 4: Generating a Self-Signed Certificate
+	## later on, use signed certificates, eg. verisign, startssl or netlock.hu
+	## To use your own CA openssl ca -batch -out $ssl_crt -config /etc/pki/[YOU_AS_CA]/openssl.cnf -passin pass:[YOU_AS_CA_PASS] -in $ssl_csr
+	## We will generate now a self-signed certificate
+	openssl x509 -req -days $ssl_days -passin pass:$ssl_password  -in $ssl_csr -signkey $ssl_key -out $ssl_crt
+
+	## Eventually create a certificate keychain in pem format
+	cat $ssl_key >  $ssl_pem
+	cat $ssl_crt >> $ssl_pem
+
+	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
+
+}
+
+function create_poundfile { ## for container $C
+
+	set_file $SRV/$C/pound '## srvctl '$C'
+Service
+                  HeadRequire "Host:.*'$C'.*"
+                  BackEnd
+                      Address '$(cat $SRV/$C/config.ipv4)'
+                      Port    80
+                  End
+End'
+
+}
+
+function create_keypair { ## for user $U
+
+	mkdir /home/$U/.ssh
+
+	## create ssh keypair
+	if [ ! -f /home/$U/.ssh/id_rsa.pub ]; then
+	   ssh-keygen -t rsa -b 4096 -f /home/$U/.ssh/id_rsa -N '' -C $U@@$(hostname)
+	fi
+
+	chown -R $U:$U /home/$U/.ssh
+	chmod -R 600 /home/$U/.ssh
+	chmod    700 /home/$U/.ssh
+}
+
+function get_password {
+
+	## You may want to add your own sillyables, or faorite characters and customy security measures.
+	declare -a pwarra=("B" "C" "D" "F" "G" "H" "J" "K" "L" "M" "N" "P" "R" "S" "T" "V" "Z")
+	pwla=${#pwarra[@]}
+
+	declare -a pwarrb=("a" "e" "i" "o" "u")
+	pwlb=${#pwarrb[@]}	
+
+	declare -a pwarrc=("" "." ":" "@" ".." "::" '@@')
+	pwlc=${#pwarrc[@]}
+
+	password=''
+	password=$password${pwarra[$(( RANDOM % $pwla ))]}
+	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
+	password=$password${pwarra[$(( RANDOM % $pwla ))]}
+	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
+	# password=$password${pwarrc[$(( RANDOM % $pwlc ))]}
+	password=$password${pwarra[$(( RANDOM % $pwla ))]}
+	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
+	password=$password${pwarra[$(( RANDOM % $pwla ))]}
+	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
+
+}
+
+function add_user {
+
+  if [ ! -d "/home/$U" ]; then
+	get_password
+
+	adduser $U
+	echo $password | passwd $U --stdin
+
+	## Since this is a generated password, we add a note about it for the user?
+	echo $password > /home/$U/.password
+
+	log "User: $U password: $password set on $(hostname)"
+
+	create_keypair
+
+  fi
+}
 
 ## srvctl functions end here.
 
@@ -391,22 +535,22 @@ root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RAND
 
     ## The pound-served custom error documents
 
-set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 414</b> @ '$(hostname)'<br />
 Request URI is too long.
 </font><p></body>'
 
-set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 500</b> @ '$(hostname)'<br />
 An internal server error occurred. Please try again later.
 </font><p></body>'
 
-set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 501</b> @ '$(hostname)'<br />
 Request URI is too long.
 </font><p></body>'
 
-set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://d250.hu/lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 503</b> @ '$(hostname)'<br />
 The service is not available. Please try again later.
 </font><p></body>'
@@ -726,8 +870,7 @@ ln -s /etc/pound.cfg
 ln -s /etc/pound-certificates.cfg
 ln -s /etc/pound-pridomains.cfg
 ln -s /etc/pound-subdomains.cfg
-ln -s /var/srvctl/srvctl srvctl-client
-ln -s /usr/bin/srvctl srvctl-server
+ln -s /usr/bin/srvctl srvctl
 ln -s /usr/local/etc/lxc/lxc.conf
 ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
 ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
@@ -855,7 +998,7 @@ function get_state {
 	ms=$state
 	fi
 	
-	printf ${msc}"%-8s"${NC} $ms
+	printf ${msc}"%-10s"${NC} $ms
 
 
 }
@@ -900,7 +1043,7 @@ if [ "$CMD" == "status" ] && $onHS
 then
 	echo ''
 
-	printf ${yellow}"%-8s"${NC} "STATUS"
+	printf ${yellow}"%-10s"${NC} "RESPONSE"
 	printf ${yellow}"%-48s"${NC} "HOSTNAME"
 	
 	echo ''
@@ -931,7 +1074,7 @@ then
 	printf ${yellow}"%-5s"${NC} "HTTP"
 	printf ${yellow}"%-5s"${NC} "DISK"
 	printf ${yellow}"%-16s"${NC} "USERs"
-	printf ${yellow}"%-8s"${NC} "STATUS"
+	printf ${yellow}"%-10s"${NC} "RESPONSE"
 
 	printf ${yellow}"%-48s"${NC} "HOSTNAME"
 	
@@ -964,7 +1107,7 @@ then
 	
 	if ! $is_running
 	then
-	  printf ${yellow}"%-8s"${NC} "STARTED"	
+	  printf ${yellow}"%-10s"${NC} "STARTED"	
 	else
 	  get_state
 	fi	
@@ -992,7 +1135,7 @@ then
 
 	if $is_running
 	then
-	  printf ${yellow}"%-8s"${NC} "KILLING"		
+	  printf ${yellow}"%-10s"${NC} "KILLING"		
 	else
 	get_state
 	fi
@@ -1020,7 +1163,7 @@ then
 
 	if $is_running
 	then
-	  printf ${yellow}"%-8s"${NC} "SHUTDWN"	
+	  printf ${yellow}"%-10s"${NC} "SHUTDOWN"	
 	else 
 	get_state
 	fi
@@ -1047,7 +1190,7 @@ then
 
 	if $is_running
 	then
-	  printf ${yellow}"%-8s"${NC} "REBOOT!"	
+	  printf ${yellow}"%-10s"${NC} "REBOOT!"	
 	else 
 	get_state
 	fi
@@ -1085,62 +1228,255 @@ argument command
  done	
 fi
 
+
+if [ "$CMD" == "add-user" ] && $onHS
+then
+
+	argument U
+
+	add_user
+
+fi ## adduser
+
+
+
 ## regenerate configs 
 if [ "$CMD" == "regenerate" ] && $onHS
 then
 
-echo '' > $TMP/known_hosts
+	all_ok=true
+
+## SRY, IMPLEMENTATION INCOMPLETE. TODO: fix
+#exit
+
+ ## regenerate etc_hosts
+ echo '# srvctl generated' > $TMP/hosts
+ echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
+ echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
+ echo '' >> $TMP/hosts
 
  for C in $(lxc-ls)
  do
 
-	info=''
-	state='UNKNOWN'
+	ip=$(cat $SRV/$C/config.ipv4)
 
-	info=$(lxc-info -s -n $C)
-	state=${info:16}
-
-	if [ "$state" == "RUNNING" ]
+	if [ -z $ip ] 
 	then
- 	echo $C $state
-
-## TODO fix here
-
-	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> $TMP/known_hosts &
-	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> $TMP/known_hosts &
-	else
- 	echo $C $state
+	  ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
+	  ip=${ipv4:19:-2}
+	  echo $ip > $SRV/$C/config.ipv4
 	fi
-## TODO continiue
-	## FIX: echo 'Cert "/srv/'$dn'/cert/'$dn'.pem"' >> pound-certificates.cfg
 
- done	
-fi
+
+	if [ -z $ip ] 
+	then
+		echo "ERROR tmp: hosts - MISSING IP ADDRESS: "$C
+		all_ok=false
+	else
+ 	  echo $ip'		'$C >>  $TMP/hosts
+	fi
+ done ## regenerated etc_hosts
+
+ bak /etc/hosts
+ rsync -a $TMP/hosts /etc
+
+ ## regenerate known hosts
+ echo '# srvctl generated' > $TMP/known_hosts
+ 
+ for C in $(lxc-ls)
+ do
+	set_is_running
+
+	if $is_running
+	then
+ 	#echo 'OK: '$C
+
+	ip=$(cat $SRV/$C/config.ipv4)
+	
+	echo "# "$C >> $TMP/known_hosts
+	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $ip >> $TMP/known_hosts
+	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> $TMP/known_hosts
+	echo '' >> $TMP/known_hosts
+
+	
+	else
+ 		echo "WARNING tmp: .ssh known_hosts - VE NOT RUNNING: "$C
+	fi
+ done ## regenerated known_hosts
+
+ ## regenerate pound files
+ echo '# srvctl generated' > $TMP/pound-subdomains.cfg
+ echo '# srvctl generated' > $TMP/pound-pridomains.cfg
+ echo '# srvctl generated' > $TMP/pound-certificates.cfg
+
+ for C in $(lxc-ls)
+ do
+
+	set_is_running
+	if $is_running
+	then
+
+		if [ ! -f $SRV/$C/pound ]
+		then
+			create_poundfile
+			echo "NOTICE Pound file created for "$C
+		fi	
+	
+		if [ ! -f $SRV/$C/cert/$C.pem ]
+		then
+			rsync -a $SRV/$C/cert $TMP
+			echo "WARNING - CERTIFICIATE MISSING: CREATING NEW "$C
+			create_certificate		
+		fi
+
+		cert_status=$(openssl verify $SRV/$C/cert/$C.pem | tail -n 1)
+
+		if [ "$cert_status" == "OK" ]
+		then 
+			echo 'Cert "'$SRV/$C/cert/$C.pem'"' >> $TMP/pound-certificates.cfg
+		else
+			echo "ERROR - CERTIFICATE CHECK FAILED ON "$C
+			all_ok=false
+		fi
+
+
+		if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
+		then 
+		  echo 'Include "'$SRV'/'$C'/pound' >> $TMP/pound-subdomains.cfg
+		else
+		  echo 'Include "'$SRV'/'$C'/pound' >> $TMP/pound-pridomains.cfg
+		fi
+
+	else
+ 		echo "WARNING tmp: pound-check skip - VE NOT RUNNING: "$C
+	fi
+
+
+
+ done ## regenerated pound files
+
+log "Updateing regenerated pound config files in /etc" 	
+
+bak /etc/pound-subdomains.cfg
+bak /etc/pound-pridomains.cfg
+bak /etc/pound-certificates.cfg
+
+rsync -a $TMP/pound-subdomains.cfg /etc
+rsync -a $TMP/pound-pridomains.cfg /etc
+rsync -a $TMP/pound-certificates.cfg /etc
+
+
+### User checks
+	## for root
+	if [ ! -f /root/.ssh/id_rsa.pub ]
+	then
+	  echo "FATAL ERROR - NO KEYPAIR FOR ROOT!"
+	  all_ok=false
+	fi
+
+	if [ ! -f /root/.ssh/authorized_keys ]
+	then
+	  echo "WARNING - NO authorized_keys FOR ROOT!"
+	  echo '' >> /root/.ssh/authorized_keys
+	fi
+
+rsync -a $TMP/known_hosts /root/.ssh
+
+  ## for regular users
+  for U in $(ls /home)
+  do
+
+	#echo $U
+
+	if [ ! -f /home/$U/.ssh/id_rsa.pub ]
+	then
+	  echo "NOTE - CREATING KEYPAIR FOR USER "$U
+	  create_keypair
+	fi
+
+	rsync -a $TMP/known_hosts /home/$U/.ssh
+	if [ ! -f /home/$U/.ssh/authorized_keys ]
+	then
+	  rsync -a /root/.ssh/authorized_keys /home/$U/.ssh
+	  chown $U:$U /home/$U/.ssh/authorized_keys
+	fi
+
+  done ## usercheck
+
+
+ log "Updateing user-structure."
+ for C in $(lxc-ls)
+ do
+
+	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
+	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
+
+	mnt=$SRV/$C/config.mount
+	echo "lxc.mount.entry=/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $mnt
+	
+	for U in $(cat $SRV/$C/users)
+	do
+		
+		
+		#echo "User: $U at $C"
+
+		## if the user doesent exists ... well, create it.
+		add_user
+
+		## Add users local public key to container root user
+		if [ -f /home/$U/.ssh/id_rsa.pub ]
+		then
+			bak $SRV/$C/rootfs/root/.ssh/authorized_keys
+			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
+		else
+			echo "NO SYSTEM-USER "$U
+		fi
+
+		mkdir -p /home/$U/$C/mnt
+		echo "lxc.mount.entry=/home/$U/$C/mnt $SRV/$C/rootfs/mnt none rw,bind 0 0" >> $mnt
+
+	done
+ done
+
+
+ ## Finalise
+
+	if $all_ok
+	then
+		echo "ALL_OK!"
+	else
+		echo -e ${red}"CRITICAL ERRORS FOUND! Please fix!."${NC}
+	fi	
+
+fi ## regenerate
+
+
+
 
 ## reMOVE host
 if [ "$CMD" == "remove" ] && $onHS
 then
 
-argument dn 
+	argument C 
 
-lxc-stop -k -n $ARG
+	lxc-stop -k -n $ARG
 
-sed_file /etc/pound-certificates.cfg  'Cert "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
-sed_file /etc/pound-pridomains.cfg 'Include "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
-sed_file /etc/pound-subdomains.cfg 'Include "'$SRV'/'$dn '## REMOVED '$dn' '$NOW
+	sed_file /etc/pound-certificates.cfg  'Cert "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/pound-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/pound-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
 
 
 
-if [ -d "$SRV/$dn" ]; then
-  echo "Container folder does exists"
-  ## trash it! .. to TMP
+	if [ -d "$SRV/$C" ]; then
+	  echo "Container folder does exists"
+	  ## trash it! .. to TMP
 
-  rsync -a $SRV/$dn $TMP
-  rm -fr $SRV/$dn
+	  rsync -a $SRV/$C $TMP
+	  rm -fr $SRV/$C
 
-fi
+	fi
 
-restart_pound
+	restart_pound
 
 fi ## reMOVE
 
@@ -1148,35 +1484,35 @@ fi ## reMOVE
 if [ "$CMD" == "add" ] && $onHS
 then
 
-	argument dn 
+	argument C 
 
-	if [ -d $SRV/$dn ]; then
-	  err "$SRV/$dn already exists! Exiting"
+	if [ -d $SRV/$C ]; then
+	  err "$SRV/$C already exists! Exiting"
 	  exit 11
 	fi
 
-	## $dn - domain name
-	dn=$(echo $dn | grep -P '(?=^.{6,254}$)(^(?:(?!\d+\.)[a-zA-Z0-9_\-]{1,63}\.?)+(?:[a-zA-Z]{2,})$)')
+	## $C - container / domain name
+	C=$(echo $C | grep -P '(?=^.{6,254}$)(^(?:(?!\d+\.)[a-zA-Z0-9_\-]{1,63}\.?)+(?:[a-zA-Z]{2,})$)')
 	## Is'nt it a FQDN?
 
-	if [ -z "$dn" ]
+	if [ -z "$C" ]
 	then
-	  err "$dn failed the domain regexp check. Exiting."
+	  err "$C failed the domain regexp check. Exiting."
 	  exit 10
 	fi
 
 	counter=$(($(cat /etc/srvctl/counter)+1))
 	echo $counter >  /etc/srvctl/counter
 
-	echo $counter > $SRV/$dn/config.counter
+	echo $counter > $SRV/$C/config.counter
 
-	if (( $(echo $dn | grep -o "\." | grep -c "\.") > 1 )) 
+	if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
 	then 
 	SUBDOMAIN=true
-	log "Adding subdomain #$counter $dn"
+	log "Adding subdomain #$counter $C"
 	else
 	SUBDOMAIN=false
-	log "Adding domain #$counter $dn"
+	log "Adding domain #$counter $C"
 	fi
 
 
@@ -1187,20 +1523,21 @@ then
 
 	log "Create container."
 	## templates are usually in /usr/local/share/lxc/templates, lxc-fedora-srv has to be installed!
-	lxc-create -n $dn -t fedora-srv
+	lxc-create -n $C -t fedora-srv
 
 	log "Container created."
 	## TODO check, if it really is.
 
-	#mkdir -p $SRV/$dn 
+	#mkdir -p $SRV/$C 
 	
-	cfg=$SRV/$dn/config
-	rootfs=$SRV/$dn/rootfs
+	cfg=$SRV/$C/config
+	mnt=$SRV/$C/config.mount
+	rootfs=$SRV/$C/rootfs
 
 	mac=$(to_mac $counter)
 	ip=$(to_ip $counter)	
 
-	echo "10.10."$ip > $SRV/$dn/config.ipv4
+	echo "10.10."$ip > $SRV/$C/config.ipv4
 
 	echo "# Template for srvctl created fedora container #"$counter >	$cfg
 	echo "lxc.network.type = veth" >> $cfg
@@ -1216,24 +1553,26 @@ then
 	echo "lxc.network.ipv4 = 10.10."$ip"/8" >> $cfg
 	echo "" >> $cfg
 
-	echo "lxc.rootfs = $SRV/$dn/rootfs" >> $cfg
+	echo "lxc.rootfs = $SRV/$C/rootfs" >> $cfg
 	echo "lxc.include = /usr/local/share/lxc/config/fedora.common.conf" >> $cfg
-	echo "lxc.utsname = $dn" >> $cfg
+	echo "lxc.utsname = $C" >> $cfg
 	echo "lxc.autodev = 1" >> $cfg
 	echo "" >> $cfg
-	echo "lxc.mount.entry=/var/srvctl $SRV/$dn/rootfs/var/srvctl none ro,bind 0 0" >> $cfg
+	echo "lxc.include = $SRV/$C/config.mount" >> $cfg
+
+	echo "lxc.mount.entry=/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" >> $mnt
 
 
-	mkdir -m 700 $SRV/$dn/rootfs/root/.ssh
-	cat /root/.ssh/id_rsa.pub > $SRV/$dn/rootfs/root/.ssh/authorized_keys
-	chmod 700 $SRV/$dn/rootfs/root/.ssh/authorized_keys
+	mkdir -m 700 $SRV/$C/rootfs/root/.ssh
+	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
+	chmod 700 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
 	## Container should be in the same timezone as the host.
-	rsync -a /etc/localtime $SRV/$dn/rootfs/etc
+	rsync -a /etc/localtime $SRV/$C/rootfs/etc
 
 	## Container should have the same aliases as the host. (Important here is to disable info)
-	rsync -a /etc/aliases $SRV/$dn/rootfs/etc
-	rsync -a /etc/aliases.db $SRV/$dn/rootfs/etc
+	rsync -a /etc/aliases $SRV/$C/rootfs/etc
+	rsync -a /etc/aliases.db $SRV/$C/rootfs/etc
 
 	cat '
 
@@ -1247,19 +1586,19 @@ inet_interfaces = all
 ## And send it to ..
 home_mailbox = Maildir/
 
-	' >> $SRV/$dn/rootfs/etc/postfix/main.cf
+	' >> $SRV/$C/rootfs/etc/postfix/main.cf
 
-	echo "@$dn root" > $SRV/$dn/rootfs/etc/postfix/catchall
-	postmap $SRV/$dn/rootfs/etc/postfix/catchall
+	echo "@$C root" > $SRV/$C/rootfs/etc/postfix/catchall
+	postmap $SRV/$C/rootfs/etc/postfix/catchall
 
 
 
 	## Add IP to hosts file
-	echo "10.10.$ip		$dn"  >> /etc/hosts
-	echo "10.10.$ip		mail.$dn"  >> /etc/hosts
+	echo "10.10.$ip		$C"  >> /etc/hosts
+	echo "10.10.$ip		mail.$C"  >> /etc/hosts
 	echo ""  >> /etc/hosts
 
-	echo "$dn #$ip"  >> /etc/postfix/relaydomains
+	echo "$C #$ip"  >> /etc/postfix/relaydomains
 
 	postmap /etc/postfix/relaydomains
 
@@ -1270,22 +1609,22 @@ home_mailbox = Maildir/
 	##ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
 
 	## set (fix?) hostname
-	echo $dn > $rootfs/etc/hostname
+	echo $C > $rootfs/etc/hostname
 
 	## to ease life, we also have a mysql root password in this file
-	ln -s $rootfs/etc/mysqldump.conf $SRV/$dn
+	ln -s $rootfs/etc/mysqldump.conf $SRV/$C
 
 	## and we keep a note about the owner
-	ln -s ./rootfs/etc/owner $SRV/$dn
+	ln -s ./rootfs/etc/owner $SRV/$C
 
 	
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
 	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
-	<img src="lablogo.png" alt="D250 Laboratories" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
+	<img src="lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
 	<p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">' > $index
 
-	echo '<b>'$dn'</b> @ '$(hostname) >> $index
+	echo '<b>'$C'</b> @ '$(hostname) >> $index
 
 	echo '</font><p></body>' >> $index
 
@@ -1303,84 +1642,17 @@ home_mailbox = Maildir/
 
 	ln -s /var/srvctl/srvctl $rootfs/bin/srvctl
 
-	## Prepare Certificate creation
-	log "Create certificate."
-
-	mkdir $SRV/$dn/cert
-	##cd $SRV/$dn/cert
+	create_certificate
+	create_poundfile
 
 
-	ssl_days=1085
-	ssl_random=$SRV/$dn/cert/random.txt
-	ssl_config=$SRV/$dn/cert/$dn.txt
-	ssl_key=$SRV/$dn/cert/$dn.key
-	ssl_org=$SRV/$dn/cert/$dn.key.org
-	ssl_crt=$SRV/$dn/cert/$dn.crt
-	ssl_csr=$SRV/$dn/cert/$dn.csr
-	ssl_pem=$SRV/$dn/cert/$dn.pem
 
-	set_file $ssl_config "       RANDFILE               = $ssl_random
-
-        [ req ]
-        default_bits           = 2048
-        default_keyfile        = keyfile.pem
-        distinguished_name     = req_distinguished_name
-        attributes             = req_attributes
-        prompt                 = no
-        output_password        = $ssl_password
-
-        [ req_distinguished_name ]
-        C                      = HU
-        ST                     = Hungary
-        L                      = Budapest
-        O                      = D250 Laboratories
-        OU                     = The Lab CA
-        CN                     = $dn
-        emailAddress           = webmaster@$dn
-
- 	[ req_attributes ]
-        challengePassword              = A challenge password"
-
-
-	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
-
-	## Step 1: Generate a Private Key
-	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
-
-	## Step 2: Generate a CSR (Certificate Signing Request)
-
-	openssl req -new -passin pass:$ssl_password -passout pass:$ssl_password -key $ssl_key -out $ssl_csr -days $ssl_days -config $ssl_config
-	
-	## Step 3: Remove Passphrase from Key
-
-	cp $ssl_key $ssl_org
-	openssl rsa -passin pass:$ssl_password -in $ssl_org -out $ssl_key	
-	
-	## Step 4: Generating a Self-Signed Certificate
-	## later on, use signed certificates, eg. verisign, startssl or netlock.hu
-	## To use your own CA openssl ca -batch -out $ssl_crt -config /etc/pki/[YOU_AS_CA]/openssl.cnf -passin pass:[YOU_AS_CA_PASS] -in $ssl_csr
-	## We will generate now a self-signed certificate
-	openssl x509 -req -days $ssl_days -passin pass:$ssl_password  -in $ssl_csr -signkey $ssl_key -out $ssl_crt
-
-	## Eventually create a certificate keychain in pem format
-	cat $ssl_key >  $ssl_pem
-	cat $ssl_crt >> $ssl_pem
-
-	set_file $SRV/$dn/pound '## srvctl '$dn'
-Service
-                  HeadRequire "Host:.*'$dn'.*"
-                  BackEnd
-                      Address 10.10.'$ip'
-                      Port    80
-                  End
-End'
-	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
 
 	if $SUBDOMAIN 
 	then
-	  echo 'Include "'$SRV'/'$dn'/pound' >> /etc/pound-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound' >> /etc/pound-subdomains.cfg
 	else
-	  echo 'Include "'$SRV'/'$dn'/pound' >> /etc/pound-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound' >> /etc/pound-pridomains.cfg
 	fi
 
 	log "Restarting Pound."
@@ -1391,16 +1663,16 @@ End'
 	log "Starting container."	
 
 	## Start the container maybe
-	lxc-start -n $dn -d	
+	lxc-start -n $C -d	
 
 	# TODO install and configure dovecot
 
-	log "$dn - 10.10."$ip" started."
+	log "$C - 10.10."$ip" started."
 
 	## Add to host's root's known_hosts after the container booted
 	echo '' >> /root/.ssh/known_hosts
 	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts)) &
-	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $dn >> /root/.ssh/known_hosts)) &
+	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> /root/.ssh/known_hosts)) &
 	
 
 	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
