@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.09-06:20:49
-# version 1.7.0
+# Last update:2014.04.09-05:52:16
+# version 1.6.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -595,8 +595,8 @@ ListenHTTPS
 
 End
 
-Include "/etc/pound-pridomains.cfg"
 Include "/etc/pound-subdomains.cfg"
+Include "/etc/pound-pridomains.cfg"
 
 #Include the default host here."
 '
@@ -858,7 +858,14 @@ log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem
   #  mode = 0666
   #}
 
-## TODO Create SMTPD Auth proxy method
+## ... for now use saslauthd
+
+yum -y install cyrus-sasl
+systemctl enable saslauthd.service
+systemctl start saslauthd.service
+systemctl status saslauthd.service
+
+## TODO Create SMTPD Auth proxy method to authenticate users of virtualhosts
 
 log "Creating devel-shortcuts in /shortcuts"
 ## some quick links for root
