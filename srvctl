@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-17:24:06
-# version 1.6.8
+# Last update:2014.04.09-05:52:16
+# version 1.6.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -636,6 +636,8 @@ inet_interfaces = all
 ## use /etc/hosts instead of dns-query
 lmtp_host_lookup = native
 smtp_host_lookup = native
+## in addition, this might be enabled too.
+# smtp_dns_support_level = disabled
 
 ## dont forget to postmap /etc/postfix/relaydomains
 relay_domains = $mydomain, hash:/etc/postfix/relaydomains

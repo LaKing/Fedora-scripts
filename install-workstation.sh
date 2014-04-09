@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.07-17:24:06
-# version 1.6.8
+# Last update:2014.04.09-05:52:16
+# version 1.6.9
 #
 # Installer script for Fedora
 #
@@ -419,10 +419,27 @@ AutomaticLogin='$USR'
 [debug]
 
 '
-## TODO fix that, so it works with XFCE spin
 
 ## for lightdm
-    sed_file /etc/lightdm/lightdm.conf "# autologin-user = User to log in with by default (overrides autologin-guest)" "autologin-user = $USR"
+set_file /etc/lightdm/lightdm.conf '
+[LightDM]
+minimum-vt=1
+user-authority-in-system-dir=true
+
+[SeatDefaults]
+xserver-command=X -background none
+greeter-session=lightdm-greeter
+session-wrapper=/etc/X11/xinit/Xsession
+
+autologin-in-background=true
+autologin-user-timeout=0
+autologin-user='$USR'
+
+[XDMCPServer]
+
+[VNCServer]
+
+'
 
 ## for lxdm
     sed_file /etc/lxdm/lxdm.conf "# autologin=dgod" "autologin="$USR
@@ -527,7 +544,13 @@ function install_office {
     yum -y install scribus
 
     ## Kingsoft Office
-    kingsoft=http://`curl http://wps-community.org/download.html | grep -Po '^.*?\K(?<=http://).*?(?=.rpm)' | grep -m 1 download`.rpm
+    ## The original
+    # kingsoft=http://`curl http://wps-community.org/download.html | grep -Po '^.*?\K(?<=http://).*?(?=.rpm)' | grep -m 1 download`.rpm
+
+    ## Mirrors
+    kingsoft=http://d250.hu/scripts/mirrored/kingsoft-office-9.1.0.4280-0.1.a12p4.i686.rpm
+    #http://37.247.55.101/a12p4/kingsoft-office-9.1.0.4280-0.1.a12p4.i686.rpm
+
     mkdir -p $TMP/kingsoft-office
     cd $TMP/kingsoft-office
     wget -nc $kingsoft
@@ -567,6 +590,44 @@ function install_media_editors {
 }
 
 
+
+question install_dropbox "Dropbox is a popular file sharing service." no
+function install_dropbox {
+
+    #yum -y install caja-dropbox 
+    yum -y install nautilus-dropbox
+
+}
+
+question install_chattools "Mumble is a useful free VOIP program, pidgin is a multiprotocol chat client." yes
+function install_chattools {
+
+    yum -y install pidgin 
+    yum -y install mumble 
+
+}
+
+
+question install_skype "Skype is bought by MS, however a lot of people use it, and it might be need to stay connected. Currently, the installation process will ask for the root password." no
+function install_skype {
+    ## TODO: fix so no questions pop up
+    ## Quickfix. Currently DISPLAY='' is required to not to use a gui.
+	
+    ### TODO:  http://www.skype.com/hu/download-skype/skype-for-linux/downloading/?type=fedora32
+
+cd $TMP
+
+wget -nc http://download.skype.com/linux/skype-4.2.0.11-fedora.i586.rpm
+yum -y install skype-4.2.0.11-fedora.i586.rpm
+
+    ## If you want to compile from source, ...
+    #DISPLAYBAK=$DISPLAY
+    #DISPLAY=''
+    #yum -y install lpf-skype
+    #lpf build skype
+    #lpf install skype
+    #DISPLAY=$DISPLAYBAK
+}
 question install_devtools "Software development tools are for programmers and hackers. " no
 function install_devtools {
 
@@ -597,59 +658,6 @@ function install_devtools {
 
 }
 
-question install_lxc "LXC is a userspace interface for the Linux kernel containment features." no
-function install_lxc {
-
-    ## LXC is also part of docker-io
-    #yum install docker-io
-    
-    ## lxc can be installed as rpm
-    #yum -y install lxc lxc-templates
-
-    ## packages needed for compilation and for running
-    yum -y groupinstall "Development Tools"
-    yum -y install automake
-    yum -y install graphviz
-    yum -y install libcap-devel
-    
-    ## to compile it from source
-    git clone git://github.com/lxc/lxc
-    cd lxc 
-    ./autogen.sh
-    ./configure
-    make
-    make install
-
-    ## Add export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-    echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" >> /root/.bash_profile
-
-    ## enable networking via libvirt
-    yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
-
-    defnet=/etc/libvirt/qemu/networks/default.xml
-
-    bak $defnet
-    head -n 5 $defnet.bak > $defnet
-    echo '  <ip address="10.10.0.1" netmask="255.255.0.0">' >> $defnet
-    echo '    <dhcp>' >> $defnet
-    echo '      <range start="10.10.0.2" end="10.10.0.254"/>' >> $defnet
-    echo '    </dhcp>' >> $defnet
-    echo '  </ip>' >> $defnet
-    echo '</network>' >> $defnet
-
-    systemctl restart libvirtd.service
-    systemctl enable libvirtd.service
-
-    ## reverse proxy
-    yum install Pound
-
-    ## srvctl
-    mkdir -p /etc/srvctl
-    echo '0' > /etc/srvctl/counter
-
-}
-
-
 
 question disable_selinux "SElinux enhances secutrity by default, but sometimes hard to understand error messages waste your time, especially when selinux is preventing a hack." no
 function disable_selinux { 
@@ -657,42 +665,6 @@ function disable_selinux {
 sed_file /etc/selinux/config "SELINUX=enforcing" "SELINUX=disabled"
 
 }
-
-
-question install_dropbox "Dropbox is a popular file sharing service." no
-function install_dropbox {
-
-    #yum -y install caja-dropbox 
-    yum -y install nautilus-dropbox
-
-}
-
-question install_chattools "Mumble is a useful free VOIP program, pidgin is a multiprotocol chat client." yes
-function install_chattools {
-
-    yum -y install pidgin 
-    yum -y install mumble 
-
-}
-
-
-question install_skype "Skype is bought by MS, however a lot of people use it, and it might be need to stay connected. Currently, the installation process will ask for the root password." no
-function install_skype {
-    ## TODO: fix so no questions pop up
-    ## Quickfix. Currently DISPLAY='' is required to not to use a gui.
-	
-### TODO:  http://www.skype.com/hu/download-skype/skype-for-linux/downloading/?type=fedora32
-
-    DISPLAYBAK=$DISPLAY
-    DISPLAY=''
-
-    yum -y install lpf-skype
-    lpf build skype
-    lpf install skype
-
-    DISPLAY=$DISPLAYBAK
-}
-
 
 ### Check for NVidia card
 if [[ -n $( lspci | grep -E "VGA" | grep "NVIDIA" ) ]]; then
