@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.09-06:20:49
-# version 1.7.0
+# Last update:2014.04.18-03:05:27
+# version 1.7.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -73,6 +73,8 @@ NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 CMD=$1
 ARG=$2
+
+HOSTIPv4=$(dig +time=1 +short $(hostname))
 
 ## Lablib functions
 
@@ -191,7 +193,8 @@ function restart_pound {
 	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.last-cfg 	
 	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.last-cfg 
 	else
-
+	  echo -e ${red}"FAILED. Reverting to last known good pound configuration."${NC}
+	
 	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.fail-cfg
 	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.fail-cfg
 	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.fail-cfg
@@ -896,8 +899,8 @@ if [ "$CMD" == "reset-install" ] && $onHS
 then
 
 ### As I said, ONLY if you really need this.
-log "WARNING! Command disabled."
-exit
+#log "WARNING! Command disabled."
+#exit
 
  for C in $(ls $SRV)
  do
@@ -1008,7 +1011,7 @@ function get_state {
 function get_pound_state {
 
 	ps='none'
-	if [ ! -z $ip ] 
+	if [ ! -z $ip ] && [ "$(systemctl is-active pound.service)" = "active" ]
 	then
 	  ps=$(poundctl -c /var/lib/pound/pound.cfg | grep $ip'' | tail -c 5)
 	  
@@ -1024,11 +1027,34 @@ function get_disk_usage {
 	printf ${yellow}"%-5s"${NC} $du
 }
 
-function get_dig {
+function get_dig_A {
 
-	dig=$(nslookup $C | grep -A 3 answer | tail -n 2 | head -n 1)
+	dig_A=$(dig +time=1 +short $C)	
 
-	printf ${yellow}"%-16s"${NC} ${dig:10}
+	if [ "$dig_A" == "$HOSTIPv4" ]
+	then
+		printf ${yellow}"%-3s"${NC} "OK"
+	else
+		printf ${red}"%-3s"${NC} "??"
+	fi
+
+
+	#dig=$(nslookup $C | grep -A 3 answer | tail -n 2 | head -n 1)
+
+	#printf ${yellow}"%-16s"${NC} ${dig_result}
+}
+
+function get_dig_MX {
+
+	dig_MX=$(dig +time=1 +short $(dig +time=1 +short $C MX | cut -d \  -f 2))
+	
+
+	if [ "$dig_MX" == "$HOSTIPv4" ]
+	then
+		printf ${yellow}"%-3s"${NC} "OK"
+	else
+		printf ${red}"%-3s"${NC} "??"
+	fi
 }
 
 function get_users {
@@ -1038,6 +1064,28 @@ function get_users {
 	users=$(cat $SRV/$C/users | sed ':a;N;$!ba;s/\n/|/g')
 
 	printf ${yellow}"%-16s"${NC} ${users:0:16}
+}
+
+function get_http_response {
+
+	#indexpage_curl=$(curl -s $C)
+
+	#indexpage_tag=$(echo $indexpage_curl | grep "<title>")
+
+	#indexpage_title=$(curl -s $C | grep "<title>")
+
+	curli=$(curl -s -I http://$C | head -n 1)
+	resp=${curli:9:3}	
+	
+	if [ "$resp" == "200" ]
+	then 
+	  resp_color=$green
+	else
+	  resp_color=$red
+	fi
+
+	printf ${resp_color}"%-4s"${NC} "$resp"
+
 }
 
 ## report status
@@ -1062,35 +1110,42 @@ then
 	
 fi
 
-## report status
+## report status of all details
 if [ "$CMD" == "status-all" ] && $onHS
 then
-	echo "hostname: "$(hostname)
+	echo "Hostname: "$(hostname)
 	echo "Uptime:   "$(uptime)
 	free -h | head -n 2
 
 	echo ''
-
-	printf ${yellow}"%-16s"${NC} "DNSLOOKUP"
+	printf ${yellow}"%-10s"${NC} "STATUS"
+	printf ${yellow}"%-48s"${NC} "HOSTNAME"
 	printf ${yellow}"%-14s"${NC} "IP-LOCAL"
-	printf ${yellow}"%-5s"${NC} "HTTP"
+	printf ${yellow}"%-3s"${NC} "IN"
+	printf ${yellow}"%-3s"${NC} "MX"	
 	printf ${yellow}"%-5s"${NC} "DISK"
 	printf ${yellow}"%-16s"${NC} "USERs"
-	printf ${yellow}"%-10s"${NC} "RESPONSE"
+	printf ${yellow}"%-5s"${NC} "HTTP"
+	printf ${yellow}"%-4s"${NC} "RES"
 
-	printf ${yellow}"%-48s"${NC} "HOSTNAME"
-	
+
 	echo ''
 
  for C in $(lxc-ls)
  do
-	get_dig
-	get_ip
-	get_pound_state
-	get_disk_usage
-	get_users
+
 	get_state
 	get_info
+	get_ip
+	get_dig_A
+	get_dig_MX
+	get_disk_usage
+	get_users
+	get_pound_state
+	get_http_response
+
+
+
 
 	echo ''
  done
@@ -1357,9 +1412,9 @@ then
 
 		if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
 		then 
-		  echo 'Include "'$SRV'/'$C'/pound' >> $TMP/pound-subdomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound"' >> $TMP/pound-subdomains.cfg
 		else
-		  echo 'Include "'$SRV'/'$C'/pound' >> $TMP/pound-pridomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound"' >> $TMP/pound-pridomains.cfg
 		fi
 
 	else
@@ -1453,8 +1508,8 @@ rsync -a $TMP/known_hosts /root/.ssh
 	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
-	mnt=$SRV/$C/config.mount
-	echo "lxc.mount.entry=/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $mnt
+	mnt=$SRV/$C/fstab
+	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $mnt
 	
 	for U in $(cat $SRV/$C/users)
 	do
@@ -1474,7 +1529,7 @@ rsync -a $TMP/known_hosts /root/.ssh
 
 		mkdir -p $SRV/$C/rootfs/mnt/$U
 
-		echo "lxc.mount.entry=/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $mnt
+		echo "/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $mnt
 
 	done
  done
@@ -1572,7 +1627,7 @@ then
 	#mkdir -p $SRV/$C 
 	
 	cfg=$SRV/$C/config
-	mnt=$SRV/$C/config.mount
+	mnt=$SRV/$C/fstab
 	rootfs=$SRV/$C/rootfs
 
 	mac=$(to_mac $counter)
@@ -1599,9 +1654,9 @@ then
 	echo "lxc.utsname = $C" >> $cfg
 	echo "lxc.autodev = 1" >> $cfg
 	echo "" >> $cfg
-	echo "lxc.include = $SRV/$C/config.mount" >> $cfg
+	echo "lxc.mount = $SRV/$C/fstab" >> $cfg
 
-	echo "lxc.mount.entry=/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" >> $mnt
+	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" >> $mnt
 
 
 	mkdir -m 700 $SRV/$C/rootfs/root/.ssh
@@ -1615,7 +1670,7 @@ then
 	rsync -a /etc/aliases $SRV/$C/rootfs/etc
 	rsync -a /etc/aliases.db $SRV/$C/rootfs/etc
 
-	cat '
+	echo '
 
 # srvctl configuration
 ## Listen on ..
@@ -1626,6 +1681,10 @@ inet_interfaces = all
 
 ## And send it to ..
 home_mailbox = Maildir/
+
+## Max 25MB mail size
+message_size_limit=26214400
+
 
 	' >> $SRV/$C/rootfs/etc/postfix/main.cf
 
@@ -1691,9 +1750,9 @@ home_mailbox = Maildir/
 
 	if $SUBDOMAIN 
 	then
-	  echo 'Include "'$SRV'/'$C'/pound' >> /etc/pound-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound"' >> /etc/pound-subdomains.cfg
 	else
-	  echo 'Include "'$SRV'/'$C'/pound' >> /etc/pound-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound"' >> /etc/pound-pridomains.cfg
 	fi
 
 	log "Restarting Pound."
