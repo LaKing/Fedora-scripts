@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.19-21:42:47
+# Last update:2014.04.19-22:10:17
 # version 1.7.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -2026,6 +2026,33 @@ if [ "$CMD" == "secure" ] && $onVE
 then
 
 
+get_password
+
+
+log "Set database root password to: "$password
+
+#mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
+#mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+#mysql -u root -e "DROP DATABASE test;"
+
+SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+mysql -u root -e "$SQL"
+echo "$SQL"
+
+
+## set up backup params
+conf=/etc/mysqldump.conf
+echo '[client]' > $conf
+echo 'user=root' >> $conf
+echo 'password='$password >> $conf
+
+
+fi ## secure
+
+if [ "$CMD" == "reset-db-root" ] && $onVE
+then
+
+
 
 test=$(mysql --defaults-file=/etc/mysqldump.conf -e "show databases" | grep Database)
 
@@ -2086,8 +2113,7 @@ echo 'password='$pw >> $conf
 
 reboot
 
-fi ## secure
-
+fi ## reset-db-root
 
 if [ "$CMD" == "mailconf" ] && $onVE
 then
