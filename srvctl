@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.18-03:05:27
-# version 1.7.7
+# Last update:2014.04.19-21:34:24
+# version 1.7.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -351,6 +351,17 @@ function add_user {
   fi
 }
 
+function set_file_limits {
+
+    ## You can increase the amount of open files and thus the amount of client connections by using "ulimit -n ". 
+    ## For example, to allow pound to accept 5,000 connections and forward 5,000 connection to back end servers (10,000 total) use "ulimit -n 10000".
+    ulimit -n 100000
+
+    ## Hint from Tamás Papp to fix Error: Too many open files
+    sysctl fs.inotify.max_user_watches=81920
+    sysctl fs.inotify.max_user_instances=1024
+}
+
 ## srvctl functions end here.
 
 log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2"
@@ -608,13 +619,7 @@ Include "/etc/pound-subdomains.cfg"
 	echo '## srvctl subdomains' >> /etc/pound-subdomains.cfg
 	systemctl enable pound.service
 
-    ## You can increase the amount of open files and thus the amount of client connections by using "ulimit -n ". 
-    ## For example, to allow pound to accept 5,000 connections and forward 5,000 connection to back end servers (10,000 total) use "ulimit -n 10000".
-    ulimit -n 100000
-
-    ## Hint from Tamás Papp to fix Error: Too many open files
-    sysctl fs.inotify.max_user_watches=81920
-    sysctl fs.inotify.max_user_instances=1024
+set_file_limits
 
 ### E-mail
 
@@ -851,6 +856,10 @@ systemctl enable perdition-imap4s.service
 systemctl start perdition-imap4s.service
 systemctl status perdition-imap4s.service
 log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+
+## TODO: configure 
+
+
 
 ## TODO: firewall-config. open tcp port 993 permanently
 
@@ -1159,6 +1168,7 @@ if [ "$CMD" == "start-all" ] && $onHS
 then
  for C in $(lxc-ls)
  do
+	set_file_limits
 
 	set_is_running
 	
@@ -1981,6 +1991,27 @@ fi ## prefix wordpress URI
 
 # instead of /usr/bin/mysql_secure_installation
 ## .. and setup mysqldump.conf
+
+if [ "$CMD" == "add-db" ] && $onVE
+then
+
+## Get $password
+get_password
+
+argument $db_name
+db_usr=$(echo $db_name | cut -f1 -d"_" )
+db_pwd=$password
+
+SQL="CREATE DATABASE $db_bame"
+echo $SQL
+mysql -u root -e "$SQL"
+
+
+SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+echo $SQL
+mysql -u root -e "$SQL"
+
+fi
 
 if [ "$CMD" == "secure" ] && $onVE
 then
