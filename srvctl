@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.19-21:34:24
+# Last update:2014.04.19-21:36:21
 # version 1.7.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -1999,7 +1999,8 @@ then
 get_password
 
 argument $db_name
-db_usr=$(echo $db_name | cut -f1 -d"_" )
+db_usr=$db_name 
+#$(echo $db_name | cut -f1 -d"_" )
 db_pwd=$password
 
 SQL="CREATE DATABASE $db_bame"
