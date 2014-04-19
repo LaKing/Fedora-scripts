@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.19-21:40:29
+# Last update:2014.04.19-21:42:47
 # version 1.7.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -2003,7 +2003,7 @@ db_usr=$db_name
 #$(echo $db_name | cut -f1 -d"_" )
 db_pwd=$password
 
-SQL="CREATE DATABASE $db_bame"
+SQL="CREATE DATABASE $db_name"
 echo $SQL
 mysql -u root -e "$SQL"
 
@@ -2012,7 +2012,15 @@ SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush pr
 echo $SQL
 mysql -u root -e "$SQL"
 
-fi
+## save these params
+conf=/etc/mysqluser.conf
+echo 'dbf:'$db_name > $conf
+echo 'usr:'$db_usr >> $conf
+echo 'pwd:'$db_pwd >> $conf
+
+
+
+fi # add-db
 
 if [ "$CMD" == "secure" ] && $onVE
 then
