@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.19-22:10:17
+# Last update:2014.04.20-03:59:04
 # version 1.7.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -857,7 +857,9 @@ systemctl start perdition-imap4s.service
 systemctl status perdition-imap4s.service
 log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
 
-## TODO: configure 
+## TODO: configure DNS server
+
+yum -y install bind bind-chroot bind-utils
 
 
 
@@ -1166,9 +1168,12 @@ fi
 ## startall
 if [ "$CMD" == "start-all" ] && $onHS
 then
+
+set_file_limits
+
  for C in $(lxc-ls)
  do
-	set_file_limits
+
 
 	set_is_running
 	
