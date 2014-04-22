@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.20-04:14:21
-# version 1.7.8
+# Last update:2014.04.23-01:15:12
+# version 1.7.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -189,19 +189,19 @@ function restart_pound {
 	  ## Make a copy of configs, just to make sure.
 	  ## bak files are for humans, we do a last-cfg here.
 	
-	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.last-cfg
-	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.last-cfg 	
-	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.last-cfg 
+	  cat /etc/pound-http-pridomains.cfg >   /etc/pound-http-pridomains.last-cfg 	
+	  cat /etc/pound-http-subdomains.cfg >   /etc/pound-http-subdomains.last-cfg 
+	  cat /etc/pound-https-pridomains.cfg >  /etc/pound-https-pridomains.last-cfg 	
+	  cat /etc/pound-https-subdomains.cfg >  /etc/pound-https-subdomains.last-cfg 
+
 	else
 	  echo -e ${red}"FAILED. Reverting to last known good pound configuration."${NC}
 	
-	  cat /etc/pound-certificates.cfg > /etc/pound-certificates.fail-cfg
-	  cat /etc/pound-pridomains.cfg >  /etc/pound-pridomains.fail-cfg
-	  cat /etc/pound-subdomains.cfg >  /etc/pound-subdomains.fail-cfg
+	  cat /etc/pound-http-pridomains.cfg >  /etc/pound-http-pridomains.fail-cfg
+	  cat /etc/pound-http-subdomains.cfg >  /etc/pound-http-subdomains.fail-cfg
 
-	  cat /etc/pound-certificates.last-cfg > /etc/pound-certificates.cfg
-	  cat /etc/pound-pridomains.last-cfg >  /etc/pound-pridomains.cfg
-	  cat /etc/pound-subdomains.last-cfg >  /etc/pound-subdomains.cfg
+	  cat /etc/pound-https-pridomains.last-cfg >  /etc/pound-https-pridomains.cfg
+	  cat /etc/pound-https-subdomains.last-cfg >  /etc/pound-https-subdomains.cfg
 
 	  systemctl restart pound.service
 
@@ -277,8 +277,6 @@ function create_certificate { ## for container $C
 	cat $ssl_key >  $ssl_pem
 	cat $ssl_crt >> $ssl_pem
 
-	echo 'Cert "'$ssl_pem'"' >> /etc/pound-certificates.cfg
-
 }
 
 function create_poundfile { ## for container $C
@@ -291,6 +289,22 @@ Service
                       Port    80
                   End
 End'
+
+
+echo '## srvctl generated' > /srv/$C/pound-http
+echo 'Include "/srv/'$C'/pound"' >> /srv/$C/pound-http
+
+
+
+echo '## srvctl generated' > /srv/$C/pound-https
+
+  if [ -f $SRV/$C/cert/$C.pem ]
+  then
+	echo 'Cert "/srv/'$C'/cert/'$C'.pem"' >> /srv/$C/pound-https
+  fi
+
+echo 'Include "/srv/'$C'/pound"' >> /srv/$C/pound-https
+
 
 }
 
@@ -586,37 +600,42 @@ Control "/var/lib/pound/pound.cfg"
 # LogLevel    3
 
 ListenHTTP
-          Address 0.0.0.0
-          Port    80
+
+    Address 0.0.0.0
+    Port    80
 
     Err414 "/var/www/html/414.html"
     Err500 "/var/www/html/500.html"
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
-
+    Include "/etc/pound-http-subdomains.cfg"
+    Include "/etc/pound-http-pridomains.cfg"
 
 End
 ListenHTTPS
-         Address 0.0.0.0
-         Port    443
-         Include "/etc/pound-certificates.cfg"
+
+    Address 0.0.0.0
+    Port    443
+    Include "/etc/pound-certificates.cfg"
 
     Err414 "/var/www/html/414.html"
     Err500 "/var/www/html/500.html"
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
+    Include "/etc/pound-https-subdomains.cfg"
+    Include "/etc/pound-https-pridomains.cfg"
+
 End
-
-Include "/etc/pound-pridomains.cfg"
-Include "/etc/pound-subdomains.cfg"
-
-#Include the default host here."
 '
-	echo '## srvctl pound-certificates.cfg' >> /etc/pound-certificates.cfg
-	echo '## srvctl primary domains' >> /etc/pound-pridomains.cfg
-	echo '## srvctl subdomains' >> /etc/pound-subdomains.cfg
+	echo '## srvctl primary domains' >> /etc/pound-http-pridomains.cfg
+	echo '## srvctl subdomains' >> /etc/pound-http-subdomains.cfg
+
+	echo '## srvctl primary domains' >> /etc/pound-https-pridomains.cfg
+	echo '## srvctl subdomains' >> /etc/pound-https-subdomains.cfg
+
+
 	systemctl enable pound.service
 
 set_file_limits
@@ -883,9 +902,10 @@ cd /shortcuts
 ln -s /srv
 ln -s /etc/hosts
 ln -s /etc/pound.cfg
-ln -s /etc/pound-certificates.cfg
-ln -s /etc/pound-pridomains.cfg
-ln -s /etc/pound-subdomains.cfg
+ln -s /etc/pound-http-pridomains.cfg
+ln -s /etc/pound-http-subdomains.cfg
+ln -s /etc/pound-https-pridomains.cfg
+ln -s /etc/pound-https-subdomains.cfg
 ln -s /usr/bin/srvctl srvctl
 ln -s /usr/local/etc/lxc/lxc.conf
 ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
@@ -922,9 +942,10 @@ then
  rm -rf /root/.ssh/known_hosts
  rm -rf /etc/pound/*
 
- echo '## srvctl pound-certificates.cfg' > /etc/pound-certificates.cfg
- echo '## srvctl pound-pridomains.cfg' > /etc/pound-pridomains.cfg
- echo '## srvctl pound-subdomains.cfg' > /etc/pound-subdomains.cfg
+ echo '## srvctl pound-http-pridomains.cfg' > /etc/pound-http-pridomains.cfg
+ echo '## srvctl pound-http-subdomains.cfg' > /etc/pound-http-subdomains.cfg
+ echo '## srvctl pound-https-pridomains.cfg' > /etc/pound-https-pridomains.cfg
+ echo '## srvctl pound-https-subdomains.cfg' > /etc/pound-https-subdomains.cfg
 
  systemctl stop pound.service
 
@@ -1386,9 +1407,11 @@ then
  done ## regenerated known_hosts
 
  ## regenerate pound files
- echo '# srvctl generated' > $TMP/pound-subdomains.cfg
- echo '# srvctl generated' > $TMP/pound-pridomains.cfg
- echo '# srvctl generated' > $TMP/pound-certificates.cfg
+ echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
+ echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
+ echo '# srvctl generated' > $TMP/pound-https-subdomains.cfg
+ echo '# srvctl generated' > $TMP/pound-https-pridomains.cfg
+
 
  for C in $(lxc-ls)
  do
@@ -1410,26 +1433,47 @@ then
 			create_certificate		
 		fi
 
-		cert_status=$(openssl verify $SRV/$C/cert/$C.pem | tail -n 1)
 
-		
+		if [ -f $SRV/$C/cert/ca-bundle.pem ]
+		then
+			cert_status=$(openssl verify -CAfile $SRV/$C/cert/ca-bundle.pem $SRV/$C/cert/$C.pem | tail -n 1 | tail -c 3)
+		else
+			cert_status=$(openssl verify $SRV/$C/cert/$C.pem | tail -n 1 | tail -c 3)
+		fi
+
+		if [ ! -f $SRV/$C/pound-http ]
+		then
+			echo '## srvctl generated' > $SRV/$C/pound-http
+			echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-http
+		fi
 
 		if [ "$cert_status" == "OK" ]
 		then 
-			echo 'Cert "'$SRV/$C/cert/$C.pem'"' >> $TMP/pound-certificates.cfg
+			if [ ! -f $SRV/$C/pound-https ]
+			then
+				echo '## srvctl generated' > $SRV/$C/pound-https
+				echo 'Cert "/srv/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+				echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-https
+			fi
 		else
-			## TODO check! Pound accepts certificates without ca-certs, openssl verify does not! ass -CACert option? 
-			echo 'Cert "'$SRV/$C/cert/$C.pem'"' >> $TMP/pound-certificates.cfg
+
+			echo '## srvctl generated - Check certificate!' > $SRV/$C/pound-https
+			echo '# Cert "/srv/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+			echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-https
 			echo "WARNING! - CERTIFICATE CHECK FAILED ON "$C
-			#all_ok=false .. for now we degrade this error to a warning.
+			all_ok=false 
 		fi
+
+
 
 
 		if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
 		then 
-		  echo 'Include "'$SRV'/'$C'/pound"' >> $TMP/pound-subdomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound-http"' >> $TMP/pound-http-subdomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-subdomains.cfg
 		else
-		  echo 'Include "'$SRV'/'$C'/pound"' >> $TMP/pound-pridomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound-http"' >> $TMP/pound-http-pridomains.cfg
+		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-pridomains.cfg
 		fi
 
 	else
@@ -1442,13 +1486,15 @@ then
 
 log "Updateing regenerated pound config files in /etc" 	
 
-bak /etc/pound-subdomains.cfg
-bak /etc/pound-pridomains.cfg
-bak /etc/pound-certificates.cfg
+bak /etc/pound-http-subdomains.cfg
+bak /etc/pound-http-pridomains.cfg
+bak /etc/pound-https-subdomains.cfg
+bak /etc/pound-https-pridomains.cfg
 
-rsync -a $TMP/pound-subdomains.cfg /etc
-rsync -a $TMP/pound-pridomains.cfg /etc
-rsync -a $TMP/pound-certificates.cfg /etc
+rsync -a $TMP/pound-http-subdomains.cfg /etc
+rsync -a $TMP/pound-http-pridomains.cfg /etc
+rsync -a $TMP/pound-https-subdomains.cfg /etc
+rsync -a $TMP/pound-https-pridomains.cfg /etc
 
 
 ### User checks
@@ -1510,6 +1556,7 @@ rsync -a $TMP/known_hosts /root/.ssh
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then
 	  rsync -a /root/.ssh/authorized_keys /home/$U/.ssh
+	  ## TODO: Add authorised keys from users here
 	  chown $U:$U /home/$U/.ssh/authorized_keys
 	fi
 
@@ -1572,10 +1619,10 @@ then
 
 	lxc-stop -k -n $ARG
 
-	sed_file /etc/pound-certificates.cfg  'Cert "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/pound-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/pound-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-
+	sed_file /etc/pound-http-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/pound-http-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/pound-https-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/pound-https-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
 
 
 	if [ -d "$SRV/$C" ]; then
@@ -1761,19 +1808,18 @@ message_size_limit=26214400
 	create_poundfile
 
 
-
-
 	if $SUBDOMAIN 
 	then
-	  echo 'Include "'$SRV'/'$C'/pound"' >> /etc/pound-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/pound-http-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/pound-https-subdomains.cfg
 	else
-	  echo 'Include "'$SRV'/'$C'/pound"' >> /etc/pound-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/pound-http-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/pound-https-pridomains.cfg
 	fi
 
 	log "Restarting Pound."
 	restart_pound
 	
-
 	#### START #### 
 	log "Starting container."	
 
