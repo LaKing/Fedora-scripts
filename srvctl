@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.23-01:15:12
-# version 1.7.9
+# Last update:2014.04.23-02:43:29
+# version 1.8.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -291,19 +291,19 @@ Service
 End'
 
 
-echo '## srvctl generated' > /srv/$C/pound-http
-echo 'Include "/srv/'$C'/pound"' >> /srv/$C/pound-http
+echo '## srvctl generated' > $SRV/$C/pound-http
+echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
 
 
 
-echo '## srvctl generated' > /srv/$C/pound-https
+echo '## srvctl generated' > $SRV/$C/pound-https
 
   if [ -f $SRV/$C/cert/$C.pem ]
   then
-	echo 'Cert "/srv/'$C'/cert/'$C'.pem"' >> /srv/$C/pound-https
+	echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
   fi
 
-echo 'Include "/srv/'$C'/pound"' >> /srv/$C/pound-https
+echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
 
 
 }
@@ -627,7 +627,14 @@ ListenHTTPS
     Include "/etc/pound-https-subdomains.cfg"
     Include "/etc/pound-https-pridomains.cfg"
 
+    ## The CA provided files have to be included here.
+    Include "/etc/pound-include-ca.cfg"
+
+
 End
+
+## Include the default host here, as a fallback.
+# Include "/srv/default-host/pound"
 '
 	echo '## srvctl primary domains' >> /etc/pound-http-pridomains.cfg
 	echo '## srvctl subdomains' >> /etc/pound-http-subdomains.cfg
@@ -899,7 +906,7 @@ log "Creating devel-shortcuts in /shortcuts"
 mkdir /shortcuts
 cd /shortcuts
 
-ln -s /srv
+ln -s $SRV
 ln -s /etc/hosts
 ln -s /etc/pound.cfg
 ln -s /etc/pound-http-pridomains.cfg
@@ -938,7 +945,7 @@ then
 	lxc-stop -k -n $C
  done
 
- rm -rf /srv/*
+ rm -rf $SRV/*
  rm -rf /root/.ssh/known_hosts
  rm -rf /etc/pound/*
 
@@ -1444,7 +1451,7 @@ then
 		if [ ! -f $SRV/$C/pound-http ]
 		then
 			echo '## srvctl generated' > $SRV/$C/pound-http
-			echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-http
+			echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
 		fi
 
 		if [ "$cert_status" == "OK" ]
@@ -1452,14 +1459,14 @@ then
 			if [ ! -f $SRV/$C/pound-https ]
 			then
 				echo '## srvctl generated' > $SRV/$C/pound-https
-				echo 'Cert "/srv/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-				echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-https
+				echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+				echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
 			fi
 		else
 
 			echo '## srvctl generated - Check certificate!' > $SRV/$C/pound-https
-			echo '# Cert "/srv/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-			echo 'Include "/srv/'$C'/pound"' >> $SRV/$C/pound-https
+			echo '# Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+			echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
 			echo "WARNING! - CERTIFICATE CHECK FAILED ON "$C
 			all_ok=false 
 		fi
