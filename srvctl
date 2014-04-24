@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.24-03:30:19
-# version 1.8.3
+# Last update:2014.04.24-03:32:12
+# version 1.8.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1684,6 +1684,8 @@ set_file $named_zone '$TTL 1D
 
 	#fi
 
+	chown named:named named_conf
+	chown named:named named_zone
  done
 
  bak /etc/named.conf.local
