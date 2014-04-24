@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.24-03:40:44
+# Last update:2014.04.24-04:11:47
 # version 1.8.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -103,7 +103,7 @@ function set_file {
     if [ -f $1 ];
      then bak $1
     fi
-    echo "creating "$1
+    #echo "creating "$1
     echo "$2" > $1
 }
 
@@ -125,9 +125,10 @@ function add_conf {
     fi
 
     if grep -q "$2" $1; then
-     echo $1" already has "$2
+     echo ''
+     #echo $1" already has "$2
     else
-     echo "adding "$2
+     #echo "adding "$2
      echo "$2" >> $1
     fi
 }
@@ -375,6 +376,50 @@ function set_file_limits {
     ## Hint from Tamás Papp to fix Error: Too many open files
     sysctl fs.inotify.max_user_watches=81920
     sysctl fs.inotify.max_user_instances=1024
+}
+
+function create_named_zones {
+
+	named_conf=/var/named/$C.conf
+	named_zone=/var/named/$C.zone
+
+	if [ ! -f $named_conf ]
+	then
+		echo '## srvctl named.conf '$C > $named_conf
+		echo 'zone "'$C'" {' >> $named_conf
+		echo '	type master;'  >> $named_conf
+		echo '	file "'$named_zone'";' >> $named_conf
+		echo '};' >> $named_conf
+	fi
+
+	if [ ! -f $named_zone ]
+	then
+
+set_file $named_zone '$TTL 1D
+@	IN SOA	@ '$C'. (
+					0	; serial
+					1D	; refresh
+					1H	; retry
+					1W	; expire
+					3H )	; minimum
+	NS	@
+	A	'$HOSTIPv4'
+	AAAA	::1'
+
+	fi
+
+	chown named:named $named_conf
+	chown named:named $named_zone
+
+	if [ ! -L $SRV/$C/named.conf ]
+	then
+	   ln -s $named_conf $SRV/$C/named.conf
+	fi
+
+	if [ ! -L $SRV/$C/named.conf ]
+	then
+	   ln -s $named_zone $SRV/$C/named.zone
+	fi
 }
 
 ## srvctl functions end here.
@@ -1656,39 +1701,7 @@ rsync -a $TMP/known_hosts /root/.ssh
  do
 	echo 'include "/var/named/'$C'.conf";' >> $named_conf_local
 
-	named_conf=/var/named/$C.conf
-	named_zone=/var/named/$C.zone
-
-	#if [ ! -f $named_conf ]
-	#then
-		echo '## srvctl named.conf '$C > $named_conf
-		echo 'zone "'$C'" {' >> $named_conf
-		echo '	type master;'  >> $named_conf
-		echo '	file "'$named_zone'";' >> $named_conf
-		echo '};' >> $named_conf
-	#fi
-
-	#if [ ! -f $named_zone ]
-	#then
-
-set_file $named_zone '$TTL 1D
-@	IN SOA	@ '$C'. (
-					0	; serial
-					1D	; refresh
-					1H	; retry
-					1W	; expire
-					3H )	; minimum
-	NS	@
-	A	'$HOSTIPv4'
-	AAAA	::1'
-
-	#fi
-
-	chown named:named $named_conf
-	chown named:named $named_zone
-
-	ln -s $named_conf $SRV/$C/named.conf
-	ln -s $named_zone $SRV/$C/named.zone
+	create_named_zones
  done
 
  bak /etc/named.conf.local
