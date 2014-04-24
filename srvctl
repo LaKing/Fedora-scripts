@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.23-04:00:42
-# version 1.8.1
+# Last update:2014.04.24-03:25:15
+# version 1.8.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -51,6 +51,9 @@ CMP="D250 laboratories"
 ## Company domain name
 CDN="d250.hu"
 
+## IPv4 Address
+HOSTIPv4=$(dig +time=1 +short $(hostname))
+
 ## Import custom configuration directives
 source /etc/srvctl/config 2> /dev/null
 
@@ -73,8 +76,6 @@ NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 CMD=$1
 ARG=$2
-
-HOSTIPv4=$(dig +time=1 +short $(hostname))
 
 ## Lablib functions
 
@@ -883,10 +884,54 @@ systemctl start perdition-imap4s.service
 systemctl status perdition-imap4s.service
 log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
 
-## TODO: configure DNS server
+## configure DNS server
 
-yum -y install bind bind-chroot bind-utils
+yum -y install bind bind-utils
 
+set_file /etc/named.conf '// srvctl generated named.conf
+
+options {
+    listen-on port 53 { any; };
+    listen-on-v6 port 53 { any; };
+    directory 	"/var/named";
+    dump-file 	"/var/named/data/cache_dump.db";
+    statistics-file "/var/named/data/named_stats.txt";
+    memstatistics-file "/var/named/data/named_mem_stats.txt";
+    allow-query     { any; };
+    recursion yes;
+    dnssec-enable yes;
+    dnssec-validation yes;
+    dnssec-lookaside auto;
+    bindkeys-file "/etc/named.iscdlv.key";
+    managed-keys-directory "/var/named/dynamic";
+};
+
+logging {
+        channel default_debug {
+                file "data/named.run";
+                severity dynamic;
+        };
+};
+
+zone "." IN {
+    type hint;
+    file "named.ca";
+};
+
+include "/etc/named.rfc1912.zones";
+include "/etc/named.root.key";
+
+include "/etc/named.conf.local";
+'
+
+set_file /etc/named.conf.local '## srvctl generated 
+'
+
+rsync -a /usr/share/doc/bind/sample/etc/named.rfc1912.zones /etc
+rsync -a /usr/share/doc/bind/sample/var/named /var
+mkdir /var/named/dynamic
+
+chown -R named:named /var/named
 
 
 ## TODO: firewall-config. open tcp port 993 permanently
@@ -1603,6 +1648,48 @@ rsync -a $TMP/known_hosts /root/.ssh
 	done
  done
 
+
+## Update DNS named/bind configs
+ named_conf_local=$TMP/named.conf.local
+ echo '## srvctl named.conf.local' > $named_conf_local
+ for C in $(lxc-ls)
+ do
+	echo 'include "/'$SRV'/'$C'/named.conf";' >> $named_conf_local
+
+	named_conf=$SRV/$C/named.conf
+	named_zone=$SRV/$C/named.zone
+
+	if [ ! -f $named_conf ]
+	then
+		echo '## srvctl named.conf '$C > $named_conf
+		echo 'zone "'$C'" {' >> $named_conf
+		echo '	type master;'  >> $named_conf
+		echo '	file "'$named_zone'";'
+	fi
+
+	if [ ! -f $named_zone ]
+	then
+
+set_file $named_zone '$TTL 1D
+@	IN SOA	@ '$C'. (
+					0	; serial
+					1D	; refresh
+					1H	; retry
+					1W	; expire
+					3H )	; minimum
+	NS	@
+	A	'$HOSTIPv4'
+	AAAA	::1'
+
+	fi
+
+ done
+
+ bak /etc/named.conf.local
+ rsync -a $named_conf_local /etc
+
+ systemctl restart named.service
+ systemctl status named.service
 
  ## Finalise
 
