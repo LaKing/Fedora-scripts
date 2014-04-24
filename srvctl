@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.24-03:25:15
-# version 1.8.2
+# Last update:2014.04.24-03:30:19
+# version 1.8.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1654,21 +1654,22 @@ rsync -a $TMP/known_hosts /root/.ssh
  echo '## srvctl named.conf.local' > $named_conf_local
  for C in $(lxc-ls)
  do
-	echo 'include "/'$SRV'/'$C'/named.conf";' >> $named_conf_local
+	echo 'include "'$SRV'/'$C'/named.conf";' >> $named_conf_local
 
 	named_conf=$SRV/$C/named.conf
 	named_zone=$SRV/$C/named.zone
 
-	if [ ! -f $named_conf ]
-	then
+	#if [ ! -f $named_conf ]
+	#then
 		echo '## srvctl named.conf '$C > $named_conf
 		echo 'zone "'$C'" {' >> $named_conf
 		echo '	type master;'  >> $named_conf
-		echo '	file "'$named_zone'";'
-	fi
+		echo '	file "'$named_zone'";' >> $named_conf
+		echo '};' >> $named_conf
+	#fi
 
-	if [ ! -f $named_zone ]
-	then
+	#if [ ! -f $named_zone ]
+	#then
 
 set_file $named_zone '$TTL 1D
 @	IN SOA	@ '$C'. (
@@ -1681,7 +1682,7 @@ set_file $named_zone '$TTL 1D
 	A	'$HOSTIPv4'
 	AAAA	::1'
 
-	fi
+	#fi
 
  done
 
