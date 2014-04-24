@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.24-03:32:56
+# Last update:2014.04.24-03:40:44
 # version 1.8.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -1654,10 +1654,10 @@ rsync -a $TMP/known_hosts /root/.ssh
  echo '## srvctl named.conf.local' > $named_conf_local
  for C in $(lxc-ls)
  do
-	echo 'include "'$SRV'/'$C'/named.conf";' >> $named_conf_local
+	echo 'include "/var/named/'$C'.conf";' >> $named_conf_local
 
-	named_conf=$SRV/$C/named.conf
-	named_zone=$SRV/$C/named.zone
+	named_conf=/var/named/$C.conf
+	named_zone=/var/named/$C.zone
 
 	#if [ ! -f $named_conf ]
 	#then
@@ -1686,6 +1686,9 @@ set_file $named_zone '$TTL 1D
 
 	chown named:named $named_conf
 	chown named:named $named_zone
+
+	ln -s $named_conf $SRV/$C/named.conf
+	ln -s $named_zone $SRV/$C/named.zone
  done
 
  bak /etc/named.conf.local
