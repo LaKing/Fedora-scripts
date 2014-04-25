@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.25-02:58:07
-# version 1.8.5
+# Last update:2014.04.25-03:18:28
+# version 1.8.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -380,8 +380,11 @@ function set_file_limits {
 
 function create_named_zone {
 
-	named_conf=/var/named/$C.conf
-	named_zone=/var/named/$C.zone
+	mkdir -p /var/named/srvctl
+	chown -R named:named /var/named/srvctl
+
+	named_conf=/var/named/srvctl/$C.conf
+	named_zone=/var/named/srvctl/$C.zone
 
 	if [ ! -f $named_conf ]
 	then
@@ -395,9 +398,19 @@ function create_named_zone {
 	if [ ! -f $named_zone ]
 	then
 
+	serial_file=/var/named/serial-counter.txt
+
+	if [ ! -f $serial_file ]
+	then
+	  echo '0' > $serial_file
+	else	
+	  serial=$(($(cat $serial_file)+1))
+	  echo $serial >  $serial_file
+	fi
+
 set_file $named_zone '$TTL 1D
 @	IN SOA	@ '$C'. (
-					0	; serial
+					'$serial'	; serial
 					1D	; refresh
 					1H	; retry
 					1W	; expire
@@ -1699,9 +1712,8 @@ rsync -a $TMP/known_hosts /root/.ssh
  echo '## srvctl named.conf.local' > $named_conf_local
  for C in $(lxc-ls)
  do
-	echo 'include "/var/named/'$C'.conf";' >> $named_conf_local
-
 	create_named_zone
+	echo 'include "/var/named/srvctl/'$C'.conf";' >> $named_conf_local
  done
 
  bak /etc/srvctl/named.conf.local
