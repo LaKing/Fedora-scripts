@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.24-04:11:47
-# version 1.8.4
+# Last update:2014.04.25-02:58:07
+# version 1.8.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -191,19 +191,19 @@ function restart_pound {
 	  ## Make a copy of configs, just to make sure.
 	  ## bak files are for humans, we do a last-cfg here.
 	
-	  cat /etc/pound-http-pridomains.cfg >   /etc/pound-http-pridomains.last-cfg 	
-	  cat /etc/pound-http-subdomains.cfg >   /etc/pound-http-subdomains.last-cfg 
-	  cat /etc/pound-https-pridomains.cfg >  /etc/pound-https-pridomains.last-cfg 	
-	  cat /etc/pound-https-subdomains.cfg >  /etc/pound-https-subdomains.last-cfg 
+	  cat /etc/srvctl/pound-http-pridomains.cfg >   /etc/srvctl/pound-http-pridomains.last-cfg 	
+	  cat /etc/srvctl/pound-http-subdomains.cfg >   /etc/srvctl/pound-http-subdomains.last-cfg 
+	  cat /etc/srvctl/pound-https-pridomains.cfg >  /etc/srvctl/pound-https-pridomains.last-cfg 	
+	  cat /etc/srvctl/pound-https-subdomains.cfg >  /etc/srvctl/pound-https-subdomains.last-cfg 
 
 	else
 	  echo -e ${red}"FAILED. Reverting to last known good pound configuration."${NC}
 	
-	  cat /etc/pound-http-pridomains.cfg >  /etc/pound-http-pridomains.fail-cfg
-	  cat /etc/pound-http-subdomains.cfg >  /etc/pound-http-subdomains.fail-cfg
+	  cat /etc/srvctl/pound-http-pridomains.cfg >  /etc/srvctl/pound-http-pridomains.fail-cfg
+	  cat /etc/srvctl/pound-http-subdomains.cfg >  /etc/srvctl/pound-http-subdomains.fail-cfg
 
-	  cat /etc/pound-https-pridomains.last-cfg >  /etc/pound-https-pridomains.cfg
-	  cat /etc/pound-https-subdomains.last-cfg >  /etc/pound-https-subdomains.cfg
+	  cat /etc/srvctl/pound-https-pridomains.last-cfg >  /etc/srvctl/pound-https-pridomains.cfg
+	  cat /etc/srvctl/pound-https-subdomains.last-cfg >  /etc/srvctl/pound-https-subdomains.cfg
 
 	  systemctl restart pound.service
 
@@ -378,7 +378,7 @@ function set_file_limits {
     sysctl fs.inotify.max_user_instances=1024
 }
 
-function create_named_zones {
+function create_named_zone {
 
 	named_conf=/var/named/$C.conf
 	named_zone=/var/named/$C.zone
@@ -655,26 +655,26 @@ ListenHTTP
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
-    Include "/etc/pound-http-subdomains.cfg"
-    Include "/etc/pound-http-pridomains.cfg"
+    Include "/etc/srvctl/pound-http-subdomains.cfg"
+    Include "/etc/srvctl/pound-http-pridomains.cfg"
 
 End
 ListenHTTPS
 
     Address 0.0.0.0
     Port    443
-    Include "/etc/pound-certificates.cfg"
+    Include "/etc/srvctl/pound-certificates.cfg"
 
     Err414 "/var/www/html/414.html"
     Err500 "/var/www/html/500.html"
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
-    Include "/etc/pound-https-subdomains.cfg"
-    Include "/etc/pound-https-pridomains.cfg"
+    Include "/etc/srvctl/pound-https-subdomains.cfg"
+    Include "/etc/srvctl/pound-https-pridomains.cfg"
 
     ## The CA provided files have to be included in here.
-    # Include "/etc/pound-include-ca.cfg"
+    # Include "/etc/srvctl/pound-include-ca.cfg"
 
 
 End
@@ -682,11 +682,11 @@ End
 ## Include the default host here, as a fallback.
 # Include "/srv/default-host/pound"
 '
-	echo '## srvctl primary domains' >> /etc/pound-http-pridomains.cfg
-	echo '## srvctl subdomains' >> /etc/pound-http-subdomains.cfg
+	echo '## srvctl primary domains' >> /etc/srvctl/pound-http-pridomains.cfg
+	echo '## srvctl subdomains' >> /etc/srvctl/pound-http-subdomains.cfg
 
-	echo '## srvctl primary domains' >> /etc/pound-https-pridomains.cfg
-	echo '## srvctl subdomains' >> /etc/pound-https-subdomains.cfg
+	echo '## srvctl primary domains' >> /etc/srvctl/pound-https-pridomains.cfg
+	echo '## srvctl subdomains' >> /etc/srvctl/pound-https-subdomains.cfg
 
 
 	systemctl enable pound.service
@@ -966,10 +966,10 @@ zone "." IN {
 include "/etc/named.rfc1912.zones";
 include "/etc/named.root.key";
 
-include "/etc/named.conf.local";
+include "/etc/srvctl/named.conf.local";
 '
 
-set_file /etc/named.conf.local '## srvctl generated 
+set_file /etc/srvctl/named.conf.local '## srvctl generated 
 '
 
 rsync -a /usr/share/doc/bind/sample/etc/named.rfc1912.zones /etc
@@ -999,10 +999,10 @@ cd /shortcuts
 ln -s $SRV
 ln -s /etc/hosts
 ln -s /etc/pound.cfg
-ln -s /etc/pound-http-pridomains.cfg
-ln -s /etc/pound-http-subdomains.cfg
-ln -s /etc/pound-https-pridomains.cfg
-ln -s /etc/pound-https-subdomains.cfg
+ln -s /etc/srvctl/pound-http-pridomains.cfg
+ln -s /etc/srvctl/pound-http-subdomains.cfg
+ln -s /etc/srvctl/pound-https-pridomains.cfg
+ln -s /etc/srvctl/pound-https-subdomains.cfg
 ln -s /usr/bin/srvctl srvctl
 ln -s /usr/local/etc/lxc/lxc.conf
 ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
@@ -1037,12 +1037,12 @@ then
 
  rm -rf $SRV/*
  rm -rf /root/.ssh/known_hosts
- rm -rf /etc/pound/*
+ rm -rf /etc/srvctl/pound-http*
 
- echo '## srvctl pound-http-pridomains.cfg' > /etc/pound-http-pridomains.cfg
- echo '## srvctl pound-http-subdomains.cfg' > /etc/pound-http-subdomains.cfg
- echo '## srvctl pound-https-pridomains.cfg' > /etc/pound-https-pridomains.cfg
- echo '## srvctl pound-https-subdomains.cfg' > /etc/pound-https-subdomains.cfg
+ echo '## srvctl pound-http-pridomains.cfg' > /etc/srvctl/pound-http-pridomains.cfg
+ echo '## srvctl pound-http-subdomains.cfg' > /etc/srvctl/pound-http-subdomains.cfg
+ echo '## srvctl pound-https-pridomains.cfg' > /etc/srvctl/pound-https-pridomains.cfg
+ echo '## srvctl pound-https-subdomains.cfg' > /etc/srvctl/pound-https-subdomains.cfg
 
  systemctl stop pound.service
 
@@ -1583,10 +1583,10 @@ then
 
 log "Updateing regenerated pound config files in /etc" 	
 
-bak /etc/pound-http-subdomains.cfg
-bak /etc/pound-http-pridomains.cfg
-bak /etc/pound-https-subdomains.cfg
-bak /etc/pound-https-pridomains.cfg
+bak /etc/srvctl/pound-http-subdomains.cfg
+bak /etc/srvctl/pound-http-pridomains.cfg
+bak /etc/srvctl/pound-https-subdomains.cfg
+bak /etc/srvctl/pound-https-pridomains.cfg
 
 rsync -a $TMP/pound-http-subdomains.cfg /etc
 rsync -a $TMP/pound-http-pridomains.cfg /etc
@@ -1701,11 +1701,11 @@ rsync -a $TMP/known_hosts /root/.ssh
  do
 	echo 'include "/var/named/'$C'.conf";' >> $named_conf_local
 
-	create_named_zones
+	create_named_zone
  done
 
- bak /etc/named.conf.local
- rsync -a $named_conf_local /etc
+ bak /etc/srvctl/named.conf.local
+ rsync -a $named_conf_local /etc/srvctl
 
  systemctl restart named.service
  systemctl status named.service
@@ -1732,10 +1732,10 @@ then
 
 	lxc-stop -k -n $ARG
 
-	sed_file /etc/pound-http-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/pound-http-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/pound-https-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/pound-https-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/srvctl/pound-http-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/srvctl/pound-http-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/srvctl/pound-https-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
+	sed_file /etc/srvctl/pound-https-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
 
 
 	if [ -d "$SRV/$C" ]; then
@@ -1923,15 +1923,20 @@ message_size_limit=26214400
 
 	if $SUBDOMAIN 
 	then
-	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/pound-http-subdomains.cfg
-	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/pound-https-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/srvctl/pound-http-subdomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/srvctl/pound-https-subdomains.cfg
 	else
-	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/pound-http-pridomains.cfg
-	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/pound-https-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/srvctl/pound-http-pridomains.cfg
+	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/srvctl/pound-https-pridomains.cfg
 	fi
 
 	log "Restarting Pound."
 	restart_pound
+
+	create_named_zone
+	echo 'include "/var/named/'$C'.conf";' >> /etc/srvctl/named.conf.local
+
+	echo '' > $SRV/$C/users
 	
 	#### START #### 
 	log "Starting container."	
