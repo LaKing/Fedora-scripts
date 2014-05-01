@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.04.25-03:18:28
+# Last update:2014.05.01-18:40:07
 # version 1.8.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -51,7 +51,10 @@ CMP="D250 laboratories"
 ## Company domain name
 CDN="d250.hu"
 
-## IPv4 Address
+## for php.ini in containers
+php_timezone="Europe/Budapest"
+
+## IPv4 Address ## TODO: dig command not available on a minimal-container
 HOSTIPv4=$(dig +time=1 +short $(hostname))
 
 ## Import custom configuration directives
@@ -402,7 +405,7 @@ function create_named_zone {
 
 	if [ ! -f $serial_file ]
 	then
-	  echo '0' > $serial_file
+	  echo '1' > $serial_file
 	else	
 	  serial=$(($(cat $serial_file)+1))
 	  echo $serial >  $serial_file
@@ -1946,17 +1949,24 @@ message_size_limit=26214400
 	restart_pound
 
 	create_named_zone
-	echo 'include "/var/named/'$C'.conf";' >> /etc/srvctl/named.conf.local
+	echo 'include "/var/named/srvctl/'$C'.conf";' >> /etc/srvctl/named.conf.local
 
+	## TODO what user?
 	echo '' > $SRV/$C/users
-	
+
+	## set containers timezone in php.ini, ...  	
+	sed_file $SRV/$C/rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+
+	## set containers sendmail que directory in order to allow apache to use php's mail function. (Didnt find a better way yet.) 
+	chmod 773 $SRV/$C/rootfs/var/spool/clientmqueue
+
 	#### START #### 
 	log "Starting container."	
 
 	## Start the container maybe
 	lxc-start -n $C -d	
 
-	# TODO install and configure dovecot
+	## TODO install and configure dovecot
 
 	log "$C - 10.10."$ip" started."
 
@@ -1984,14 +1994,15 @@ fi ## srvctl add
 if [ "$CMD" == "install-wordpress" ] && $onVE
 then
 
-echo install-wordpress
-
 yum -y install wordpress
 yum -y install php
 yum -y install mariadb mariadb-server 
 systemctl start mariadb.service
 systemctl enable mariadb.service
 systemctl restart httpd.service
+
+
+
 
 fi ## install-wordpress
 
