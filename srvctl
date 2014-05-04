@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.01-18:40:07
-# version 1.8.6
+# Last update:2014.05.04-20:07:26
+# version 1.8.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -387,6 +387,7 @@ function create_named_zone {
 	chown -R named:named /var/named/srvctl
 
 	named_conf=/var/named/srvctl/$C.conf
+	named_slave_conf=/var/named/srvctl/$C.slave.conf
 	named_zone=/var/named/srvctl/$C.zone
 
 	if [ ! -f $named_conf ]
@@ -396,6 +397,16 @@ function create_named_zone {
 		echo '	type master;'  >> $named_conf
 		echo '	file "'$named_zone'";' >> $named_conf
 		echo '};' >> $named_conf
+	fi
+
+	if [ ! -f $named_slave_conf ]
+	then
+		echo '## srvctl named.slave.conf '$C > $named_slave_conf
+		echo 'zone "'$C'" {' >> $named_slave_conf
+		echo '	type slave;'  >> $named_slave_conf
+		echo '	masters {'$HOSTIPv4';};'  >> $named_slave_conf
+		echo '	file "'$named_zone'";' >> $named_slave_conf
+		echo '};' >> $named_slave_conf
 	fi
 
 	if [ ! -f $named_zone ]
@@ -425,6 +436,7 @@ set_file $named_zone '$TTL 1D
 	fi
 
 	chown named:named $named_conf
+	chown named:named $named_slave_conf
 	chown named:named $named_zone
 
 	if [ ! -L $SRV/$C/named.conf ]
@@ -1712,15 +1724,23 @@ rsync -a $TMP/known_hosts /root/.ssh
 
 ## Update DNS named/bind configs
  named_conf_local=$TMP/named.conf.local
+ named_slave_conf_global=$TMP/named.slave.conf.global.$(hostname)
+
  echo '## srvctl named.conf.local' > $named_conf_local
+ echo '## srvctl named.slave.conf.global.'$(hostname) > $named_slave_conf_global
+
  for C in $(lxc-ls)
  do
 	create_named_zone
 	echo 'include "/var/named/srvctl/'$C'.conf";' >> $named_conf_local
+	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
  done
 
  bak /etc/srvctl/named.conf.local
+ bak /etc/srvctl/named.slave.conf.global.$(hostname)
+
  rsync -a $named_conf_local /etc/srvctl
+ rsync -a $named_slave_conf_global /etc/srvctl
 
  systemctl restart named.service
  systemctl status named.service
@@ -1950,6 +1970,7 @@ message_size_limit=26214400
 
 	create_named_zone
 	echo 'include "/var/named/srvctl/'$C'.conf";' >> /etc/srvctl/named.conf.local
+	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> /etc/srvctl/named.slave.conf.global.$(hostname)
 
 	## TODO what user?
 	echo '' > $SRV/$C/users
