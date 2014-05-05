@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.04-20:07:26
-# version 1.8.7
+# Last update:2014.05.05-03:50:34
+# version 1.8.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -46,16 +46,21 @@ SRV=/srv
 ssl_password="no_pass"
 
 ## Company codename
-CMP="D250 laboratories"
+CMP=''
 
 ## Company domain name
-CDN="d250.hu"
+CDN=''
 
 ## for php.ini in containers
 php_timezone="Europe/Budapest"
 
-## IPv4 Address ## TODO: dig command not available on a minimal-container
-HOSTIPv4=$(dig +time=1 +short $(hostname))
+## IPv4 Address ## TODO: dig command not available on a minimal-container, get it with: $(dig +time=1 +short $(hostname))
+HOSTIPv4=''
+
+## File to share this system's VE domains to ns servers
+dns_share='/root/dns.tar.gz'
+
+
 
 ## Import custom configuration directives
 source /etc/srvctl/config 2> /dev/null
@@ -1745,6 +1750,9 @@ rsync -a $TMP/known_hosts /root/.ssh
  systemctl restart named.service
  systemctl status named.service
 
+ rm $dns_share
+ tar -cvxf $dns_share $named_slave_conf /var/named/srvctl
+
  ## Finalise
 
 	if $all_ok
@@ -1968,9 +1976,14 @@ message_size_limit=26214400
 	log "Restarting Pound."
 	restart_pound
 
+	named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
+
 	create_named_zone
 	echo 'include "/var/named/srvctl/'$C'.conf";' >> /etc/srvctl/named.conf.local
-	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> /etc/srvctl/named.slave.conf.global.$(hostname)
+	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
+
+	rm $dns_share
+	tar -cvxf $dns_share $named_slave_conf_global /var/named/srvctl
 
 	## TODO what user?
 	echo '' > $SRV/$C/users
