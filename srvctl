@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.05-03:53:39
+# Last update:2014.05.05-03:55:45
 # version 1.8.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -1751,6 +1751,10 @@ rsync -a $TMP/known_hosts /root/.ssh
  systemctl status named.service
 
  rm $dns_share
+
+echo dns_share=$dns_share
+echo named_slave_conf_global=$named_slave_conf_global
+
  tar -cvxf $dns_share $named_slave_conf_global /var/named/srvctl
 
  ## Finalise
