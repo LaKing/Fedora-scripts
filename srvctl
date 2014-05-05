@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.05-03:58:15
+# Last update:2014.05.05-04:03:20
 # version 1.8.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -1750,12 +1750,12 @@ rsync -a $TMP/known_hosts /root/.ssh
  systemctl restart named.service
  systemctl status named.service
 
+ ## update this variable as it was synced to its real location
+ named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
+
+ ## to make sure everything is correct we regenerate the dns share too
  rm $dns_share
-
-echo dns_share=$dns_share
-echo named_slave_conf_global=$named_slave_conf_global
-
- tar -cvzf $dns_share $named_slave_conf_global /var/named/srvctl
+ tar -czf $dns_share $named_slave_conf_global /var/named/srvctl
 
  ## Finalise
 
@@ -1987,7 +1987,7 @@ message_size_limit=26214400
 	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
 
 	rm $dns_share
-	tar -cvzf $dns_share $named_slave_conf_global /var/named/srvctl
+	tar -czf $dns_share $named_slave_conf_global /var/named/srvctl
 
 	## TODO what user?
 	echo '' > $SRV/$C/users
