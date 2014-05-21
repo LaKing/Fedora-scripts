@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.05-04:11:20
+# Last update:2014.05.21-02:05:17
 # version 1.8.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -60,7 +60,13 @@ HOSTIPv4=''
 ## File to share this system's VE domains to ns servers
 dns_share='/root/dns.tar.gz'
 
+## IPv6 address of the host
+HOSTIPv6="?"
 
+## IPv6 address range base
+RANGEv6="?"
+
+PREFIXv6=64
 
 ## Import custom configuration directives
 source /etc/srvctl/config 2> /dev/null
@@ -434,9 +440,13 @@ set_file $named_zone '$TTL 1D
 					1H	; retry
 					1W	; expire
 					3H )	; minimum
-	NS	@
-	A	'$HOSTIPv4'
+	IN 	NS	@
+*	IN 	A	'$HOSTIPv4'
+@	IN 	A	'$HOSTIPv4'
+@	IN	MX	10	mail
 	AAAA	::1'
+
+
 
 	fi
 
@@ -504,7 +514,7 @@ then
 
 
     ## we use a version-release now.
-    ver="1.0.2"
+    ver="1.0.3"
 
     log "Install LXC "$ver
 
@@ -1987,7 +1997,7 @@ message_size_limit=26214400
 	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
 
 	rm $dns_share
-	tar -czf $dns_share $named_slave_conf_global /var/named/srvctl
+	tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
 
 	## TODO what user?
 	echo '' > $SRV/$C/users
