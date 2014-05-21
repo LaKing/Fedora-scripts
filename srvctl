@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.21-02:05:17
-# version 1.8.8
+# Last update:2014.05.21-04:07:38
+# version 1.8.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -19,15 +19,6 @@ then
   ## sudo bash $0 $1 $2 $3 $4 $5 $6 $7 $8 $9
   exit
 fi
-
-## check for arguments
-if [ -z "$1" ]
-  then
-    echo "srvctl command [argument]"
-    ## TODO a more detailed manual. .)
-fi
-
-
 
 
 ## Configuration defaults - Overwrite in config!
@@ -160,6 +151,27 @@ function err {
 }
 
 ## Lablib functions end here.
+
+log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2"
+
+SUCC=""
+HINT="Usage:	srvctl command [argument]
+
+The list of supported commands:"
+
+
+
+## hint provides a sort of help functionality
+function hint {
+
+HINT=$HINT" 
+  $1	$2"
+
+} 
+
+function ok {
+SUCC=" "
+}
 
 ## srvctl functions
 
@@ -464,21 +476,54 @@ set_file $named_zone '$TTL 1D
 	   ln -s $named_zone $SRV/$C/named.zone
 	fi
 }
-
 ## srvctl functions end here.
 
-log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2"
+##############################
+##
+##   COMMON FUNCTIONS
+##
+##############################
 
-
-if [ "$CMD" == "--version" ] && $onHS
+hint "version	" "Display what srvctl version we are using."
+if [ "$CMD" == "version" ]
 then
 
-  echo 'srvctl: '$(head $0 | grep "# version ")
-  echo 'LXC: '$(lxc-info --version)
+  ver=$(head $0 | grep "# version ")
+  echo 'srvctl: '${ver:10}
 
+  if $onHS
+  then 
+    echo 'LXC: '$(lxc-info --version)
+  fi
+
+ok
 fi
 
-if [ "$CMD" == "uninstall" ] && $onHS
+hint "add-user USERNAME" "Add a new user to the system."
+if [ "$CMD" == "add-user" ]
+then
+
+	argument U
+
+	add_user
+
+ok
+fi ## adduser
+
+############################
+## 
+##  SERVER SIDE FUNCTIONS
+##
+############################
+
+if $onHS
+then 
+
+## no identation.
+
+
+hint "uninstall	" "Remove srvctl from this system."
+if [ "$CMD" == "uninstall" ]
 then
 
 	yum -y remove libvirt*
@@ -489,8 +534,10 @@ then
 	echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
 	echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
 
+ok
 fi
 
+hint "update-install" "This will update srvctl, recompile LXC and update some related packages."
 if [ "$CMD" == "update-install" ] && $onHS
 then
 
@@ -1061,12 +1108,11 @@ then
   echo "Note: to undo, you may run:  cat /etc/ssh/sshd_config.bak > /etc/ssh/sshd_config"
 fi
 
-fi # install
-
-#### COMMANDS ####
+ok
+fi # update-install
 
 ## This is mainly for dev! This should be disabled in production!
-if [ "$CMD" == "reset-install" ] && $onHS
+if [ "$CMD" == "reset-install" ]
 then
 
 ### As I said, ONLY if you really need this.
@@ -1093,12 +1139,15 @@ then
  echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
 
  echo 'DONE!'
+
+ok
 fi
 
 ##### srvctl general functions
 
 ## start or restart service
-if [ "$CMD" == "restart" ] && $onHS
+hint "restart SERVICE" "You can use this command to restart a certain service with some level of error-protection."
+if [ "$CMD" == "restart" ]
 then
 argument service
 
@@ -1111,10 +1160,11 @@ argument service
 
 	systemctl restart $ARG.service
 	systemctl status  $ARG.service
+	systemctl enable  $ARG.service
 
 	fi ## pound.service
 
-
+ok
 fi ## start
 
 
@@ -1261,7 +1311,8 @@ function get_http_response {
 }
 
 ## report status
-if [ "$CMD" == "status" ] && $onHS
+hint "status	" "Report status of containers."
+if [ "$CMD" == "status" ] 
 then
 	echo ''
 
@@ -1279,11 +1330,13 @@ then
  done
 
 	echo ''
-	
+
+ok	
 fi
 
 ## report status of all details
-if [ "$CMD" == "status-all" ] && $onHS
+hint "status-all	" "Detailed container and system health status report."
+if [ "$CMD" == "status-all" ] 
 then
 	echo "Hostname: "$(hostname)
 	echo "Uptime:   "$(uptime)
@@ -1323,10 +1376,12 @@ then
  done
 
 	echo ''
-	
+
+ok	
 fi
 
 ## startall
+hint "start-all	" "Start all containers and services."
 if [ "$CMD" == "start-all" ] && $onHS
 then
 
@@ -1355,39 +1410,14 @@ set_file_limits
 	echo ''
 
 
- done	
-fi
+ done
 
-## killall
-if [ "$CMD" == "kill-all" ] && $onHS
-then
- for C in $(lxc-ls)
- do
-
-	set_is_running
-
-	if $is_running
-	then
-	  printf ${yellow}"%-10s"${NC} "KILLING"		
-	else
-	get_state
-	fi
-
-	get_info
-
-	if $is_running
-	then
-	  lxc-stop -k -n $C
-	fi
-
-	echo ''	
-	
-
- done	
+ok
 fi
 
 ## stopall
-if [ "$CMD" == "stop-all" ] && $onHS
+hint "stop-all	" "Stop all containers." 
+if [ "$CMD" == "stop-all" ]
 then
  for C in $(lxc-ls)
  do
@@ -1411,9 +1441,44 @@ then
 	echo ''	
 
  done	
+
+ok
+fi ## stop-all
+
+## kill-all
+hint "kill-all	" "Force all containers to stop."
+if [ "$CMD" == "kill-all" ]
+then
+
+ for C in $(lxc-ls)
+ do
+
+	set_is_running
+
+	if $is_running
+	then
+	  printf ${yellow}"%-10s"${NC} "KILLING"		
+	else
+	get_state
+	fi
+
+	get_info
+
+	if $is_running
+	then
+	  lxc-stop -k -n $C
+	fi
+
+	echo ''	
+	
+
+ done
+
+ok
 fi
 
-## stopall
+
+## reboot all
 if [ "$CMD" == "reboot-all" ] && $onHS
 then
  for C in $(lxc-ls)
@@ -1441,15 +1506,20 @@ then
 fi
 
 ## exec-all 'something' (or with "")ssh  
-if [ "$CMD" == "exec-all" ] && $onHS
+hint "exec-all 'CMD [..]'" "Execute a command on all running containers."
+if [ "$CMD" == "exec-all" ]
 then
 
 argument command
 
  for C in $(lxc-ls)
  do
+	set_is_running
 
+	if $is_running
+	then
 	ssh $C "$ARG"
+	fi
 
 	get_ip
 	get_pound_state
@@ -1458,29 +1528,21 @@ argument command
 
 	echo ''	
 
- done	
+ done
+
+ok
 fi
 
 
-if [ "$CMD" == "add-user" ] && $onHS
-then
-
-	argument U
-
-	add_user
-
-fi ## adduser
 
 
 
 ## regenerate configs 
-if [ "$CMD" == "regenerate" ] && $onHS
+hint "regenerate	" "Regenerate configuration files, and restart affected services."
+if [ "$CMD" == "regenerate" ]
 then
 
 	all_ok=true
-
-## SRY, IMPLEMENTATION INCOMPLETE. TODO: fix
-#exit
 
  ## regenerate etc_hosts
  echo '# srvctl generated' > $TMP/hosts
@@ -1776,13 +1838,15 @@ rsync -a $TMP/known_hosts /root/.ssh
 		echo -e ${red}"CRITICAL ERRORS FOUND! Please fix!."${NC}
 	fi	
 
+ok
 fi ## regenerate
 
 
 
 
 ## reMOVE host
-if [ "$CMD" == "remove" ] && $onHS
+hint "remove VE	" "Remove a container."
+if [ "$CMD" == "remove" ]
 then
 
 	argument C 
@@ -1806,9 +1870,11 @@ then
 
 	restart_pound
 
+ok
 fi ## reMOVE
 
 ## add new host
+hint "add VE	" "Add new container."
 if [ "$CMD" == "add" ] && $onHS
 then
 
@@ -2027,7 +2093,11 @@ message_size_limit=26214400
 	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
 	## My attempts to do so, did not workk, therefore I kept this concept of the containers sitting together on srv-net with static IP's
 
+ok
 fi ## srvctl add
+
+
+fi ## Server Side functions
 
 
 ################### CLIENT FUNCTIONS ###########
@@ -2036,10 +2106,13 @@ fi ## srvctl add
 ################################################
 
 
+if $onVE
+then
 
 ##ln -s /var/srvctl/srvctl /bin/srvctl
 
-if [ "$CMD" == "install-wordpress" ] && $onVE
+hint "install-wordpress	" "Set up this container as a LAMP to serve a Wordpress based website."
+if [ "$CMD" == "install-wordpress" ]
 then
 
 yum -y install wordpress
@@ -2049,10 +2122,14 @@ systemctl start mariadb.service
 systemctl enable mariadb.service
 systemctl restart httpd.service
 
+## TODO: finish this properly.
 
-
-
+ok
 fi ## install-wordpress
+
+
+## TODO: all these functions need a proper review!! 
+## For now, I just leave it as it is ...
 
 if [ "$CMD" == "import" ] && $onVE
 then
@@ -2452,3 +2529,28 @@ systemctl status postfix.service
 
 fi
 
+fi ## on VE
+
+########################################################
+##
+##
+########################################################
+
+### thats it. Display help or succes info.
+if [ -z "$SUCC" ]
+then
+
+ ## check for arguments
+ if [ -z "$1" ]
+  then
+	printf ${red}"No Command."${NC} 
+  else
+        printf ${red}"Invalid Command."${NC} 
+ fi
+
+ echo -e "
+ $HINT
+ "
+else
+ echo -e "$SUCC"
+fi
