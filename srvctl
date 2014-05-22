@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.21-04:07:38
-# version 1.8.9
+# Last update:2014.05.22-03:11:53
+# version 1.9.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -33,14 +33,14 @@ TMP=/temp
 ## The main /srv folder
 SRV=/srv
 
-## Used for certificate generation
+## Used for certificate generation - do not leave it empty in config file.
 ssl_password="no_pass"
 
 ## Company codename
-CMP=''
+CMP='Unknown'
 
 ## Company domain name
-CDN=''
+CDN='unknown.com'
 
 ## for php.ini in containers
 php_timezone="Europe/Budapest"
@@ -240,6 +240,8 @@ function restart_pound {
 
 }
 
+
+
 function create_certificate { ## for container $C
 
 	## Prepare Certificate creation
@@ -273,15 +275,19 @@ function create_certificate { ## for container $C
         ST                     = Hungary
         L                      = Budapest
         O                      = $CMP
-        OU                     = The Lab CA
+        OU                     = $CMP CA
         CN                     = $C
         emailAddress           = webmaster@$C
 
  	[ req_attributes ]
         challengePassword              = A challenge password"
 
+	## TODO: Dont burn hungary into all certificates .)
 
 	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
+
+	echo "ssl_password $ssl_password"
+	echo "ssl_key $ssl_key"
 
 	## Step 1: Generate a Private Key
 	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
@@ -301,11 +307,13 @@ function create_certificate { ## for container $C
 	## We will generate now a self-signed certificate
 	openssl x509 -req -days $ssl_days -passin pass:$ssl_password  -in $ssl_csr -signkey $ssl_key -out $ssl_crt
 
-	## Eventually create a certificate keychain in pem format
+	## create a certificate keychain in pem format
 	cat $ssl_key >  $ssl_pem
 	cat $ssl_crt >> $ssl_pem
 
 }
+
+
 
 function create_poundfile { ## for container $C
 
@@ -538,7 +546,7 @@ ok
 fi
 
 hint "update-install" "This will update srvctl, recompile LXC and update some related packages."
-if [ "$CMD" == "update-install" ] && $onHS
+if [ "$CMD" == "update-install" ]
 then
 
 ### WEB
@@ -753,7 +761,6 @@ ListenHTTPS
 
     Address 0.0.0.0
     Port    443
-    Include "/etc/srvctl/pound-certificates.cfg"
 
     Err414 "/var/www/html/414.html"
     Err500 "/var/www/html/500.html"
@@ -766,7 +773,6 @@ ListenHTTPS
     ## The CA provided files have to be included in here.
     # Include "/etc/srvctl/pound-include-ca.cfg"
 
-
 End
 
 ## Include the default host here, as a fallback.
@@ -778,7 +784,8 @@ End
 	echo '## srvctl primary domains' >> /etc/srvctl/pound-https-pridomains.cfg
 	echo '## srvctl subdomains' >> /etc/srvctl/pound-https-subdomains.cfg
 
-
+	## note, also certificate files are referenced from containers pound-https file.
+	
 	systemctl enable pound.service
 
 set_file_limits
@@ -831,7 +838,7 @@ smtpd_sasl_auth_enable = yes
 smtpd_sasl_authenticated_header = yes
 smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated
 ##, check_recipient_access, reject_unauth_destination
-smtpd_sasl_local_domain = d250.hu
+smtpd_sasl_local_domain = '$CDN'
 
 ## Max 25MB mail size
 message_size_limit=26214400 
@@ -1380,9 +1387,37 @@ then
 ok	
 fi
 
+## start
+hint "start VE	" "Start a container."
+if [ "$CMD" == "start" ]
+then
+	set_file_limits
+	
+	argument C	
+
+	set_is_running
+	
+	if ! $is_running
+	then
+	  printf ${yellow}"%-10s"${NC} "STARTED"	
+	else
+	  get_state
+	fi	
+
+	get_info
+
+	if ! $is_running
+	then
+	  lxc-start -n $C -d
+	fi
+
+	echo ''
+ok
+fi
+
 ## startall
 hint "start-all	" "Start all containers and services."
-if [ "$CMD" == "start-all" ] && $onHS
+if [ "$CMD" == "start-all" ]
 then
 
 set_file_limits
@@ -1415,7 +1450,35 @@ set_file_limits
 ok
 fi
 
-## stopall
+## stop
+hint "stop VE	" "Stop a container." 
+if [ "$CMD" == "stop" ]
+then
+
+	argument C
+
+	set_is_running
+
+	if $is_running
+	then
+	  printf ${yellow}"%-10s"${NC} "SHUTDOWN"	
+	else 
+	get_state
+	fi
+
+	get_info
+
+	if $is_running
+	then
+	  ssh $C shutdown -P now
+	fi
+
+	echo ''		
+
+ok
+fi ## stop
+
+## stop-all
 hint "stop-all	" "Stop all containers." 
 if [ "$CMD" == "stop-all" ]
 then
@@ -1444,6 +1507,32 @@ then
 
 ok
 fi ## stop-all
+
+## kill
+hint "kill VE	" "Force all containers to stop."
+if [ "$CMD" == "kill" ]
+then
+	argument C
+
+	set_is_running
+
+	if $is_running
+	then
+	  printf ${yellow}"%-10s"${NC} "KILLING"		
+	else
+	get_state
+	fi
+
+	get_info
+
+	if $is_running
+	then
+	  lxc-stop -k -n $C
+	fi
+
+	echo ''	
+ok
+fi
 
 ## kill-all
 hint "kill-all	" "Force all containers to stop."
@@ -1477,9 +1566,35 @@ then
 ok
 fi
 
+## reboot VE
+hint "reboot VE	" "Restart a container."
+if [ "$CMD" == "reboot-all" ]
+then
+	argument C
+
+	set_is_running
+
+	if $is_running
+	then
+	  printf ${yellow}"%-10s"${NC} "REBOOT!"	
+	else 
+	get_state
+	fi
+
+	get_info
+
+	if $is_running
+	then
+	  ssh $C reboot
+	fi
+
+	echo ''	
+ok
+fi
 
 ## reboot all
-if [ "$CMD" == "reboot-all" ] && $onHS
+hint "reboot-all	" "Restart all containers."
+if [ "$CMD" == "reboot-all" ]
 then
  for C in $(lxc-ls)
  do
@@ -1502,15 +1617,17 @@ then
 
 	echo ''	
 
- done	
+ done
+ok
 fi
+
 
 ## exec-all 'something' (or with "")ssh  
 hint "exec-all 'CMD [..]'" "Execute a command on all running containers."
 if [ "$CMD" == "exec-all" ]
 then
 
-argument command
+argument comm
 
  for C in $(lxc-ls)
  do
@@ -1518,7 +1635,7 @@ argument command
 
 	if $is_running
 	then
-	ssh $C "$ARG"
+	ssh $C "$comm"
 	fi
 
 	get_ip
@@ -2438,7 +2555,7 @@ then
 echo '@'$(hostname)' root' > /etc/postfix/virtual
 postmap /etc/postfix/virtual
 
-echo '# srvctl setup - D250 Laboratories
+echo '# srvctl setup
 ## Listen on ..
 inet_interfaces = all
 
