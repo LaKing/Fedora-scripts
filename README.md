@@ -16,6 +16,7 @@ Versions change quick at this time of development, and there are no migration-sc
 If you use or plan to use this script you should contact me for support.
 Current functionality on server-side, and on the containers (VE's).
 
+```
 
 Usage:	srvctl command [argument]
 
@@ -50,3 +51,6 @@ The list of supported commands:
   reset-db-root-passwd	Reset Database root password. 
   backup-db [clean]	Create a backup of the Mysql/MariaDB database, Optionally clean older backups. 
   mailconf		Configure Dovecot / Postfix for email traffic. Catchall to root.
+  
+  
+```
