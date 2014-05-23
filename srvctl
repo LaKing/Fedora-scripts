@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.23-21:44:45
-# version 1.9.2
+# Last update:2014.05.23-21:58:25
+# version 1.9.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2233,11 +2233,11 @@ if $onVE
 then
 
 	## Mariadb / mysql default argument with the defaults-file.
+	$MDA=""
 	if [ -f "$MDF" ]
 	then
 	$MDA=" --defaults-file=$MDF"
 	else
-	$MDA=""
 	echo "Warning: Mysql/MariaDB not secured!"
 	fi
 
