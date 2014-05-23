@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.22-16:45:20
-# version 1.9.1
+# Last update:2014.05.23-21:44:45
+# version 1.9.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -58,6 +58,9 @@ HOSTIPv6="?"
 RANGEv6="?"
 
 PREFIXv6=64
+
+## MYSQL / MARIADB conf file that stores the mysql root password
+MDF="/etc/mysqldump.conf"
 
 ## Import custom configuration directives
 source /etc/srvctl/config 2> /dev/null
@@ -1442,7 +1445,6 @@ set_file_limits
 	  lxc-start -n $C -d
 	fi
 	
-	echo "..."
 	sleep 3
 
 	echo ''
@@ -2220,47 +2222,268 @@ fi ## srvctl add
 fi ## Server Side functions
 
 
-################### CLIENT FUNCTIONS ###########
-#exit
-#!/bin/bash
-################################################
+######################################
+##
+##    CLIENT FUNCTIONS 
+##
+######################################
 
 
 if $onVE
 then
 
+	## Mariadb / mysql default argument with the defaults-file.
+	if [ -f "$MDF" ]
+	then
+	$MDA=" --defaults-file=$MDF"
+	else
+	$MDA=""
+	echo "Warning: Mysql/MariaDB not secured!"
+	fi
+
+##  Stay in client functions, .. but skip identation. (tabbing)
+
+
 ##ln -s /var/srvctl/srvctl /bin/srvctl
 
-hint "install-wordpress	" "Set up this container as a LAMP to serve a Wordpress based website."
+hint "install-wordpress	[folder]" "Set up this container as a LAMP to serve a Wordpress based website."
 if [ "$CMD" == "install-wordpress" ]
 then
 
-yum -y install wordpress
-yum -y install php
-yum -y install mariadb mariadb-server 
-systemctl start mariadb.service
-systemctl enable mariadb.service
-systemctl restart httpd.service
+	yum -y install wordpress
+	yum -y install php
+	yum -y install mariadb mariadb-server 
+	systemctl start mariadb.service
+	systemctl enable mariadb.service
+	systemctl restart httpd.service
 
-## TODO: finish this properly.
+	## TODO: finish this properly.
+
+	if [ ! -z $2 ]
+	then
+	echo prefix-wordpress URI
+
+		ln -s /var/www/html /var/www/html/$2
+
+		cf=/etc/httpd/conf.d/$(hostname).conf
+
+		echo '## srvctl generated' >> $cf
+		echo '<Directory /var/www/html>' >> $cf
+		echo ' <IfModule mod_rewrite.c>' >> $cf
+		echo '  RewriteEngine On' >> $cf
+		echo '  RewriteBase /'$2'/' >> $cf
+		echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
+		echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
+		echo '  RewriteRule . /index.php [L]' >> $cf
+		echo ' </IfModule>' >> $cf
+		echo '</Directory>' >> $cf
+		echo '' >> $cf
+
+		systemctl restart httpd.service
+
+	fi ## prefix wordpress URI
 
 ok
 fi ## install-wordpress
 
-
-## TODO: all these functions need a proper review!! 
-## For now, I just leave it as it is ...
-
-if [ "$CMD" == "import" ] && $onVE
+hint "import-db DATABASE	" "Import a mysql database."
+if [ "$CMD" == "import-db" ]
 then
-echo "import db "$2
 
-mysql < $2
+	argument db
 
-mysql -u root -e "show databases;"
+	mysql $MDA < $db
 
+	mysql $MDA -u root -e "show databases;"
+
+ok
 fi ## import db
 
+
+
+hint "add-db DATABASE	" "Add a new database."
+if [ "$CMD" == "add-db" ]
+then
+
+	argument db_name
+
+	## Get $password
+	get_password
+
+	db_usr=$db_name 
+	#$(echo $db_name | cut -f1 -d"_" )
+	db_pwd=$password
+
+	SQL="CREATE DATABASE $db_name"
+	echo $SQL
+	mysql $MDA -u root -e "$SQL"
+
+
+	SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+	echo $SQL
+	mysql $MDA -u root -e "$SQL"
+
+	## save these params
+	conf=/etc/mysqluser.conf
+	echo 'dbf:'$db_name >> $conf
+	echo 'usr:'$db_usr >> $conf
+	echo 'pwd:'$db_pwd >> $conf
+
+
+ok
+fi ## add-db
+
+hint "secure-db		" "Sequre MariaDB server."
+if [ "$CMD" == "secure-db" ] && $onVE
+then
+
+	get_password
+
+	log "Set database root password to: "$password
+
+	mysql $MDA -u root -e "DELETE FROM mysql.user WHERE User='';"
+	mysql $MDA -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+	mysql $MDA -u root -e "DROP DATABASE test;"
+
+	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+	mysql $MDA -u root -e "$SQL"
+	echo "$SQL"
+
+
+	## set up backup params
+	echo '[client]' > $MDF
+	echo 'user=root' >> $MDF
+	echo 'password='$password >> $MDF
+
+ok
+fi ## secure
+
+
+
+hint "reset-db-root-password		" "Reset Database root password."
+if [ "$CMD" == "reset-db-root-password" ]
+then
+
+	get_password
+
+	test=$(mysql $MDA -e "show databases" | grep Database)
+
+	if [ "$test" == "Database" ] 
+	then
+		echo "The database is accessible."
+	else
+		echo "Could not enter database! "
+
+		systemctl stop mysqld.service
+		sleep 1
+		mysqld_safe --skip-grant-tables &
+		sleep 10
+
+		test=$(mysql $MDA -e "show databases" | grep Database)
+		if [ "$test" == "Database" ] 
+		then
+			echo "Re-entered database in safe mode."
+		else
+			echo "ERROR. Could not re-enter mysql!"
+		exit
+		fi
+
+	fi
+
+	log "Set MariaDB database root password to: $password"
+	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+	mysql $MDA -u root -e "$SQL"
+
+
+	## set up backup params
+
+	echo '[client]' > $MDF
+	echo 'user=root' >> $MDF
+	echo 'password='$password >> $MDF
+
+	echo "Rebooting the container."
+	reboot
+
+ok
+fi ## reset-db-root-password
+
+hint "backup-db	[clean]	" "Create a backup of the Mysql/MariaDB database"
+if [ "$CMD" == "backup-db" ]
+then
+
+	log "Creating backup of Mysql/Mariadb databases."
+
+	old_backup=$(ls -d /root/backup/*)
+
+	BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
+	mkdir -p $BACKUP_POINT
+
+	## All Databases into a single file?
+	# mysqldump $MDA --all-databases >$BACKUP_POINT/all-databases.sql
+
+	succ=1
+	## create backup for each database
+	for i in `echo "show databases" | mysql $MDA | grep -v Database`; do 
+	    if [ "$i" != "information_schema" ] && [ "$i" != "performance_schema" ] 
+	    then 
+	    mysqldump $MDA --databases $i > $BACKUP_POINT/$i.sql
+	    if [ "$?" -eq 0 ]
+	     then
+		 echo "OK:   "$i
+		else
+		 echo "ERROR "$i
+		 echo $err
+		 succ=0
+		fi
+	    fi
+	done
+
+	if [ $succ -gt 0 ]
+	then
+	    echo 'All databases have a backup in '$BACKUP_POINT
+
+	    if [ "$2" == "clean" ]
+	    then
+	     rm -fr $old_backup
+	    fi
+	fi
+ok
+fi ## backup db
+
+hint "mailconf		" "Configure Dovecot / Postfix for email traffic. Catchall to root."
+if [ "$CMD" == "mailconf" ] && $onVE
+then
+
+	yum -y install postfix
+	yum -y install dovecot
+
+	echo '@'$(hostname)' root' > /etc/postfix/virtual
+	postmap /etc/postfix/virtual
+
+	echo '# srvctl setup
+	## Listen on ..
+	inet_interfaces = all
+
+	## Catch all maildefined in .. (comment it out to disable catchall)
+	virtual_alias_maps = hash:/etc/postfix/virtual
+
+	## And send it to ..
+	home_mailbox = Maildir/
+	' >> /etc/postfix/main.cf
+
+	systemctl restart postfix.service
+	systemctl restart dovecot.service
+	echo "Postfix: "$(systemctl is-active postfix.service)	
+	echo "Dovecot: "$(systemctl is-active dovecot.service)
+ok
+fi ## mailconf
+
+
+
+
+####################################################
+## TODO: all these functions need a proper review!! 
+## For now, I just leave it as it is ...
 if [ "$CMD" == "config" ] && $onVE
 then
 
@@ -2402,257 +2625,13 @@ systemctl restart httpd.service
 
 fi ## config-
 
-if [ "$CMD" == "prefix" ] && $onVE
-then
-echo prefix-wordpress URI
 
-ln -s /var/www/html /var/www/html/$2
-
-cf=/etc/httpd/conf.d/$(hostname).conf
-
-echo '## srvctl generated' >> $cf
-echo '<Directory /var/www/html>' >> $cf
-echo ' <IfModule mod_rewrite.c>' >> $cf
-echo '  RewriteEngine On' >> $cf
-echo '  RewriteBase /'$2'/' >> $cf
-echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
-echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
-echo '  RewriteRule . /index.php [L]' >> $cf
-echo ' </IfModule>' >> $cf
-echo '</Directory>' >> $cf
-echo '' >> $cf
-
-systemctl restart httpd.service
-
-fi ## prefix wordpress URI
-
-# instead of /usr/bin/mysql_secure_installation
-## .. and setup mysqldump.conf
-
-if [ "$CMD" == "add-db" ] && $onVE
-then
-
-## Get $password
-get_password
-
-argument db_name
-db_usr=$db_name 
-#$(echo $db_name | cut -f1 -d"_" )
-db_pwd=$password
-
-SQL="CREATE DATABASE $db_name"
-echo $SQL
-mysql -u root -e "$SQL"
-
-
-SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-echo $SQL
-mysql -u root -e "$SQL"
-
-## save these params
-conf=/etc/mysqluser.conf
-echo 'dbf:'$db_name > $conf
-echo 'usr:'$db_usr >> $conf
-echo 'pwd:'$db_pwd >> $conf
-
-
-
-fi # add-db
-
-if [ "$CMD" == "secure" ] && $onVE
-then
-
-
-get_password
-
-
-log "Set database root password to: "$password
-
-#mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
-#mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-#mysql -u root -e "DROP DATABASE test;"
-
-SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-mysql -u root -e "$SQL"
-echo "$SQL"
-
-
-## set up backup params
-conf=/etc/mysqldump.conf
-echo '[client]' > $conf
-echo 'user=root' >> $conf
-echo 'password='$password >> $conf
-
-
-fi ## secure
-
-if [ "$CMD" == "reset-db-root" ] && $onVE
-then
-
-
-
-test=$(mysql --defaults-file=/etc/mysqldump.conf -e "show databases" | grep Database)
-
-if [ "$test" == "Database" ] 
-then
-echo OK
-exit
-else
-echo "Could not enter mysql!"
-fi
-
-systemctl stop mysqld.service
-
-sleep 1
-
-#systemctl status mysqld.service
-
-mysqld_safe --skip-grant-tables &
-
-sleep 10
-
-test=$(mysql --defaults-file=/etc/mysqldump.conf -e "show databases" | grep Database)
-if [ "$test" == "Database" ] 
-then
-echo OK
-
-else
-echo "Could not re-enter mysql!"
-exit
-fi
-
-
-## generate password on array based variable
-declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
-l=${#arr[@]}
-pw=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
-
-
-log "Set database root password to: "$pw
-
-#mysql -u root -e "DELETE FROM mysql.user WHERE User='';"
-#mysql -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-#mysql -u root -e "DROP DATABASE test;"
-
-SQL="UPDATE mysql.user SET Password=PASSWORD('$pw') WHERE User='root'; flush privileges;"
-mysql -u root -e "$SQL"
-echo mysql -u root -e "$SQL"
-
-
-## set up backup params
-conf=/etc/mysqldump.conf
-echo '[client]' > $conf
-echo 'user=root' >> $conf
-echo 'password='$pw >> $conf
-
-
-
-
-reboot
-
-fi ## reset-db-root
-
-if [ "$CMD" == "mailconf" ] && $onVE
-then
-
-echo '@'$(hostname)' root' > /etc/postfix/virtual
-postmap /etc/postfix/virtual
-
-echo '# srvctl setup
-## Listen on ..
-inet_interfaces = all
-
-## Catch all maildefined in ..
-virtual_alias_maps = hash:/etc/postfix/virtual
-
-## And send it to ..
-home_mailbox = Maildir/
-' >> /etc/postfix/main.cf
-
-systemctl restart postfix.service
-systemctl status postfix.service
-
-fi ## mailconf
-
-if [ "$CMD" == "backup" ] && $onVE
-then
-
-log "Creating backup of Mysql/Mariadb databases."
-
-old_backup=$(ls -d /root/backup/*)
-
-BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
-mkdir -p $BACKUP_POINT
-
-## All Databases into a single file?
-# mysqldump --defaults-file=/etc/mysqldump.conf --all-databases >$BACKUP_POINT/all-databases.sql
-
-succ=1
-## create backup for each database
-for i in `echo "show databases" | mysql --defaults-file=/etc/mysqldump.conf | grep -v Database`; do 
-    if [ "$i" != "information_schema" ] && [ "$i" != "performance_schema" ] 
-    then 
-    mysqldump --defaults-file=/etc/mysqldump.conf --databases $i > $BACKUP_POINT/$i.sql
-    if [ "$?" -eq 0 ]
-     then
-         echo "OK:   "$i
-        else
-         echo "ERROR "$i
-         echo $err
-         succ=0
-        fi
-    fi
-done
-
-if [ $succ -gt 0 ]
-then
-    echo 'All databases have a backup in '$BACKUP_POINT
-
-    if [ "$2" == "clean" ]
-    then
-     rm -fr $old_backup
-    fi
-fi
-
-fi ## backup db
-
-
-if [ "$CMD" == "adduser" ] && $onVE
-then
-
- if [ -z "$2" ]
-  then
-    echo "No username argument supplied"
-    exit 11
- fi
-
-
-declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
-l=${#arr[@]}
-password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
-
-adduser $2
-echo $password | passwd $2 --stdin
-
-echo $password > /home/$2/.password
-
-echo "User: $2 password: $passwordd set on $(hostname)"
-
-fi ## adduser
-
-if [ "$CMD" == "fix-postfix" ] && $onVE
-then
-
-sed_file /etc/postfix/main.cf 'virtual_alias_maps' '# virtual_alias_maps'
-systemctl restart postfix.service
-systemctl status postfix.service
-
-fi
 
 fi ## on VE
 
 ########################################################
 ##
+## 		Finish.
 ##
 ########################################################
 
