@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.23-22:02:39
+# Last update:2014.05.23-22:28:16
 # version 1.9.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -2246,7 +2246,7 @@ then
 
 ##ln -s /var/srvctl/srvctl /bin/srvctl
 
-hint "wordpress	[path]	" "Install Wordpress. Optionally to a folder (URI)."
+hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
 if [ "$CMD" == "wordpress" ]
 then
 
@@ -2259,11 +2259,13 @@ then
 
 	## TODO: finish this properly.
 
-	if [ ! -z $2 ]
-	then
-	echo prefix-wordpress URI
+	argument URI
 
-		ln -s /var/www/html /var/www/html/$2
+	if [ ! -z $URI ]
+	then
+	echo "set wordpress URI $URI"
+
+		ln -s /var/www/html /var/www/html/$URI
 
 		cf=/etc/httpd/conf.d/$(hostname).conf
 
@@ -2286,7 +2288,7 @@ then
 ok
 fi ## install-wordpress
 
-hint "import-db DATABASE	" "Import a mysql database."
+hint "import-db DATABASE" "Import a mysql database."
 if [ "$CMD" == "import-db" ]
 then
 
@@ -2301,7 +2303,7 @@ fi ## import db
 
 
 
-hint "add-db DATABASE	" "Add a new database."
+hint "add-db DATABASE" "Add a new database."
 if [ "$CMD" == "add-db" ]
 then
 
@@ -2333,7 +2335,7 @@ then
 ok
 fi ## add-db
 
-hint "secure-db		" "Sequre MariaDB server."
+hint "secure-db	" "Sequre MariaDB server."
 if [ "$CMD" == "secure-db" ] && $onVE
 then
 
@@ -2360,8 +2362,8 @@ fi ## secure
 
 
 
-hint "reset-db-root-password		" "Reset Database root password."
-if [ "$CMD" == "reset-db-root-password" ]
+hint "reset-db-root-passwd" "Reset Database root password."
+if [ "$CMD" == "reset-db-root-passwd" ]
 then
 
 	get_password
@@ -2407,7 +2409,7 @@ then
 ok
 fi ## reset-db-root-password
 
-hint "backup-db	[clean]	" "Create a backup of the Mysql/MariaDB database"
+hint "backup-db [clean]" "Create a backup of the Mysql/MariaDB database, Optionally clean older backups."
 if [ "$CMD" == "backup-db" ]
 then
 
@@ -2450,7 +2452,7 @@ then
 ok
 fi ## backup db
 
-hint "mailconf		" "Configure Dovecot / Postfix for email traffic. Catchall to root."
+hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
 if [ "$CMD" == "mailconf" ] && $onVE
 then
 
