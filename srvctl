@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.23-22:33:15
+# Last update:2014.05.25-04:00:24
 # version 1.9.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -152,6 +152,7 @@ function err {
     echo -e ${red}$1${NC}
     echo $NOW': '$1 >> $LOG
 }
+
 
 ## Lablib functions end here.
 
@@ -373,16 +374,19 @@ function get_password {
 	declare -a pwarrc=("" "." ":" "@" ".." "::" '@@')
 	pwlc=${#pwarrc[@]}
 
-	password=''
-	password=$password${pwarra[$(( RANDOM % $pwla ))]}
-	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
-	password=$password${pwarra[$(( RANDOM % $pwla ))]}
-	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
-	# password=$password${pwarrc[$(( RANDOM % $pwlc ))]}
-	password=$password${pwarra[$(( RANDOM % $pwla ))]}
-	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
-	password=$password${pwarra[$(( RANDOM % $pwla ))]}
-	password=$password${pwarrb[$(( RANDOM % $pwlb ))]}
+	p=''
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	# p=$p${pwarrc[$(( RANDOM % $pwlc ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+
+	## return passowrd
+	password="$p"
 
 }
 
@@ -487,6 +491,11 @@ set_file $named_zone '$TTL 1D
 	   ln -s $named_zone $SRV/$C/named.zone
 	fi
 }
+
+function  get_randomstr {
+    randomstr=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+}
+
 ## srvctl functions end here.
 
 ##############################
@@ -597,9 +606,7 @@ then
     log "LXC-building: install"
     make install
 
-    ## Add export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-    #echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" >> /root/.bash_profile
-    add_conf "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" /root/.bash_profile
+    add_conf /root/.bash_profile "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 
     log "Configure libvirt network"
 
@@ -672,8 +679,9 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
     bak /etc/hosts
 
     ## create ssh key for root
-    if [ ! -f /root/.ssh/id_rsa.pub ]; then
-    ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
+    if [ ! -f /root/.ssh/id_rsa.pub ]
+    then
+      ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
     fi
 
     log "Create Custom template"
@@ -683,10 +691,28 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 
     set_file lxc-fedora-srv '#!/bin/bash
 
-## password array based variable
-declare -a arr=("Ba" "Be" "Bi" "Bo" "Bu" "Ca" "Ce" "Ci" "Co" "Cu" "Da" "De" "Di" "Do" "Du" "Fa" "Fe" "Fi" "Fo" "Fu" "Ga" "Ge" "Gi" "Go" "Gu" "Ha" "He" "Hi" "Ho" "Hu" "Ja" "Je" "Ji" "Jo" "Ju" "Ka" "Ke" "Ki" "Ko" "Ku" "La" "Le" "Li" "Lo" "Lu" "Ma" "Me" "Mi" "Mo" "Mu" "Na" "Ne" "Ni" "No" "Nu" "Pa" "Pe" "Pi" "Po" "Pu" "Ra" "Re" "Ri" "Ro" "Ru" "Sa" "Se" "Si" "So" "Su" "Ta" "Te" "Ti" "To" "Tu" "Va" "Ve" "Vi" "Vo" "Vu" "Za" "Ze" "Zi" "Zo" "Zu")
-l=${#arr[@]}
-root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}
+	## You may want to add your own sillyables, or faorite characters and customy security measures.
+	declare -a pwarra=("B" "C" "D" "F" "G" "H" "J" "K" "L" "M" "N" "P" "R" "S" "T" "V" "Z")
+	pwla=${#pwarra[@]}
+
+	declare -a pwarrb=("a" "e" "i" "o" "u")
+	pwlb=${#pwarrb[@]}	
+
+	declare -a pwarrc=("" "." ":" "@" ".." "::" '@@')
+	pwlc=${#pwarrc[@]}
+
+	p=''
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	# p=$p${pwarrc[$(( RANDOM % $pwlc ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+	p=$p${pwarra[$(( RANDOM % $pwla ))]}
+	p=$p${pwarrb[$(( RANDOM % $pwlb ))]}
+
+	root_password=$p
 
 '
     chmod 755 lxc-fedora-srv
@@ -700,8 +726,12 @@ root_password=${arr[$(( RANDOM % $l ))]}${arr[$(( RANDOM % $l ))]}${arr[$(( RAND
     ## and do not display the dialog for that subject
     sed_file lxc-fedora-srv 'Edit the config file to check/enable networking setup.' 'exit 0'
 
-    ## Add additional default packages - NOTE: After modifocation of this in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
+    ## Add additional default packages 
     sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail"'
+
+    ## After modifocation of the last line, in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
+    rm -rf /usr/local/var/cache/lxc/fedora
+
 
 ## TODO / ISSUE : dovecot can not be added, as it freezes the install process
 
@@ -2232,48 +2262,185 @@ fi ## Server Side functions
 if $onVE
 then
 
-	## Mariadb / mysql default argument with the defaults-file.
-	MDA=""
-	if [ -f "$MDF" ]
-	then
-	MDA=" --defaults-file=$MDF"
-	else
-	echo "Warning: Mysql/MariaDB not secured!"
-	fi
-
-##  Stay in client functions, .. but skip identation. (tabbing)
 
 
 ##ln -s /var/srvctl/srvctl /bin/srvctl
 
-hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
-if [ "$CMD" == "wordpress" ]
-then
+###
+###	MariaDB related client-functions
+###
 
-	yum -y install wordpress
-	yum -y install php
-	yum -y install mariadb mariadb-server 
-	systemctl start mariadb.service
-	systemctl enable mariadb.service
-	systemctl restart httpd.service
+## Add new database
+function add_mariadb_db {
 
-	## TODO: finish this properly.
+	## input $dbd database-definition
+	## $MDA MaridaDB / MysqlDatabase - Argument	
 
-	argument URI
-
-	if [ ! -z $URI ]
+	if [ -z "$dbd" ]
 	then
-	echo "set wordpress URI $URI"
+		dbd=$1
+	fi
+	
+	get_password
+	db_usr=${dbd:0:15}
+	db_name=${dbd:0:63}
+	db_pwd=$password
 
-		ln -s /var/www/html /var/www/html/$URI
+	SQL="CREATE DATABASE IF NOT EXISTS $db_name"
+	mysql $MDA -e "$SQL"
 
-		cf=/etc/httpd/conf.d/$(hostname).conf
+	SQL="GRANT ALL ON $db_name.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+	mysql $MDA -e "$SQL"
+
+	## save these params to etc
+	f=/etc/mysqluser.conf
+	echo "dbf:"$db_name >> $f
+	echo "usr:"$db_usr >> $f
+	echo "pwd:"$db_pwd >> $f
+	
+	echo "Added MariaDB database $db_name. $db_usr:$db_pwd"
+}
+
+
+##  Stay in client functions, .. but skip identation. (tabbing
+test=$(systemctl is-active mariadb.service)
+
+if [ "$test" == "active" ]
+then
+	  
+	## Mariadb / mysql default argument with the defaults-file.
+
+	if [ ! -f "$MDF" ]
+	then
+
+		echo "Warning: Mysql/MariaDB not secured yet! Processing."	
+		MDA="-u root"
+
+		get_password
+
+		mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
+		mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+		mysql $MDA -e "DROP DATABASE IF EXISTS test;"
+
+		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+		mysql $MDA -e "$SQL"
+		log "Set database root password to: "$password
+
+		## set up backup params
+		echo '[client]' > $MDF
+		echo 'user=root' >> $MDF
+		echo 'password='$password >> $MDF
+	
+	fi
+
+	MDA="--defaults-file=$MDF -u root"
+
+	hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
+	if [ "$CMD" == "add-wordpress" ]
+	then
+
+		URI=$2
+
+		if [ -z $URI ]
+		then
+			dir=/var/www/html
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp'
+			bak /var/www/html/index.html
+			rm -rf /var/www/html/index.html
+		else	
+			mkdir /var/www/html/$URI
+			dir=/var/www/html/$URI
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp_'$URI		
+		fi
+
+		## for dependencies.
+		yum -y install unzip
+		yum -y install wordpress
+
+		## TODO: finish this properly.
+
+		wd=/root
+		curl http://wordpress.org/latest.zip > $wd/latest.zip
+	
+		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
+		cp -u -f -r $wd/wordpress/* $dir
+		rm -rf $wd/latest.zip
+		rm -rf $wd/wordpress
+		rm -rf $wd/unzip.log
+		chown -R apache:apache $dir
+	
+		cf=$dir/wp-config.php
+
+		add_mariadb_db	
+
+		## save these params to the wp folder
+		f=$dir/wp-config.php
+		echo "<?php" > $f
+		echo "// srvctl wordpress wp-config" >> $f
+		echo "define('DB_NAME', '$db_name');" >> $f
+		echo "define('DB_USER', '$db_usr');" >> $f
+		echo "define('DB_PASSWORD', '$db_pwd');" >> $f	
+		echo "define('DB_HOST', 'localhost');" >> $f
+		echo "define('DB_CHARSET', 'utf8');" >> $f
+		echo "define('DB_COLLATE', '');" >> $f
+		echo "" >> $f	
+
+		## random key's and salt's
+		get_randomstr
+		echo "define('AUTH_KEY',         '$randomstr');" >> $f
+		get_randomstr
+		echo "define('SECURE_AUTH_KEY',  '$randomstr');" >> $f
+		get_randomstr
+		echo "define('LOGGED_IN_KEY',    '$randomstr');" >> $f
+		get_randomstr
+		echo "define('NONCE_KEY',        '$randomstr');" >> $f
+		get_randomstr
+		echo "define('AUTH_SALT',        '$randomstr');" >> $f
+		get_randomstr
+		echo "define('SECURE_AUTH_SALT', '$randomstr');" >> $f
+		get_randomstr
+		echo "define('LOGGED_IN_SALT',   '$randomstr');" >> $f
+		get_randomstr
+		echo "define('NONCE_SALT',       '$randomstr');" >> $f
+
+		echo "" >> $f
+
+		echo '$'"table_prefix  = 'wp_';" >> $f
+		echo "" >> $f
+
+		echo "define('WPLANG', '');" >> $f
+		echo "define('WP_DEBUG', false);" >> $f
+		echo "" >> $f
+
+		echo "if ( !defined('ABSPATH') ) define('ABSPATH', dirname(__FILE__) . '/');" >> $f
+		echo "require_once(ABSPATH . 'wp-settings.php');" >> $f
+		echo "" >> $f
+
+		echo "" >> $f
+
+		## create an installer to install without web dialog
+		f=$dir/wp-install.php
+		echo "<?php" > $f
+		echo "// srvctl wordpress wp-install" >> $f
+		echo "define('WP_SITEURL', 'http://"$(hostname)"/"$URI"');" >> $f
+		echo "define('WP_INSTALLING',true);" >> $f
+		#echo "define('ABSPATH','/var/www/html/"$URI"/');" >> $f
+		echo "require_once('$dir/wp-config.php');" >> $f
+		echo "require_once('$dir/wp-settings.php');" >> $f
+		echo "require_once('$dir/wp-admin/includes/upgrade.php');" >> $f
+		echo "require_once('$dir/wp-includes/wp-db.php');" >> $f
+		get_password
+		echo "wp_install('"$(hostname)"','admin','root@localhost',1,'','"$password"');" >> $f		
+		
+		php -f $f
+
+		cf=/etc/httpd/conf.d/wp-prettyurl.conf
 
 		echo '## srvctl generated' >> $cf
 		echo '<Directory /var/www/html>' >> $cf
 		echo ' <IfModule mod_rewrite.c>' >> $cf
 		echo '  RewriteEngine On' >> $cf
-		echo '  RewriteBase /'$2'/' >> $cf
+		echo '  RewriteBase /'$URI'/' >> $cf
 		echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
 		echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
 		echo '  RewriteRule . /index.php [L]' >> $cf
@@ -2283,177 +2450,334 @@ then
 
 		systemctl restart httpd.service
 
-	fi ## prefix wordpress URI
+		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
 
-ok
-fi ## install-wordpress
+	ok
+	fi ## install-wordpress
 
-hint "import-db DATABASE" "Import a mysql database."
-if [ "$CMD" == "import-db" ]
-then
+	hint "add-joomla" "Install the latest Joomla! "
+	if [ "$CMD" == "add-joomla" ]
+	then	
 
-	argument db
+		URI=$2
 
-	mysql $MDA < $db
+		if [ -z $URI ]
+		then
+			dir=/var/www/html
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja'
+			bak /var/www/html/index.html
+			rm -rf /var/www/html/index.html
+		else	
+			rm -rf /var/www/html/$URI
+			mkdir /var/www/html/$URI
+			dir=/var/www/html/$URI
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja_'$URI		
+		fi
+	
+		wd=/root/joomla
+		mkdir $wd
+		
+		joomla_dl=http://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=http://).*?(?=.zip)' | grep -m 1 download`.zip
+		curl $joomla_dl > $wd/latest.zip 		
 
-	mysql $MDA -u root -e "show databases;"
+		## for dependencies.
+		yum -y install unzip
+		yum -y install php
 
-ok
-fi ## import db
+		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
+		rm -rf $wd/latest.zip
+		rm -rf $wd/unzip.log
+		cp -u -f -r $wd/* $dir
+		rm -rf $wd
+		chown -R apache:apache $dir
 
+		add_mariadb_db
 
+		f=$dir/configuration.php
+		echo "<?php" > $f
+		echo "class JConfig {" >> $f
+		echo "	public \$offline = '0';" >> $f
+		echo "	public \$offline_message = 'This site is down for maintenance.<br /> Please check back again soon.';" >> $f
+		echo "	public \$display_offline_message = '1';" >> $f
+		echo "	public \$offline_image = '';" >> $f
+		echo "	public \$sitename = '"$(hostname)"';" >> $f
+		echo "	public \$editor = 'tinymce';" >> $f
+		echo "	public \$captcha = '0';" >> $f
+		echo "	public \$list_limit = '20';" >> $f
+		echo "	public \$access = '1';" >> $f
+		echo "	public \$debug = '0';" >> $f
+		echo "	public \$debug_lang = '0';" >> $f
+		echo "	public \$dbtype = 'mysqli';" >> $f
+		echo "	public \$host = 'localhost';" >> $f
+		echo "	public \$user = '$db_usr';" >> $f
+		echo "	public \$password = '$db_pwd';" >> $f
+		echo "	public \$db = '$db_name';" >> $f
+		echo "	public \$dbprefix = 'jos_';" >> $f
+		echo "	public \$live_site = '';" >> $f
+		get_randomstr
+		echo "	public \$secret = '$randomstr';" >> $f
+		echo "	public \$gzip = '0';" >> $f
+		echo "	public \$error_reporting = 'default';" >> $f
+		echo "	public \$helpurl = 'http://help.joomla.org/proxy/index.php?option=com_help&amp;keyref=Help{major}{minor}:{keyref}';" >> $f
+		echo "	public \$ftp_host = '';" >> $f
+		echo "	public \$ftp_port = '';" >> $f
+		echo "	public \$ftp_user = '';" >> $f
+		echo "	public \$ftp_pass = '';" >> $f
+		echo "	public \$ftp_root = '';" >> $f
+		echo "	public \$ftp_enable = '';" >> $f
+		echo "	public \$offset = 'UTC';" >> $f
+		echo "	public \$mailonline = '1';" >> $f
+		echo "	public \$mailer = 'mail';" >> $f
+		echo "	public \$mailfrom = 'joomla@"$(hostname)"';" >> $f
+		echo "	public \$fromname = '"$(hostname)"';" >> $f
+		echo "	public \$sendmail = '/usr/sbin/sendmail';" >> $f
+		echo "	public \$smtpauth = '0';" >> $f
+		echo "	public \$smtpuser = '';" >> $f
+		echo "	public \$smtppass = '';" >> $f
+		echo "	public \$smtphost = 'localhost';" >> $f
+		echo "	public \$smtpsecure = 'none';" >> $f
+		echo "	public \$smtpport = '25';" >> $f
+		echo "	public \$caching = '0';" >> $f
+		echo "	public \$cache_handler = 'file';" >> $f
+		echo "	public \$cachetime = '15';" >> $f
+		echo "	public \$MetaDesc = '';" >> $f
+		echo "	public \$MetaKeys = '';" >> $f
+		echo "	public \$MetaTitle = '1';" >> $f
+		echo "	public \$MetaAuthor = '1';" >> $f
+		echo "	public \$MetaVersion = '0';" >> $f
+		echo "	public \$robots = '';" >> $f
+		echo "	public \$sef = '1';" >> $f
+		echo "	public \$sef_rewrite = '0';" >> $f
+		echo "	public \$sef_suffix = '0';" >> $f
+		echo "	public \$unicodeslugs = '0';" >> $f
+		echo "	public \$feed_limit = '10';" >> $f
+		echo "	public \$log_path = '/var/www/html/logs';" >> $f
+		echo "	public \$tmp_path = '/var/www/html/tmp';" >> $f
+		echo "	public \$lifetime = '15';" >> $f
+		echo "	public \$session_handler = 'database';" >> $f
+		echo "}" >> $f
 
-hint "add-db DATABASE" "Add a new database."
-if [ "$CMD" == "add-db" ]
-then
+		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
 
-	argument db_name
+		## TODO: init Joomla database.
+	ok
+	fi ## install-joomla
 
-	## Get $password
-	get_password
-
-	db_usr=$db_name 
-	#$(echo $db_name | cut -f1 -d"_" )
-	db_pwd=$password
-
-	SQL="CREATE DATABASE $db_name"
-	echo $SQL
-	mysql $MDA -u root -e "$SQL"
-
-
-	SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-	echo $SQL
-	mysql $MDA -u root -e "$SQL"
-
-	## save these params
-	conf=/etc/mysqluser.conf
-	echo 'dbf:'$db_name >> $conf
-	echo 'usr:'$db_usr >> $conf
-	echo 'pwd:'$db_pwd >> $conf
-
-
-ok
-fi ## add-db
-
-hint "secure-db	" "Sequre MariaDB server."
-if [ "$CMD" == "secure-db" ] && $onVE
-then
-
-	get_password
-
-	log "Set database root password to: "$password
-
-	mysql $MDA -u root -e "DELETE FROM mysql.user WHERE User='';"
-	mysql $MDA -u root -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-	mysql $MDA -u root -e "DROP DATABASE test;"
-
-	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-	mysql $MDA -u root -e "$SQL"
-	echo "$SQL"
-
-
-	## set up backup params
-	echo '[client]' > $MDF
-	echo 'user=root' >> $MDF
-	echo 'password='$password >> $MDF
-
-ok
-fi ## secure
-
-
-
-hint "reset-db-root-passwd" "Reset Database root password."
-if [ "$CMD" == "reset-db-root-passwd" ]
-then
-
-	get_password
-
-	test=$(mysql $MDA -e "show databases" | grep Database)
-
-	if [ "$test" == "Database" ] 
+	hint "import-db DATABASE" "Import a mysql database."
+	if [ "$CMD" == "import-db" ] 
 	then
-		echo "The database is accessible."
-	else
-		echo "Could not enter database! "
 
-		systemctl stop mysqld.service
-		sleep 1
-		mysqld_safe --skip-grant-tables &
-		sleep 10
+		argument db
+
+		mysql $MDA < $db
+
+		mysql $MDA -e "show databases;"
+
+	ok
+	fi ## import db
+
+
+
+	hint "add-db DATABASE" "Add a new database."
+	if [ "$CMD" == "add-db" ] 
+	then
+
+		argument db_name
+
+		get_password
+
+		db_usr=$db_name 
+		db_pwd=$password
+
+		SQL="CREATE DATABASE IF NOT EXISTS $db_name"
+		echo $SQL
+		mysql $MDA -e "$SQL"
+
+
+		SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+		echo $SQL
+		mysql $MDA -e "$SQL"
+
+		## save these params
+		conf=/etc/mysqluser.conf
+		echo 'dbf:'$db_name >> $conf
+		echo 'usr:'$db_usr >> $conf
+		echo 'pwd:'$db_pwd >> $conf
+
+
+	ok
+	fi ## add-db
+
+	hint "secure-db	" "Sequre MariaDB server."
+	if [ "$CMD" == "secure-db" ] 
+	then
+		get_password
+
+		mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
+		mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+		mysql $MDA -e "DROP DATABASE IF EXISTS test;"
+
+		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+		mysql $MDA -e "$SQL"
+		log "Set database root password to: "$password
+
+		## set up backup params
+		echo '[client]' > $MDF
+		echo 'user=root' >> $MDF
+		echo 'password='$password >> $MDF
+
+	ok
+	fi ## secure
+
+
+
+	hint "reset-db-root-passwd" "Reset Database root password."
+	if [ "$CMD" == "reset-db-root-passwd" ] 
+	then
+
+		get_password
 
 		test=$(mysql $MDA -e "show databases" | grep Database)
+
 		if [ "$test" == "Database" ] 
 		then
-			echo "Re-entered database in safe mode."
+			echo "The database is accessible."
 		else
-			echo "ERROR. Could not re-enter mysql!"
-		exit
+			echo "Could not enter database! "
+
+			systemctl stop mysqld.service
+			sleep 1
+			mysqld_safe --skip-grant-tables &
+			sleep 10
+
+			test=$(mysql $MDA -e "show databases" | grep Database)
+			if [ "$test" == "Database" ] 
+			then
+				echo "Re-entered database in safe mode."
+			else
+				echo "ERROR. Could not re-enter mysql!"
+			exit
+			fi
+
 		fi
 
-	fi
-
-	log "Set MariaDB database root password to: $password"
-	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-	mysql $MDA -u root -e "$SQL"
+		log "Set MariaDB database root password to: $password"
+		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+		mysql $MDA -e "$SQL"
 
 
-	## set up backup params
+		## set up backup params
 
-	echo '[client]' > $MDF
-	echo 'user=root' >> $MDF
-	echo 'password='$password >> $MDF
+		echo '[client]' > $MDF
+		echo 'user=root' >> $MDF
+		echo 'password='$password >> $MDF
 
-	echo "Rebooting the container."
-	reboot
+		echo "Rebooting the container."
+		reboot
 
-ok
-fi ## reset-db-root-password
+	ok
+	fi ## reset-db-root-password
 
-hint "backup-db [clean]" "Create a backup of the Mysql/MariaDB database, Optionally clean older backups."
-if [ "$CMD" == "backup-db" ]
-then
-
-	log "Creating backup of Mysql/Mariadb databases."
-
-	old_backup=$(ls -d /root/backup/*)
-
-	BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
-	mkdir -p $BACKUP_POINT
-
-	## All Databases into a single file?
-	# mysqldump $MDA --all-databases >$BACKUP_POINT/all-databases.sql
-
-	succ=1
-	## create backup for each database
-	for i in `echo "show databases" | mysql $MDA | grep -v Database`; do 
-	    if [ "$i" != "information_schema" ] && [ "$i" != "performance_schema" ] 
-	    then 
-	    mysqldump $MDA --databases $i > $BACKUP_POINT/$i.sql
-	    if [ "$?" -eq 0 ]
-	     then
-		 echo "OK:   "$i
-		else
-		 echo "ERROR "$i
-		 echo $err
-		 succ=0
-		fi
-	    fi
-	done
-
-	if [ $succ -gt 0 ]
+	hint "backup-db [clean]" "Create a backup of the Mysql/MariaDB database, Optionally clean older backups."
+	if [ "$CMD" == "backup-db" ] 
 	then
-	    echo 'All databases have a backup in '$BACKUP_POINT
 
-	    if [ "$2" == "clean" ]
-	    then
-	     rm -fr $old_backup
-	    fi
+		log "Creating backup of Mysql/Mariadb databases."
+
+		old_backup=$(ls -d /root/backup/*)
+
+		BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
+		mkdir -p $BACKUP_POINT
+
+		## All Databases into a single file?
+		# mysqldump $MDA --all-databases >$BACKUP_POINT/all-databases.sql
+
+		succ=1
+		## create backup for each database
+		for i in `echo "show databases" | mysql $MDA | grep -v Database`; do 
+		    if [ "$i" != "information_schema" ] && [ "$i" != "performance_schema" ] 
+		    then 
+		    mysqldump $MDA --databases $i > $BACKUP_POINT/$i.sql
+		    if [ "$?" -eq 0 ]
+		     then
+			 echo "OK:   "$i
+			else
+			 echo "ERROR "$i
+			 echo $err
+			 succ=0
+			fi
+		    fi
+		done
+
+		if [ $succ -gt 0 ]
+		then
+		    echo 'All databases have a backup in '$BACKUP_POINT
+
+		    if [ "$2" == "clean" ]
+		    then
+		     rm -fr $old_backup
+		    fi
+		fi
+	ok
+	fi ## backup db
+
+	hint "add-phpmyadmin" "Set up phpmyadmin."
+	if [ "$CMD" == "add-phpmyadmin" ] 
+	then
+
+		yum -y install phpmyadmin
+
+		## grant access.
+		## This will grant passwordless setup!		
+		#sed_file /etc/httpd/conf.d/phpMyAdmin.conf "       Require ip 127.0.0.1" "       Require all granted"
+		#sed_file /etc/httpd/conf.d/phpMyAdmin.conf "       Require ip ::1" "       #Require ip ::1"
+
+		## instead, use this custom conf for Apache 2.4
+		set_file /etc/httpd/conf.d/phpMyAdmin.conf "# phpMyAdmin - Web based MySQL browser written in php
+
+		Alias /phpMyAdmin /usr/share/phpMyAdmin
+		Alias /phpmyadmin /usr/share/phpMyAdmin
+
+		<Directory /usr/share/phpMyAdmin/>
+		   <IfModule mod_authz_core.c>
+		     <RequireAny>
+		       Require all granted
+		     </RequireAny>
+		   </IfModule>
+		</Directory>
+
+		<Directory /usr/share/phpMyAdmin/setup/>
+		   <IfModule mod_authz_core.c>
+		     # Apache 2.4
+		     <RequireAny>
+		       Require ip ::1
+		     </RequireAny>
+		   </IfModule>
+		</Directory>
+		"
+		systemctl reload httpd.service
+	ok
 	fi
-ok
-fi ## backup db
+
+else
+
+	hint "setup-mariadb	" "install MariaDB (mysql) database."
+	if [ "$CMD" == "setup-mariadb" ] 
+	then
+		yum -y install mariadb-server
+		systemctl enable mariadb.service
+		systemctl start mariadb.service
+
+		systemctl status mariadb.service
+
+	ok
+	fi ## setup mariadb
+
+fi ## MariaDB related fuctions
+
 
 hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
-if [ "$CMD" == "mailconf" ] && $onVE
+if [ "$CMD" == "mailconf" ]
 then
 
 	yum -y install postfix
@@ -2486,7 +2810,7 @@ fi ## mailconf
 ####################################################
 ## TODO: all these functions need a proper review!! 
 ## For now, I just leave it as it is ...
-if [ "$CMD" == "config" ] && $onVE
+if [ "$CMD" == "config" ] && $MDB
 then
 
 echo config
