@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.25-04:00:24
-# version 1.9.3
+# Last update:2014.05.28-00:58:01
+# version 1.9.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -290,9 +290,6 @@ function create_certificate { ## for container $C
 
 	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
 
-	echo "ssl_password $ssl_password"
-	echo "ssl_key $ssl_key"
-
 	## Step 1: Generate a Private Key
 	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
 
@@ -461,14 +458,13 @@ function create_named_zone {
 	fi
 
 set_file $named_zone '$TTL 1D
-@	IN SOA	@ hostmaster.'$CDN'. (
+@	IN SOA	@ '$C'. (
 					'$serial'	; serial
 					1D	; refresh
 					1H	; retry
 					1W	; expire
 					3H )	; minimum
-	IN 	NS	ns1.'$CDN'
-	IN 	NS	ns2.'$CDN'
+	IN 	NS	@
 *	IN 	A	'$HOSTIPv4'
 @	IN 	A	'$HOSTIPv4'
 @	IN	MX	10	mail
@@ -2051,8 +2047,6 @@ then
 	counter=$(($(cat /etc/srvctl/counter)+1))
 	echo $counter >  /etc/srvctl/counter
 
-	echo $counter > $SRV/$C/config.counter
-
 	if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
 	then 
 	SUBDOMAIN=true
@@ -2076,6 +2070,7 @@ then
 	## TODO check, if it really is.
 
 	#mkdir -p $SRV/$C 
+	echo $counter > $SRV/$C/config.counter
 	
 	cfg=$SRV/$C/config
 	mnt=$SRV/$C/fstab

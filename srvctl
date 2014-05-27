@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.28-00:58:01
-# version 1.9.4
+# Last update:2014.05.28-01:08:49
+# version 1.9.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -447,29 +447,30 @@ function create_named_zone {
 	if [ ! -f $named_zone ]
 	then
 
-	serial_file=/var/named/serial-counter.txt
+		serial_file=/var/named/serial-counter.txt
 
-	if [ ! -f $serial_file ]
-	then
-	  echo '1' > $serial_file
-	else	
-	  serial=$(($(cat $serial_file)+1))
-	  echo $serial >  $serial_file
-	fi
+		if [ ! -f $serial_file ]
+		then
+		  echo '1' > $serial_file
+		else	
+		  serial=$(($(cat $serial_file)+1))
+		  echo $serial >  $serial_file
+		fi
 
-set_file $named_zone '$TTL 1D
-@	IN SOA	@ '$C'. (
+
+		set_file $named_zone '$TTL 1D
+@	IN SOA	@ hostmaster.'$CDN'. (
 					'$serial'	; serial
 					1D	; refresh
 					1H	; retry
 					1W	; expire
 					3H )	; minimum
-	IN 	NS	@
+	IN 	NS	ns1.'$CDN'
+	IN 	NS	ns2.'$CDN'
 *	IN 	A	'$HOSTIPv4'
 @	IN 	A	'$HOSTIPv4'
 @	IN	MX	10	mail
 	AAAA	::1'
-
 
 
 	fi
