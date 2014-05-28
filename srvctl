@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.28-15:03:37
-# version 1.9.5
+# Last update:2014.05.28-15:26:49
+# version 1.9.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2562,12 +2562,13 @@ then
 	
 		dbf=$dir/installation/sql/mysql/add-admin.sql
 
-		set_file $dbf 'INSERT INTO `'$db_name'`.`jos_users` (`id`, `name`, `username`, `email`, `password`, `block`, `sendEmail`, `registerDate`, `lastvisitDate`, `activation`, `params`, `lastResetTime`, `resetCount`, `otpKey`, `otep`, `requireReset`)'" VALUES ('939', 'Super User', 'admin', 'root@localhost', MD5('xxxxxx'), '0', '1', CURRENT_DATE(), CURRENT_DATE(), '0', '', CURRENT_DATE(), '0', '', '', '0');"
+		set_file $dbf 'INSERT INTO `'$db_name'`.`jos_users` (`id`, `name`, `username`, `email`, `password`, `block`, `sendEmail`, `registerDate`, `lastvisitDate`, `activation`, `params`, `lastResetTime`, `resetCount`, `otpKey`, `otep`, `requireReset`)'" VALUES ('939', 'Super User', 'admin', 'root@localhost', MD5('$password'), '0', '1', CURRENT_DATE(), CURRENT_DATE(), '0', '', CURRENT_DATE(), '0', '', '', '0');
+"'INSERT INTO `jos_user_usergroup_map` (`user_id`,`group_id`) '"VALUES ('939','8');"
 
 		cat $dbf
 		mysql $MDA -e "USE $db_name; source $dbf;"
 
-		
+		rm -rf $dir/installation
 		
 
 		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
