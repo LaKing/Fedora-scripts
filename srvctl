@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.05.28-01:08:49
+# Last update:2014.05.28-15:03:37
 # version 1.9.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -2452,7 +2452,7 @@ then
 	ok
 	fi ## install-wordpress
 
-	hint "add-joomla" "Install the latest Joomla! "
+	hint "add-joomla [path]" "Install the latest Joomla! "
 	if [ "$CMD" == "add-joomla" ]
 	then	
 
@@ -2553,6 +2553,22 @@ then
 		echo "	public \$lifetime = '15';" >> $f
 		echo "	public \$session_handler = 'database';" >> $f
 		echo "}" >> $f
+
+		dbf=$dir/installation/sql/mysql/joomla.sql
+
+		sed_file $dbf "#__" "jos_"
+
+		mysql $MDA -e "USE $db_name; source $dbf;"
+	
+		dbf=$dir/installation/sql/mysql/add-admin.sql
+
+		set_file $dbf 'INSERT INTO `'$db_name'`.`jos_users` (`id`, `name`, `username`, `email`, `password`, `block`, `sendEmail`, `registerDate`, `lastvisitDate`, `activation`, `params`, `lastResetTime`, `resetCount`, `otpKey`, `otep`, `requireReset`)'" VALUES ('939', 'Super User', 'admin', 'root@localhost', MD5('xxxxxx'), '0', '1', CURRENT_DATE(), CURRENT_DATE(), '0', '', CURRENT_DATE(), '0', '', '', '0');"
+
+		cat $dbf
+		mysql $MDA -e "USE $db_name; source $dbf;"
+
+		
+		
 
 		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
 
@@ -2976,3 +2992,39 @@ then
 else
  echo -e "$SUCC"
 fi
+
+exit
+
+########################################################
+########################################################
+
+# Sample bash script for DNS slave syncronisation
+
+#!/bin/bash
+
+systemctl stop named.service
+
+rm -rf /root/dns
+rm -rf /var/named/srvctl
+
+mkdir -p /root/dns
+cd /root/dns
+wget https://r2.d250.hu/dns.tar.gz
+tar -xf dns.tar.gz
+rm -rf /root/dns/dns.tar.gz
+
+
+mkdir -p /etc/srvctl
+mkdir -p /var/named/srvctl
+chown -R named:named /var/named/srvctl
+
+rsync -a /root/dns/etc/srvctl/named.slave.conf.global.r2.d250.hu /etc/srvctl
+rsync -a /root/dns/var/named/srvctl /var/named
+
+rm -rf /var/named/srvctl/*.zone
+
+systemctl start named.service
+systemctl status named.service
+
+ 
+
