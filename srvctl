@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.09-04:58:12
+# Last update:2014.06.09-05:08:17
 # version 1.9.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -1946,7 +1946,7 @@ function regenerate_users {
 
 function generate_user_configs {
 	
-	log "Generating user configs for $U"
+	echo "Generating user configs for $U"
 
 	## create keypair
 	if [ ! -f /home/$U/.ssh/id_rsa.pub ]
@@ -2311,11 +2311,15 @@ message_size_limit=26214400
 	tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
 
 	## what user?
-	U=$2
+	U=$3
 	echo "$U" > $SRV/$C/users
-	add_user
-	generate_user_configs
-	generate_user_structure
+
+	if [ ! -z "$U" ]
+	then
+		add_user
+		generate_user_configs
+		generate_user_structure
+	fi
 
 	## set containers timezone in php.ini, ...  	
 	sed_file $SRV/$C/rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
