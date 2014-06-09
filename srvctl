@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.05.28-15:26:49
-# version 1.9.6
+# Last update:2014.06.09-04:57:02
+# version 1.9.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -340,8 +340,27 @@ echo '## srvctl generated' > $SRV/$C/pound-https
 	echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
   fi
 
-echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
+if [ ${C:0:4} == "dev." ] 
+then
+  
+  echo "Setting up as developer-domain. ( translating port 9001 to 443)."
 
+set_file $SRV/$C/pound-dev '## srvctl '$C'
+Service
+                  HeadRequire "Host:.*'$C'.*"
+                  BackEnd
+                      Address '$(cat $SRV/$C/config.ipv4)'
+                      Port    9001
+                  End
+End'
+
+  echo 'Include "'$SRV'/'$C'/pound-dev"' >> $SRV/$C/pound-https	
+
+else
+
+  echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
+
+fi
 
 }
 
@@ -388,6 +407,13 @@ function get_password {
 }
 
 function add_user {
+
+## accept username as function-argument
+if [ -z "$U" ]
+then
+	U=$1
+fi
+
 
   if [ ! -d "/home/$U" ]; then
 	get_password
@@ -528,6 +554,16 @@ then
 ok
 fi ## adduser
 
+hint "diagnose	" "Run a set of diagnostic commands."
+if [ "$CMD" == "diagnose" ]
+then
+
+	netstat -tulpn
+
+ok
+fi
+
+
 ############################
 ## 
 ##  SERVER SIDE FUNCTIONS
@@ -558,6 +594,12 @@ fi
 hint "update-install" "This will update srvctl, recompile LXC and update some related packages."
 if [ "$CMD" == "update-install" ]
 then
+
+### srvctl
+
+## TODO create a srvctl file in /bin and ..
+# ln /bin/srvctl /var/srvctl
+echo "srvctl should be located at /bin/srvctl"
 
 ### WEB
 
@@ -758,6 +800,8 @@ set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="head
 The service is not available. Please try again later.
 </font><p></body>'
 
+wget -o /var/www/html/favicon.ico http://d250.hu/favicon.ico
+wget -o /var/www/html/lablogo.png http://d250.hu/lablogo.png
 
     ## Pound is a reverse Proxy for http
     yum -y install Pound
@@ -1117,6 +1161,16 @@ chown -R named:named /var/named
   #}
 
 ## TODO Create SMTPD Auth proxy method
+
+yum -y install clamav clamav-update
+sed_file /etc/freshclam.conf "Example" "### Example"
+sed_file /etc/freshclam.conf "#DNSDatabaseInfo current.cvd.clamav.net" "DNSDatabaseInfo current.cvd.clamav.net"
+freshclam
+
+
+## TODO: install version managers
+yum -y install mercurial
+
 
 log "Creating devel-shortcuts in /shortcuts"
 ## some quick links for root
@@ -1683,18 +1737,11 @@ argument comm
 ok
 fi
 
+### regenerate-related functions
 
+function regenerate_etc_hosts {
 
-
-
-## regenerate configs 
-hint "regenerate	" "Regenerate configuration files, and restart affected services."
-if [ "$CMD" == "regenerate" ]
-then
-
-	all_ok=true
-
- ## regenerate etc_hosts
+ log "regenerate etc_hosts" ## fist in $TMP
  echo '# srvctl generated' > $TMP/hosts
  echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
  echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
@@ -1734,7 +1781,12 @@ then
  rsync -a $TMP/relaydomains /etc/postfix/relaydomains
  postmap /etc/postfix/relaydomains
 
- ## regenerate known hosts
+} 
+
+function regenerate_known_hosts {
+
+ log "regenerate known hosts"
+
  echo '# srvctl generated' > $TMP/known_hosts
  
  for C in $(lxc-ls)
@@ -1758,7 +1810,15 @@ then
 	fi
  done ## regenerated known_hosts
 
- ## regenerate pound files
+rsync -a $TMP/known_hosts /root/.ssh
+
+}
+
+
+function regenerate_pound_files {
+
+ log "regenerate pound files"
+
  echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
  echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
  echo '# srvctl generated' > $TMP/pound-https-subdomains.cfg
@@ -1832,11 +1892,9 @@ then
  		echo "WARNING tmp: pound-check skip - VE NOT RUNNING: "$C
 	fi
 
-
-
  done ## regenerated pound files
 
-log "Updateing regenerated pound config files in /etc" 	
+echo "Updateing regenerated pound config files in /etc" 	
 
 bak /etc/srvctl/pound-http-subdomains.cfg
 bak /etc/srvctl/pound-http-pridomains.cfg
@@ -1848,6 +1906,11 @@ rsync -a $TMP/pound-http-pridomains.cfg /etc
 rsync -a $TMP/pound-https-subdomains.cfg /etc
 rsync -a $TMP/pound-https-pridomains.cfg /etc
 
+}
+
+function regenerate_root_configs {
+
+echo "Checking root's .ssh configs"
 
 ### User checks
 	## for root
@@ -1863,58 +1926,89 @@ rsync -a $TMP/pound-https-pridomains.cfg /etc
 	  echo '' >> /root/.ssh/authorized_keys
 	fi
 
-rsync -a $TMP/known_hosts /root/.ssh
+}
 
-
+function regenerate_users {
   ## First of all, make sure all users we have defined for sites, are all present.
- log "Updateing user-list."
+ log "Regenarating user-list."
  for C in $(lxc-ls)
  do
 	
 	for U in $(cat $SRV/$C/users)
-	do
+	do		
+		echo "User: $U at $C"
 		
-		
-		#echo "User: $U at $C"
-
 		## if the user doesent exists ... well, create it.
 		add_user
-
 	done
  done
+}
 
+function generate_user_configs {
+	
+	log "Generating user configs for $U"
 
-
-  ## for regular users
-  for U in $(ls /home)
-  do
-
-	#echo $U
-
+	## create keypair
 	if [ ! -f /home/$U/.ssh/id_rsa.pub ]
 	then
 	  echo "NOTE - CREATING KEYPAIR FOR USER "$U
 	  create_keypair
 	fi
 
+	## create known_hosts
 	if [ -f /home/$U/.ssh/known_hosts ]
 	then
 		bak /home/$U/.ssh/known_hosts
 	fi
-	rsync -a $TMP/known_hosts /home/$U/.ssh
+
+	rsync -a /root/.ssh/known_hosts /home/$U/.ssh
 	chown $U:$U /home/$U/.ssh/known_hosts
 
-
+	## create authorised_keys
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then
 	  rsync -a /root/.ssh/authorized_keys /home/$U/.ssh
 	  ## TODO: Add authorised keys from users here
 	  chown $U:$U /home/$U/.ssh/authorized_keys
 	fi
+}
 
-  done ## usercheck
 
+function regenerate_users_configs {
 
+	log "Regenrateing user configs"
+
+  for U in $(ls /home)
+  do
+	generate_user_configs
+  done 
+}
+
+function generate_user_structure ## for user $U, Container $C
+{
+		echo "Generating user structure for $U in $C"
+
+		## Fisrt, add users local public key to container root user - for ssh access.
+		if [ -f /home/$U/.ssh/id_rsa.pub ]
+		then
+			bak $SRV/$C/rootfs/root/.ssh/authorized_keys
+			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
+		else
+			## Error.
+			echo "No id_rsa.pub for user "$U
+		fi
+
+		## Second, create common share
+		mkdir -p /home/$U/$C/mnt
+		chown -R $U:$U /home/$U/$C
+
+		mkdir -p $SRV/$C/rootfs/mnt/$U
+
+		## everything prepared, this is the thing.
+		echo "/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $SRV/$C/fstab
+}
+
+function regenerate_users_structure {
  log "Updateing user-structure."
  for C in $(lxc-ls)
  do
@@ -1922,34 +2016,19 @@ rsync -a $TMP/known_hosts /root/.ssh
 	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
-	mnt=$SRV/$C/fstab
-	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $mnt
+	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $SRV/$C/fstab
 	
 	for U in $(cat $SRV/$C/users)
 	do
-		
-
-		## Add users local public key to container root user
-		if [ -f /home/$U/.ssh/id_rsa.pub ]
-		then
-			bak $SRV/$C/rootfs/root/.ssh/authorized_keys
-			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
-		else
-			echo "NO SYSTEM-USER "$U
-		fi
-
-		mkdir -p /home/$U/$C/mnt
-		chown -R $U:$U /home/$U/$C
-
-		mkdir -p $SRV/$C/rootfs/mnt/$U
-
-		echo "/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $mnt
-
+		generate_user_structure
 	done
  done
+}
 
+function regenerate_dns {
 
-## Update DNS named/bind configs
+log "Update DNS - named/bind configs"
+
  named_conf_local=$TMP/named.conf.local
  named_slave_conf_global=$TMP/named.slave.conf.global.$(hostname)
 
@@ -1978,12 +2057,36 @@ rsync -a $TMP/known_hosts /root/.ssh
  ## to make sure everything is correct we regenerate the dns share too
  rm $dns_share
  tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
+}
 
- ## Finalise
+## regenerate configs 
+hint "regenerate	" "Regenerate configuration files, and restart affected services."
+if [ "$CMD" == "regenerate" ]
+then
+
+	all_ok=true
+
+	regenerate_etc_hosts 
+
+	regenerate_known_hosts
+
+	regenerate_pound_files
+
+	regenerate_root_configs
+
+	regenerate_users 
+
+	regenerate_users_configs
+
+	regenerate_users_structure
+
+	regenerate_dns
+
+	## Finalise
 
 	if $all_ok
 	then
-		echo "ALL_OK!"
+		echo "ALL OK!"
 	else
 		echo -e ${red}"CRITICAL ERRORS FOUND! Please fix!."${NC}
 	fi	
@@ -2024,7 +2127,7 @@ ok
 fi ## reMOVE
 
 ## add new host
-hint "add VE	" "Add new container."
+hint "add VE [USERNAME]	" "Add new container."
 if [ "$CMD" == "add" ] && $onHS
 then
 
@@ -2050,11 +2153,11 @@ then
 
 	if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
 	then 
-	SUBDOMAIN=true
-	log "Adding subdomain #$counter $C"
+		SUBDOMAIN=true
+		log "Adding subdomain #$counter $C"
 	else
-	SUBDOMAIN=false
-	log "Adding domain #$counter $C"
+		SUBDOMAIN=false
+		log "Adding domain #$counter $C"
 	fi
 
 
@@ -2106,9 +2209,9 @@ then
 	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" >> $mnt
 
 
-	mkdir -m 700 $SRV/$C/rootfs/root/.ssh
+	mkdir -m 600 $SRV/$C/rootfs/root/.ssh
 	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
-	chmod 700 $SRV/$C/rootfs/root/.ssh/authorized_keys
+	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
 	## Container should be in the same timezone as the host.
 	rsync -a /etc/localtime $SRV/$C/rootfs/etc
@@ -2157,13 +2260,6 @@ message_size_limit=26214400
 
 	## set (fix?) hostname
 	echo $C > $rootfs/etc/hostname
-
-	## to ease life, we also have a mysql root password in this file
-	ln -s $rootfs/etc/mysqldump.conf $SRV/$C
-
-	## and we keep a note about the owner
-	ln -s ./rootfs/etc/owner $SRV/$C
-
 	
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
@@ -2214,8 +2310,12 @@ message_size_limit=26214400
 	rm $dns_share
 	tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
 
-	## TODO what user?
-	echo '' > $SRV/$C/users
+	## what user?
+	U=$2
+	echo "$U" > $SRV/$C/users
+	add_user
+	generate_user_configs
+	generate_user_structure
 
 	## set containers timezone in php.ini, ...  	
 	sed_file $SRV/$C/rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
@@ -2227,7 +2327,7 @@ message_size_limit=26214400
 	log "Starting container."	
 
 	## Start the container maybe
-	lxc-start -n $C -d	
+	lxc-start -o $SRV/$C/lxc.log -n $C -d 
 
 	## TODO install and configure dovecot
 
@@ -2259,7 +2359,7 @@ fi ## Server Side functions
 if $onVE
 then
 
-
+C=$(hostname)
 
 ##ln -s /var/srvctl/srvctl /bin/srvctl
 
@@ -2270,12 +2370,17 @@ then
 ## Add new database
 function add_mariadb_db {
 
-	## input $dbd database-definition
+	## input $dbd database-definition - basically the database name.
 	## $MDA MaridaDB / MysqlDatabase - Argument	
 
 	if [ -z "$dbd" ]
 	then
-		dbd=$1
+			if [ -z "$1" ]
+			then
+				dbd=$(cat /etc/hostname  | tr '.' '_' )
+			else
+				dbd=$1
+			fi
 	fi
 	
 	get_password
@@ -2299,7 +2404,7 @@ function add_mariadb_db {
 }
 
 
-##  Stay in client functions, .. but skip identation. (tabbing
+##  Stay in client functions, .. but skip identation. (tabbing)
 test=$(systemctl is-active mariadb.service)
 
 if [ "$test" == "active" ]
@@ -2447,6 +2552,8 @@ then
 
 		systemctl restart httpd.service
 
+		echo $password > $dir/.admin
+
 		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
 
 	ok
@@ -2570,6 +2677,7 @@ then
 
 		rm -rf $dir/installation
 		
+		echo $password > $dir/.admin
 
 		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
 
@@ -2621,28 +2729,6 @@ then
 
 	ok
 	fi ## add-db
-
-	hint "secure-db	" "Sequre MariaDB server."
-	if [ "$CMD" == "secure-db" ] 
-	then
-		get_password
-
-		mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
-		mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-		mysql $MDA -e "DROP DATABASE IF EXISTS test;"
-
-		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-		mysql $MDA -e "$SQL"
-		log "Set database root password to: "$password
-
-		## set up backup params
-		echo '[client]' > $MDF
-		echo 'user=root' >> $MDF
-		echo 'password='$password >> $MDF
-
-	ok
-	fi ## secure
-
 
 
 	hint "reset-db-root-passwd" "Reset Database root password."
@@ -2773,6 +2859,113 @@ then
 	ok
 	fi
 
+if [ ${C:0:4} == "dev." ] 
+then
+
+	hint "add-codepad	" "Install ep_codepad, an Etherpad based collaborative code editor."
+	if [ "$CMD" == "add-codepad" ]
+	then
+
+		## install packages
+		yum -y install nodejs
+		yum -y install npm
+		yum -y install gzip git-core curl python openssl-devel
+		yum -y install postgresql-devel
+
+		if [ ! -d "/home/codepad-user" ]; then
+			adduser codepad-user
+		fi
+		## folder to run etherpad from
+	
+		## get the latest version
+		su codepad-user -c "cd /home/codepad-user && git clone git://github.com/ether/etherpad-lite.git"	
+		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_codepad"
+		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_cursortrace"
+
+		#su codepad-user -c "mkdir /home/codepad-user/dev-data"
+
+		ln -s /var/www/html /home/codepad-user/dev-data 
+
+		## for sessionkey
+		get_randomstr
+
+		## codepad/etherpad uses mysql
+		dbd=$(echo ${C:4} | tr "." "_")
+
+		add_mariadb_db
+
+		get_password
+		adminpass=$password
+
+		get_password
+		develpass=$password
+
+
+set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
+{
+  "ep_codepad": { 
+    "project_path": "/home/codepad-user/dev-data",
+    "play_url": "http://'$C'"
+  },
+  "title": "'$C'",
+  "favicon": "favicon.ico",
+  "ip": "0.0.0.0",
+  "port" : 9001,
+  "sessionKey" : "'$randomstr'",
+  "dbType" : "dirty",
+"dbType" : "mysql",
+"dbSettings" : {
+    "user"    : "'$db_usr'",
+    "host"    : "localhost",
+    "password": "'$db_pwd'",
+    "database": "'$db_name'"
+},
+  "defaultPadText" : "Welcome to Etherpad-codepad @ '$C'...",
+  "requireSession" : false,
+  "editOnly" : false,
+  "minify" : true,
+  "maxAge" : 21600, 
+  "abiword" : null,
+  "requireAuthentication": false,
+  "requireAuthorization": false,
+  "trustProxy": false,
+  "disableIPlogging": false,  
+  "users": {"admin": {"password": "'$adminpass'","is_admin": true},"user": {"password": "'$develpass'","is_admin": false}},
+  "socketTransportProtocols" : ["xhr-polling", "jsonp-polling", "htmlfile"],
+  "loglevel": "INFO",
+  "logconfig" :
+    { "appenders": [
+        { "type": "console"}
+      ]
+    }
+}'
+	chown codepad-user:codepad-user /home/codepad-user/etherpad-lite/settings.json
+
+
+set_file /lib/systemd/system/codepad.service '
+[Unit]
+Description=Run Codepad, the collaborative code editor.
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh > /home/codepad-user/etherpad.log 2>$1 < /dev/null &"
+
+[Install]
+WantedBy=multi-user.target
+
+'
+
+systemctl enable codepad.service
+systemctl start codepad.service
+	 
+	#su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh &"
+
+	ok
+	fi ## codepad
+
+fi ## if dev.
+
 else
 
 	hint "setup-mariadb	" "install MariaDB (mysql) database."
@@ -2790,7 +2983,8 @@ else
 fi ## MariaDB related fuctions
 
 
-hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
+
+#hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
 if [ "$CMD" == "mailconf" ]
 then
 
@@ -2800,15 +2994,17 @@ then
 	echo '@'$(hostname)' root' > /etc/postfix/virtual
 	postmap /etc/postfix/virtual
 
+## TODO !! .. this will break postfix if those lines already exists.
+
 	echo '# srvctl setup
 	## Listen on ..
-	inet_interfaces = all
+	#inet_interfaces = all
 
 	## Catch all maildefined in .. (comment it out to disable catchall)
-	virtual_alias_maps = hash:/etc/postfix/virtual
+	#virtual_alias_maps = hash:/etc/postfix/virtual
 
 	## And send it to ..
-	home_mailbox = Maildir/
+	#home_mailbox = Maildir/
 	' >> /etc/postfix/main.cf
 
 	systemctl restart postfix.service
@@ -2824,6 +3020,8 @@ fi ## mailconf
 ####################################################
 ## TODO: all these functions need a proper review!! 
 ## For now, I just leave it as it is ...
+## this was used to migrate from ispconfig, but its rather dirty then proper.
+
 if [ "$CMD" == "config" ] && $MDB
 then
 

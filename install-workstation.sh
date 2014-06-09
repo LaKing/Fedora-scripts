@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.04.17-16:05:10
-# version 1.7.6
+# Last update:2014.06.08-21:04:00
+# version 1.7.7
 #
 # Installer script for Fedora
 #
@@ -488,30 +488,72 @@ gpgkey=https://dl-ssl.google.com/linux/linux_signing_key.pub
 '
     yum -y install google-chrome-stable firefox midori java java-plugin
 
-    ## install Oracle java
+    ## install Oracle java - TODO: fix!
+
 
     cd $TMP
     MACHINE_TYPE=`uname -m`
+
+    header="Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie"   
+
     if [ ${MACHINE_TYPE} == 'x86_64' ]; then
       # 64-bit system
-      wget -nc --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F" "http://download.oracle.com/otn-pub/java/jdk/7u51-b13/jre-7u51-linux-x64.rpm"
-      yum -y install jre-7u51-linux-x64.rpm
+
+	#url="http://download.oracle.com/otn-pub/java/jdk/7u51-b13/jre-7u51-linux-x64.rpm"
+	#url="http://download.oracle.com/otn-pub/java/jdk/7u60-b19/jdk-7u60-linux-x64.rpm"
+	#url="http://download.oracle.com/otn-pub/java/jdk/8u5-b13/jre-8u5-linux-x64.rpm"
+
+	## If you insist on oracle-download ..
+        # wget -nc --no-cookies --no-check-certificate --header $header  $url
+
+	## I assume you are OK, with a mirror. You agree to everything.
+	url="http://d250.hu/scripts/mirrored/jre-8u5-linux-x64.rpm"
+	wget $url
+
+      yum -y install jre-8u5-linux-x64.rpm
     else
       # 32-bit system
-      wget -nc --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F" "http://download.oracle.com/otn-pub/java/jdk/7u51-b13/jre-7u51-linux-i586.rpm"
-      yum -y install jre-7u51-linux-i586.rpm
+
+	#url="http://download.oracle.com/otn-pub/java/jdk/7u51-b13/jre-7u51-linux-i586.rpm"
+	#url="http://download.oracle.com/otn-pub/java/jdk/7u60-b19/jdk-7u60-linux-i586.rpm"
+	#url="http://download.oracle.com/otn-pub/java/jdk/8u5-b13/jre-8u5-linux-i586.rpm"
+
+
+	## If you insist on oracle-download ...
+	## wget -nc --no-cookies --no-check-certificate --header $header $url
+
+	## I assume you are OK, with a mirror. You agree to everything.
+	url="http://d250.hu/scripts/mirrored/jre-8u5-linux-i586.rpm"
+	wget $url
+      
+      yum -y install jre-8u5-linux-i586.rpm
     fi
 
+    ## note,  /usr/java/latest has bin, lib, plugin, man folders, and some files. Difference in 7u51 and 7u60 as it seems. So watch out for OUTDATED stuff.
+    ## java ## 7u51 
+    #alternatives --install /usr/bin/java java /usr/java/latest/jre/bin/java 20000
+    ## javaws ## 7u51
+    #alternatives --install /usr/bin/javaws javaws /usr/java/latest/jre/bin/javaws 20000
+
+    ## Java Browser (Mozilla) Plugin 32-bit ## 7u51
+    #alternatives --install /usr/lib/mozilla/plugins/libjavaplugin.so libjavaplugin.so /usr/java/latest/jre/lib/i386/libnpjp2.so 20000
+
+    ## Java Browser (Mozilla) Plugin 64-bit ## 7u51
+    #alternatives --install /usr/lib64/mozilla/plugins/libjavaplugin.so libjavaplugin.so.x86_64 /usr/java/latest/jre/lib/amd64/libnpjp2.so 20000
+
+
     ## java ##
-    alternatives --install /usr/bin/java java /usr/java/latest/jre/bin/java 20000
-    ## javaws ##
-    alternatives --install /usr/bin/javaws javaws /usr/java/latest/jre/bin/javaws 20000
+    alternatives --install /usr/bin/java java /usr/java/latest/bin/java 20000
+    ## javaws ## 
+    alternatives --install /usr/bin/javaws javaws /usr/java/latest/bin/javaws 20000
 
-    ## Java Browser (Mozilla) Plugin 32-bit ##
-    alternatives --install /usr/lib/mozilla/plugins/libjavaplugin.so libjavaplugin.so /usr/java/latest/jre/lib/i386/libnpjp2.so 20000
+    ## Java Browser (Mozilla) Plugin 32-bit ## 
+    alternatives --install /usr/lib/mozilla/plugins/libjavaplugin.so libjavaplugin.so /usr/java/latest/lib/i386/libnpjp2.so 20000
 
-    ## Java Browser (Mozilla) Plugin 64-bit ##
-    alternatives --install /usr/lib64/mozilla/plugins/libjavaplugin.so libjavaplugin.so.x86_64 /usr/java/latest/jre/lib/amd64/libnpjp2.so 20000
+    ## Java Browser (Mozilla) Plugin 64-bit ## 
+    alternatives --install /usr/lib64/mozilla/plugins/libjavaplugin.so libjavaplugin.so.x86_64 /usr/java/latest/lib/amd64/libnpjp2.so 20000
+
+
 
     mkdir /opt/google/chrome/plugins
     cd /opt/google/chrome/plugins
@@ -525,6 +567,9 @@ gpgkey=https://dl-ssl.google.com/linux/linux_signing_key.pub
     then
      ln -s /usr/java/latest/lib/i386/libnpjp2.so .
     fi
+
+
+
 }
 
 question install_alternative_lightweight_desktops "Lightweight desktops with some traditional look might come handy on a less powerful computer. XFCE and LXDE are such Desktop enviroments." no
@@ -656,6 +701,18 @@ function install_devtools {
     yum -y install nodejs
     yum -y install npm
 
+    ## System development
+    set_file /etc/yum.repos.d/webmin.repo  '[Webmin]
+name=Webmin Distribution Neutral
+#baseurl=http://download.webmin.com/download/yum
+mirrorlist=http://download.webmin.com/download/yum/mirrorlist
+enabled=1'
+
+	cd $TMP
+	wget http://www.webmin.com/jcameron-key.asc
+	rpm --import jcameron-key.asc
+
+    yum -y install webmin
 }
 
 
