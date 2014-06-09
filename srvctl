@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.09-05:08:17
+# Last update:2014.06.09-15:38:21
 # version 1.9.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -351,6 +351,7 @@ Service
                   BackEnd
                       Address '$(cat $SRV/$C/config.ipv4)'
                       Port    9001
+		      TimeOut 300
                   End
 End'
 
@@ -2930,11 +2931,14 @@ set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel set
   "minify" : true,
   "maxAge" : 21600, 
   "abiword" : null,
-  "requireAuthentication": false,
+  "requireAuthentication": true,
   "requireAuthorization": false,
   "trustProxy": false,
   "disableIPlogging": false,  
-  "users": {"admin": {"password": "'$adminpass'","is_admin": true},"user": {"password": "'$develpass'","is_admin": false}},
+  "users": {
+	"admin": {"password": "'$adminpass'","is_admin": true},
+	"user" : {"password": "'$develpass'","is_admin": false}
+  },
   "socketTransportProtocols" : ["xhr-polling", "jsonp-polling", "htmlfile"],
   "loglevel": "INFO",
   "logconfig" :
@@ -2945,7 +2949,10 @@ set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel set
 }'
 	chown codepad-user:codepad-user /home/codepad-user/etherpad-lite/settings.json
 
+## We copuld run this, but that bahaves strange
+#su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh &"
 
+## proper was is to create a service
 set_file /lib/systemd/system/codepad.service '
 [Unit]
 Description=Run Codepad, the collaborative code editor.
@@ -2953,17 +2960,18 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh > /home/codepad-user/etherpad.log 2>$1 < /dev/null &"
+ExecStart=/home/codepad-user/etherpad-lite/bin/run.sh 2>$1 < /dev/null &
 
 [Install]
 WantedBy=multi-user.target
 
 '
+systemctl daemon-reload
 
 systemctl enable codepad.service
 systemctl start codepad.service
 	 
-	#su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh &"
+echo "Admin pass is $adminpass @ https://$C/admin"	
 
 	ok
 	fi ## codepad
