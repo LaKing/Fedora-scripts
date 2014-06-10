@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.06.09-15:38:21
-# version 1.9.6
+# Last update:2014.06.10-22:47:49
+# version 1.9.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -781,22 +781,22 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 
     ## The pound-served custom error documents
 
-set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 414</b> @ '$(hostname)'<br />
 Request URI is too long.
 </font><p></body>'
 
-set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 500</b> @ '$(hostname)'<br />
 An internal server error occurred. Please try again later.
 </font><p></body>'
 
-set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 501</b> @ '$(hostname)'<br />
 Request URI is too long.
 </font><p></body>'
 
-set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
 <b>Error 503</b> @ '$(hostname)'<br />
 The service is not available. Please try again later.
 </font><p></body>'
@@ -2265,7 +2265,7 @@ message_size_limit=26214400
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
 	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
-	<img src="lablogo.png" alt="'$CMP'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
+	<img src="lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
 	<p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">' > $index
 
 	echo '<b>'$C'</b> @ '$(hostname) >> $index
@@ -2886,6 +2886,14 @@ then
 		su codepad-user -c "cd /home/codepad-user && git clone git://github.com/ether/etherpad-lite.git"	
 		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_codepad"
 		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_cursortrace"
+		
+		## increase import filesize limitation
+		sed_file /home/codepad-user/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
+		
+		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
+		sed_file /home/codepad-user/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
+
+
 
 		#su codepad-user -c "mkdir /home/codepad-user/dev-data"
 
@@ -2960,18 +2968,18 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/home/codepad-user/etherpad-lite/bin/run.sh 2>$1 < /dev/null &
+ExecStart=/home/codepad-user/etherpad-lite/bin/run.sh
 
 [Install]
 WantedBy=multi-user.target
 
 '
-systemctl daemon-reload
+	systemctl daemon-reload
 
-systemctl enable codepad.service
-systemctl start codepad.service
-	 
-echo "Admin pass is $adminpass @ https://$C/admin"	
+	systemctl enable codepad.service
+	systemctl start codepad.service
+		 
+	echo "admin pass is $adminpass @ https://$C/admin"	
 
 	ok
 	fi ## codepad
