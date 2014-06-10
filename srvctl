@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.10-22:47:49
+# Last update:2014.06.10-22:59:07
 # version 1.9.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -20,8 +20,10 @@ then
   exit
 fi
 
-
+####################################################
 ## Configuration defaults - Overwrite in config!
+##
+
 MSG="## srvctl modification. $NOW"
 
 ## logfile
@@ -62,8 +64,11 @@ PREFIXv6=64
 ## MYSQL / MARIADB conf file that stores the mysql root password
 MDF="/etc/mysqldump.conf"
 
-## Import custom configuration directives
+## These where the sourceable variables.  
+## Import custom configuration directives now, and customize your variables.
 source /etc/srvctl/config 2> /dev/null
+##
+##########################################################
 
 ## Some way to figure out, .. is this script running in the srvctl container, or on the host system?
 if mount | grep -q 'on /var/srvctl' 
