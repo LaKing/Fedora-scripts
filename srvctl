@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.10-22:59:07
+# Last update:2014.06.12-16:12:54
 # version 1.9.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -2866,6 +2866,18 @@ then
 		</Directory>
 		"
 		systemctl reload httpd.service
+	ok
+	fi
+
+	hint "mysql [CMD..]	" "Enter mariadb/mysql as root, or execute SQL command."
+	if  [ "$CMD" == "mysql" ]
+	then
+		if [ -z "$2" ]
+		then
+			mysql $MDA
+		else
+			mysql $MDA -e "$2" 
+		fi 
 	ok
 	fi
 
