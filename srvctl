@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.06.12-16:12:54
-# version 1.9.7
+# Last update:2014.06.20-01:47:58
+# version 1.9.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1661,7 +1661,7 @@ fi
 
 ## reboot VE
 hint "reboot VE	" "Restart a container."
-if [ "$CMD" == "reboot-all" ]
+if [ "$CMD" == "reboot" ]
 then
 	argument C
 
@@ -1689,6 +1689,7 @@ fi
 hint "reboot-all	" "Restart all containers."
 if [ "$CMD" == "reboot-all" ]
 then
+
  for C in $(lxc-ls)
  do
 
@@ -1709,8 +1710,10 @@ then
 	fi
 
 	echo ''	
-
+	
+	sleep 6
  done
+
 ok
 fi
 
@@ -2342,6 +2345,10 @@ message_size_limit=26214400
 	## TODO install and configure dovecot
 
 	log "$C - 10.10."$ip" started."
+
+	## create shortcut's in root's folder, so user dont get lost in the filesystem.
+	ln -s /var/www/html $SRV/$C/rootfs/root
+
 
 	## Add to host's root's known_hosts after the container booted
 	echo '' >> /root/.ssh/known_hosts
