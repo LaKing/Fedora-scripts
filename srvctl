@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.21-19:11:21
+# Last update:2014.06.21-22:48:14
 # version 1.9.9
 #
 # Server Controll script for Fedora with LXC containers
@@ -87,8 +87,11 @@ fi
 ## some date
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
+##we use the format srvctl  command arguemt [arguments]
 CMD=$1
 ARG=$2
+## Current start directory
+CSD=$(pwd)
 
 ## Lablib functions
 
@@ -622,22 +625,23 @@ echo "srvctl should be located at /bin/srvctl"
     yum -y install graphviz
     yum -y install libcap-devel
 
-    
-    ## to compile it from source
-    ## git clone git://github.com/lxc/lxc
-
-
-    ## we use a version-release now.
-    lxc_version="1.0.3"
-
     log "Install LXC "$lxc_version
 
     cd /root
     rm -rf lxc
 
-    wget https://github.com/lxc/lxc/archive/lxc-$lxc_version.zip
-    unzip lxc-$lxc_version.zip
-    mv lxc-lxc-$lxc_version lxc
+	if [ "$lxc_version" == "git" ]
+	then
+	  ## to compile it from source
+	  git clone git://github.com/lxc/lxc
+
+	else
+    	  ## we use a version-release now.
+	  wget https://github.com/lxc/lxc/archive/lxc-$lxc_version.zip
+	  unzip lxc-$lxc_version.zip
+	  mv lxc-lxc-$lxc_version lxc
+	fi
+
  
     cd lxc
 
@@ -3236,6 +3240,9 @@ then
 else
  echo -e "$SUCC"
 fi
+
+## return to the directory we started from.
+cd $CSD
 
 exit
 
