@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.06.20-01:47:58
-# version 1.9.8
+# Last update:2014.06.21-19:11:21
+# version 1.9.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -257,7 +257,7 @@ function create_certificate { ## for container $C
 	log "Create certificate."
 
 	mkdir $SRV/$C/cert
-	##cd $SRV/$C/cert
+	# cd $SRV/$C/cert
 
 
 	ssl_days=1085
@@ -621,22 +621,23 @@ echo "srvctl should be located at /bin/srvctl"
     yum -y install automake
     yum -y install graphviz
     yum -y install libcap-devel
+
     
     ## to compile it from source
     ## git clone git://github.com/lxc/lxc
 
 
     ## we use a version-release now.
-    ver="1.0.3"
+    lxc_version="1.0.3"
 
-    log "Install LXC "$ver
+    log "Install LXC "$lxc_version
 
     cd /root
     rm -rf lxc
 
-    wget https://github.com/lxc/lxc/archive/lxc-$ver.zip
-    unzip lxc-$ver.zip
-    mv lxc-lxc-$ver lxc
+    wget https://github.com/lxc/lxc/archive/lxc-$lxc_version.zip
+    unzip lxc-$lxc_version.zip
+    mv lxc-lxc-$lxc_version lxc
  
     cd lxc
 
