@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.24-13:29:29
+# Last update:2014.06.24-13:37:36
 # version 1.10.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2402,12 +2402,14 @@ function add_mariadb_db {
 	then
 			if [ -z "$1" ]
 			then
-				dbd=$(cat /etc/hostname  | tr '.' '_' )
+				dbd=$(cat /etc/hostname)
 			else
 				dbd=$1
 			fi
 	fi
 	
+	dbd=$(echo $dbd | tr '.' '_' | tr '-' '_')
+
 	get_password
 	db_usr=${dbd:0:15}
 	db_name=${dbd:0:63}
