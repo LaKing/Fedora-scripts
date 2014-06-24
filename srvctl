@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.24-13:38:40
+# Last update:2014.06.24-13:39:22
 # version 1.10.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2415,7 +2415,7 @@ function add_mariadb_db {
 	db_name=${dbd:0:63}
 	db_pwd=$password
 
-	SQL="CREATE DATABASE IF NOT EXISTS '$db_name';"
+	SQL="CREATE DATABASE IF NOT EXISTS $db_name;"
 	mysql $MDA -e "$SQL"
 	echo $SQL
 
