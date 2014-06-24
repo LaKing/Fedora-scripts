@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.06.21-22:52:19
-# version 1.9.9
+# Last update:2014.06.24-13:26:15
+# version 1.10.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -9,9 +9,9 @@
 # LaKing@D250.hu
 # 
 ## Source URL
-#URL="http://d250.hu/scripts/install-workstation.sh"
+#URL="https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl"
 
-## If user is root or runs on root privileges, continiue.
+## If user is root or runs on root privileges, continiue. (TODO: userspace implementation)
 if [ "$UID" -ne "0" ]
 then
   echo "Root privileges needed to run this script."
@@ -24,6 +24,7 @@ fi
 ## Configuration defaults - Overwrite in config!
 ##
 
+## use latst version or "git" (TODO: or rpm / yum is latest version will be available ina repo, so not yet.)
 LXC_VERSION="1.0.4"
 
 MSG="## srvctl modification. $NOW"
@@ -2415,7 +2416,7 @@ function add_mariadb_db {
 	SQL="CREATE DATABASE IF NOT EXISTS $db_name"
 	mysql $MDA -e "$SQL"
 
-	SQL="GRANT ALL ON $db_name.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+	SQL="GRANT ALL ON '$db_name.*' TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
 	mysql $MDA -e "$SQL"
 
 	## save these params to etc
@@ -2424,7 +2425,7 @@ function add_mariadb_db {
 	echo "usr:"$db_usr >> $f
 	echo "pwd:"$db_pwd >> $f
 	
-	echo "Added MariaDB database $db_name. $db_usr:$db_pwd"
+	echo "Added MariaDB database $db_name  $db_usr:$db_pwd"
 }
 
 
