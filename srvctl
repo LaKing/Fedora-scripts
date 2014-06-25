@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.06.24-13:39:22
+# Last update:2014.06.25-13:46:30
 # version 1.10.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -19,6 +19,9 @@ then
   ## sudo bash $0 $1 $2 $3 $4 $5 $6 $7 $8 $9
   exit
 fi
+
+## some formatted date 
+NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 ####################################################
 ## Configuration defaults - Overwrite in config!
@@ -86,9 +89,6 @@ else
   onHS=true
   onVE=false
 fi
-
-## some date
-NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 ##we use the format srvctl  command arguemt [arguments]
 CMD=$1
@@ -2584,7 +2584,8 @@ then
 		echo $password > $dir/.admin
 
 		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
-
+		
+		## URGENT TODO: fix https for wordpress behind pound
 	ok
 	fi ## install-wordpress
 
