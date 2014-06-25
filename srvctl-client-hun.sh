@@ -1,5 +1,7 @@
 #!/bin/bash
 
+## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client-hun.sh > srvctl-client-hun.sh
+
 ## source or set here as default
 U=$(whoami)
 H="r2.d250.hu" ## customize here
@@ -78,7 +80,7 @@ echo ""
 
 if [ $key == "D" ]
 then
-    echo "LELE"
+
     # sync down
     for D in $(ssh -q $U@$H ls)
     do

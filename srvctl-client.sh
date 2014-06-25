@@ -1,8 +1,30 @@
 #!/bin/bash
+## install as follows:
+## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.sh && chmod +x srvctl-client.sh
 
 ## source or set here as default
 U=$(whoami)
 H="r2.d250.hu" ## customize here
+
+if [ -f srvctl-user ]
+then
+	source srvctl-user
+else
+	echo 'U='$U >> srvctl-user
+	echo 'H="r2.d250.hu"' >> srvctl-user
+fi
+
+## check for update of this script
+curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
+
+if diff srvctl-client.tmp $0 
+then
+	echo "Friss verzió."
+else
+	cat srvctl-client.tmp > srvctl-client.sh && chmod +x srvctl-client.sh
+	echo "A szkript frissítésére került sor, kérlek indítsd el ujra."
+	exit
+fi
 
 
 echo "A szinkronizáció-varázsló elindult."
