@@ -2,7 +2,7 @@
 
 ## source or set here as default
 U=$(whoami)
-H="r2.d250.hu" ## customize here
+H="r2.d250.hu"
 
 
 echo "A szinkronizáció-varázsló elindult."
