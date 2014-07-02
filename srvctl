@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.06.25-14:45:50
-# version 1.10.1
+# Last update:2014.07.02-03:12:18
+# version 1.10.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -167,7 +167,7 @@ function err {
 
 ## Lablib functions end here.
 
-log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2"
+log "[$(whoami)@$(hostname) $(pwd)]# $0 $1 $2 $3 $4 $5 $6 $7 $8 $9"
 
 SUCC=""
 HINT="Usage:	srvctl command [argument]
@@ -228,21 +228,34 @@ function restart_pound {
 
 	if [ $service_status == "active" ]
 	then 
-	  ## Pound, our web-front should never stop.
-	  ## Make a copy of configs, just to make sure.
-	  ## bak files are for humans, we do a last-cfg here.
+
+	## Pound, our web-front should never stop.
+	## Make a copy of configs, just to make sure.
+	## bak files are for humans, we do a last-cfg here.
 	
+	## actual domains are the ones set as container names
+	## primary domains are the ones in form of *.domain.name
+	## subdomains are *.sub.domain.name formatted domains.
+	## pri and subdomain files match things like www.* or other subdomains, as containers may have apache virtual hosts
+	## actual domains need to match exactly.
+
+	## TODO - make the system so it does not check based on last known good config, but instead turn on domains - that work - one by one
+	## in case of a failure.
+
+	  ### TODO cat /etc/srvctl/pound-http-actdomains.cfg >   /etc/srvctl/pound-http-actdomains.last-cfg 	
 	  cat /etc/srvctl/pound-http-pridomains.cfg >   /etc/srvctl/pound-http-pridomains.last-cfg 	
-	  cat /etc/srvctl/pound-http-subdomains.cfg >   /etc/srvctl/pound-http-subdomains.last-cfg 
+	  cat /etc/srvctl/pound-http-subdomains.cfg >   /etc/srvctl/pound-http-subdomains.last-cfg
+	  ### TODO cat /etc/srvctl/pound-https-actdomains.cfg >  /etc/srvctl/pound-https-actdomains.last-cfg 
 	  cat /etc/srvctl/pound-https-pridomains.cfg >  /etc/srvctl/pound-https-pridomains.last-cfg 	
 	  cat /etc/srvctl/pound-https-subdomains.cfg >  /etc/srvctl/pound-https-subdomains.last-cfg 
 
 	else
 	  echo -e ${red}"FAILED. Reverting to last known good pound configuration."${NC}
-	
+
+	  ### TODO cat /etc/srvctl/pound-http-actdomains.cfg >  /etc/srvctl/pound-http-actdomains.fail-cfg	
 	  cat /etc/srvctl/pound-http-pridomains.cfg >  /etc/srvctl/pound-http-pridomains.fail-cfg
 	  cat /etc/srvctl/pound-http-subdomains.cfg >  /etc/srvctl/pound-http-subdomains.fail-cfg
-
+	  ### TODO cat /etc/srvctl/pound-https-actdomains.last-cfg >  /etc/srvctl/pound-https-actdomains.cfg
 	  cat /etc/srvctl/pound-https-pridomains.last-cfg >  /etc/srvctl/pound-https-pridomains.cfg
 	  cat /etc/srvctl/pound-https-subdomains.last-cfg >  /etc/srvctl/pound-https-subdomains.cfg
 
@@ -326,53 +339,62 @@ function create_certificate { ## for container $C
 }
 
 
-
 function create_poundfile { ## for container $C
 
+	## for actual domains with exact match
 	set_file $SRV/$C/pound '## srvctl '$C'
-Service
+	Service
+                  HeadRequire "Host: '$C'"
+                  BackEnd
+                      Address '$(cat $SRV/$C/config.ipv4)'
+                      Port    80
+                  End
+	End'
+
+	## for primary and subdomains with *. match
+	set_file $SRV/$C/pound '## srvctl '$C'
+	Service
                   HeadRequire "Host:.*'$C'.*"
                   BackEnd
                       Address '$(cat $SRV/$C/config.ipv4)'
                       Port    80
                   End
-End'
+	End'
+
+	echo '## srvctl generated' > $SRV/$C/pound-http
+	echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
 
 
-echo '## srvctl generated' > $SRV/$C/pound-http
-echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
 
+	echo '## srvctl generated' > $SRV/$C/pound-https
 
+	  if [ -f $SRV/$C/cert/$C.pem ]
+	  then
+		echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+	  fi
 
-echo '## srvctl generated' > $SRV/$C/pound-https
+	if [ ${C:0:4} == "dev." ] 
+	then
+	  
+	  echo "Setting up as developer-domain. ( translating port 9001 to 443)."
 
-  if [ -f $SRV/$C/cert/$C.pem ]
-  then
-	echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-  fi
-
-if [ ${C:0:4} == "dev." ] 
-then
-  
-  echo "Setting up as developer-domain. ( translating port 9001 to 443)."
-
-set_file $SRV/$C/pound-dev '## srvctl '$C'
-Service
+	set_file $SRV/$C/pound-dev '## srvctl '$C'
+	Service
                   HeadRequire "Host:.*'$C'.*"
                   BackEnd
                       Address '$(cat $SRV/$C/config.ipv4)'
                       Port    9001
 		      TimeOut 300
                   End
-End'
+	End'
 
-  echo 'Include "'$SRV'/'$C'/pound-dev"' >> $SRV/$C/pound-https	
+	  echo 'Include "'$SRV'/'$C'/pound-dev"' >> $SRV/$C/pound-https	
 
-else
+	else
 
-  echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
+  	  echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
 
-fi
+	fi
 
 }
 
@@ -391,6 +413,8 @@ function create_keypair { ## for user $U
 }
 
 function get_password {
+
+	## TODO make hash based password eventually? ...
 
 	## You may want to add your own sillyables, or faorite characters and customy security measures.
 	declare -a pwarra=("B" "C" "D" "F" "G" "H" "J" "K" "L" "M" "N" "P" "R" "S" "T" "V" "Z")
@@ -419,6 +443,8 @@ function get_password {
 }
 
 function add_user {
+
+## TODO set lowercase $U
 
 ## accept username as function-argument
 if [ -z "$U" ]
@@ -490,6 +516,7 @@ function create_named_zone {
 		if [ ! -f $serial_file ]
 		then
 		  echo '1' > $serial_file
+		  serial='1'
 		else	
 		  serial=$(($(cat $serial_file)+1))
 		  echo $serial >  $serial_file
@@ -566,6 +593,28 @@ then
 ok
 fi ## adduser
 
+## start or restart service
+hint "restart SERVICE" "You can use this command to restart a certain service via systemctl."
+if [ "$CMD" == "restart" ]
+then
+	argument service
+
+	if [ "$ARG" == "pound" ]
+	then
+
+	  restart_pound	
+	
+	else
+
+	systemctl restart $ARG.service
+	systemctl status  $ARG.service
+	systemctl enable  $ARG.service
+
+	fi ## pound.service
+
+ok
+fi ## start
+
 hint "diagnose	" "Run a set of diagnostic commands."
 if [ "$CMD" == "diagnose" ]
 then
@@ -611,7 +660,19 @@ then
 
 ## TODO create a srvctl file in /bin and ..
 # ln /bin/srvctl /var/srvctl
+
 echo "srvctl should be located at /bin/srvctl"
+
+## TODO yum -y update
+
+## TODO make sure networking is set and okay.
+# /etc/sysconfig/network-scripts/ifcfg-em1
+# /etc/sysconfig/network
+# systemctl stop NetworkManager.service
+# systemctl remove NetworkManager
+# systemctl enable network.service
+# systemctl start network.service
+
 
 ### WEB
 
@@ -1044,13 +1105,84 @@ decode:		root
 #root:		marc
 '
 
+## TODO alternatives set postfix as default MTA
 
+## TODO set postfix main.cf for SMTPS on port 465
+
+## To create proper SMTPD Auth proxy method http://www.postfix.org/SASL_README.html
+## saslauthd can verify the SMTP client credentials by using them to log into an IMAP server. 
+## If the login succeeds, SASL authentication also succeeds. saslauthd contacts an IMAP server when started like this: saslauthd -d -a rimap -O test.d250.hu
+## the remote server - in the container - needs to have dovecot (or an IMAP server) with users to authenticate.
+
+## saslauthd and perdition - incompability problem as of 2014.06.25 
+## 
+## saslauthd with rimap to perdition ...
+## The response after LOGIN is not being processed correctly.
+## Perdition sends the CAPABILITY before the OK, thus saslauthd returns 
+## [reason=[ALERT] Unexpected response from remote authentication server] 
+## .. and fails to authenticate.
+##
+## A workaround is to patch saslauthd.
+## We can consider CAPABILITY equal to OK [CAPABILITY ...], as in case of bad password / bad username / bad host, the remote server rejects the credentials.
+## That means, if the response is not a NO, and there is a response, we can assume its an OK.
+##
+## cyrus-sasl-2.1.26/saslauthd/auth_rimap.c last lines:
+## replace: return strdup(RESP_UNEXPECTED);
+## with: return strdup("OK remote authentication successful"); 
+## .. compile, install.
+##
+## Some more dev-hints.
+##
+## The LOGIN command is supported on both, saslauthd and perdition, plaintext only on saslauthd.
+## Here is a note how to enable plaintext in dovecot:
+## disable_plaintext_auth = no  >>> /etc/dovecot 10-auth.conf 
+## ssl = no >>> 10-ssl.conf 
+## testing the running saslauthd: testsaslauthd -u tx -p xxxxxx
+##
+## Get base64 encoded login code for user x pass xxxxxx
+## echo -en "\0x\0xxxxxx" | base64
+## AHgAeHh4eHh4
+##
+##
+## Send e-mail
+## echo "this is the body" | mail -s "this is the subject" "to@address"
+##
+## Other test commands:
+##
+#### plaintext IMAP connaction test
+## telnet test.d250.hu 143
+## a AUTHENTICATE PLAIN
+## + base64_code
+##
+#### IMAP4S connection test
+## openssl s_client -crlf -connect test.d250.hu:993
+## a LOGIN user passwd
+##
+#### SASL commands
+## saslauthd -a rimap -O localhost
+## saslauthd -d -a rimap -O localhost
+## testsaslauthd -u username -p password
+## testsaslauthd -u x -p xxxxxx
+## testsaslauthd -u x@test.d250.hu -p xxxxxx
+##
+#### SMTPS connection test 
+## openssl s_client -connect test.d250.hu:465
+## EHLO d250.hu
+## AUTH PLAIN
+## base64_code
+##
+## exit from telnet Ctrl-AltGr-G quit
+##
+## TODO: this information is submitted to the cyrus sasl devel mailing list. keep an eye on it.
 
 newaliases
 
 ## IMAP4S proxy
 
 yum -y install perdition
+
+## perdition is run as template.service
+https://github.com/Hubbitus/Fedora-packaging/blob/master/SOURCES/perdition-template.service
 
 ## TODO: install certtificates!!
 
@@ -1113,7 +1245,9 @@ set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
 systemctl enable perdition-imap4s.service
 systemctl start perdition-imap4s.service
 systemctl status perdition-imap4s.service
-log "Install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+
+echo "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+echo "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem ppostfix.crt.pem ppostfix.ca.pem) "
 
 ## configure DNS server
 
@@ -1167,14 +1301,14 @@ chown -R named:named /var/named
 
 ## TODO: firewall-config. open tcp port 993 permanently
 
-## TODO install dovecot, add listen = 127.0.0.1 to dovecot.conf
+## TODO IF install dovecot, add listen = 127.0.0.1 to dovecot.conf
 ## and enable
   # Postfix smtp-auth ### ENABLE with srvctl!
   #unix_listener /var/spool/postfix/private/auth {
   #  mode = 0666
   #}
 
-## TODO Create SMTPD Auth proxy method
+
 
 yum -y install clamav clamav-update
 sed_file /etc/freshclam.conf "Example" "### Example"
@@ -1182,8 +1316,14 @@ sed_file /etc/freshclam.conf "#DNSDatabaseInfo current.cvd.clamav.net" "DNSDatab
 freshclam
 
 
-## TODO: install version managers
+## User tools
+yum -y install tigervnc-server
+
+## install version managers
 yum -y install mercurial
+yum -y install git
+
+
 
 
 log "Creating devel-shortcuts in /shortcuts"
@@ -1221,57 +1361,35 @@ fi # update-install
 if [ "$CMD" == "reset-install" ]
 then
 
-### As I said, ONLY if you really need this.
-#log "WARNING! Command disabled."
-#exit
+	### As I said, ONLY if you really need this.
+	#log "WARNING! Command disabled."
+	#exit
 
- for C in $(ls $SRV)
- do
-	lxc-stop -k -n $C
- done
+	for C in $(ls $SRV)
+	do
+		lxc-stop -k -n $C
+	done
 
- rm -rf $SRV/*
- rm -rf /root/.ssh/known_hosts
- rm -rf /etc/srvctl/pound-http*
+	rm -rf $SRV/*
+	rm -rf /root/.ssh/known_hosts
+	rm -rf /etc/srvctl/*
 
- echo '## srvctl pound-http-pridomains.cfg' > /etc/srvctl/pound-http-pridomains.cfg
- echo '## srvctl pound-http-subdomains.cfg' > /etc/srvctl/pound-http-subdomains.cfg
- echo '## srvctl pound-https-pridomains.cfg' > /etc/srvctl/pound-https-pridomains.cfg
- echo '## srvctl pound-https-subdomains.cfg' > /etc/srvctl/pound-https-subdomains.cfg
+	echo '## srvctl pound-http-pridomains.cfg' > /etc/srvctl/pound-http-pridomains.cfg
+	echo '## srvctl pound-http-subdomains.cfg' > /etc/srvctl/pound-http-subdomains.cfg
+	echo '## srvctl pound-https-pridomains.cfg' > /etc/srvctl/pound-https-pridomains.cfg
+	echo '## srvctl pound-https-subdomains.cfg' > /etc/srvctl/pound-https-subdomains.cfg
 
- systemctl stop pound.service
+	systemctl stop pound.service
 
- echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
- echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
+	echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
+	echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
 
- echo 'DONE!'
+	echo 'DONE!'
 
 ok
 fi
 
-##### srvctl general functions
 
-## start or restart service
-hint "restart SERVICE" "You can use this command to restart a certain service with some level of error-protection."
-if [ "$CMD" == "restart" ]
-then
-argument service
-
-	if [ "$ARG" == "pound" ]
-	then
-
-	  restart_pound	
-	
-	else
-
-	systemctl restart $ARG.service
-	systemctl status  $ARG.service
-	systemctl enable  $ARG.service
-
-	fi ## pound.service
-
-ok
-fi ## start
 
 
 #### srvctl run functions
