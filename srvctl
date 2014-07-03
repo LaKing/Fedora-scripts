@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.03-22:09:17
+# Last update:2014.07.03-22:12:52
 # version 1.10.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -1330,13 +1330,8 @@ no_lookup
 
 ok_line "Reverse-proxy IMAP4S service lookup OK!"
 
-protocol IMAP4S
-
 ## If no matches found in popmap.re
 outgoing_server localhost
-
-## This is also doing some error reporting, but it works
-pid_file /var/run/perdition.pid
 
 strip_domain remote_login
 
