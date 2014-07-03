@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.02-03:12:18
-# version 1.10.2
+# Last update:2014.07.03-16:58:56
+# version 1.10.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -50,11 +50,16 @@ CMP='Unknown'
 ## Company domain name
 CDN='unknown.com'
 
+## CC as Certificate creation
+CCC="HU"
+CCST="Hungary"
+CCL="Budapest"
+
 ## for php.ini in containers
 php_timezone="Europe/Budapest"
 
 ## IPv4 Address ## TODO: dig command not available on a minimal-container, get it with: $(dig +time=1 +short $(hostname))
-HOSTIPv4=''
+HOSTIPv4='127.0.0.1'
 
 ## File to share this system's VE domains to ns servers
 dns_share='/root/dns.tar.gz'
@@ -67,7 +72,7 @@ RANGEv6="?"
 
 PREFIXv6=64
 
-## MYSQL / MARIADB conf file that stores the mysql root password
+## MYSQL / MARIADB conf file that stores the mysql root password - in containers
 MDF="/etc/mysqldump.conf"
 
 ## These where the sourceable variables.  
@@ -139,17 +144,21 @@ function add_conf {
     ## check if the content string is present, and add if necessery. Single-line content only.
     ## filename=$1 content=$2
 
-    if [ -f $1 ];
-     then bak $1
-    fi
-
     if grep -q "$2" $1; then
      echo ''
      #echo $1" already has "$2
     else
      #echo "adding "$2
+      if [ -f $1 ];
+       then bak $1
+      fi
      echo "$2" >> $1
     fi
+}
+
+function msg {
+    ## create a log entry
+    echo -e ${green}$1${NC}
 }
 
 function log {
@@ -162,6 +171,7 @@ function err {
     ## create a log entry
     echo -e ${red}$1${NC}
     echo $NOW': '$1 >> $LOG
+    SUCC=$SUCC" "$1
 }
 
 
@@ -184,6 +194,7 @@ HINT=$HINT"
 
 } 
 
+## this is used at the end of command-blocks, to confirm command success or failure.
 function ok {
 SUCC=" "
 }
@@ -194,10 +205,17 @@ function argument {
 
 if [ -z "$ARG" ]
 then
-    echo "No $1 supplied .."
+    if [ "$1" == "C" ]
+	then
+	  err "No container-name supplied .."
+	else
+          err "No $1 supplied .."
+	fi
     exit
 fi
 
+## this might need further tests or investigation.
+## TODO check if this is waterproof
 eval $1=$ARG
 
 }
@@ -208,6 +226,7 @@ function to_ip {
 	local __c=$(( 1 + $__counter / 250 ))
 	local __d=$(( 1 + $__counter % 250 ))
 
+	## return
 	echo $__c"."$__d
 }
 
@@ -217,6 +236,7 @@ function to_mac {
 	local __c=$(( 1 + $__counter / 250 ))
 	local __d=$(( 1 + $__counter % 250 ))
 
+	## return
 	echo $(printf '%x\n'  $__c)":"$(printf '%x\n'  $__d)
 }
 
@@ -250,7 +270,7 @@ function restart_pound {
 	  cat /etc/srvctl/pound-https-subdomains.cfg >  /etc/srvctl/pound-https-subdomains.last-cfg 
 
 	else
-	  echo -e ${red}"FAILED. Reverting to last known good pound configuration."${NC}
+	  err "restart pound  FAILED. Reverting to last known good pound configuration."
 
 	  ### TODO cat /etc/srvctl/pound-http-actdomains.cfg >  /etc/srvctl/pound-http-actdomains.fail-cfg	
 	  cat /etc/srvctl/pound-http-pridomains.cfg >  /etc/srvctl/pound-http-pridomains.fail-cfg
@@ -273,11 +293,9 @@ function restart_pound {
 function create_certificate { ## for container $C
 
 	## Prepare Certificate creation
-	log "Create certificate."
+	msg "Create certificate for $C."
 
 	mkdir $SRV/$C/cert
-	# cd $SRV/$C/cert
-
 
 	ssl_days=1085
 	ssl_random=$SRV/$C/cert/random.txt
@@ -299,9 +317,9 @@ function create_certificate { ## for container $C
         output_password        = $ssl_password
 
         [ req_distinguished_name ]
-        C                      = HU
-        ST                     = Hungary
-        L                      = Budapest
+        C                      = $CCC
+        ST                     = $CCST
+        L                      = $CCL
         O                      = $CMP
         OU                     = $CMP CA
         CN                     = $C
@@ -310,19 +328,15 @@ function create_certificate { ## for container $C
  	[ req_attributes ]
         challengePassword              = A challenge password"
 
-	## TODO: Dont burn hungary into all certificates .)
-
 	#### create certificate for https ### good howto: http://www.akadia.com/services/ssh_test_certificate.html	
 
 	## Step 1: Generate a Private Key
 	openssl genrsa -des3 -passout pass:$ssl_password -out $ssl_key 2048
 
 	## Step 2: Generate a CSR (Certificate Signing Request)
-
 	openssl req -new -passin pass:$ssl_password -passout pass:$ssl_password -key $ssl_key -out $ssl_csr -days $ssl_days -config $ssl_config
 	
 	## Step 3: Remove Passphrase from Key
-
 	cp $ssl_key $ssl_org
 	openssl rsa -passin pass:$ssl_password -in $ssl_org -out $ssl_key	
 	
@@ -376,7 +390,7 @@ function create_poundfile { ## for container $C
 	if [ ${C:0:4} == "dev." ] 
 	then
 	  
-	  echo "Setting up as developer-domain. ( translating port 9001 to 443)."
+	  msg "Setting up as developer-domain. ( translating port 9001 to 443)."
 
 	set_file $SRV/$C/pound-dev '## srvctl '$C'
 	Service
@@ -476,23 +490,27 @@ function set_file_limits {
     ulimit -n 100000
 
     ## Hint from Tamás Papp to fix Error: Too many open files
-    sysctl fs.inotify.max_user_watches=81920
-    sysctl fs.inotify.max_user_instances=1024
+    sysctl fs.inotify.max_user_watches=81920 >> /dev/null
+    sysctl fs.inotify.max_user_instances=1024 >> /dev/null
 }
 
 function create_named_zone {
 
+	## argument domain ($C or alias)
+	D=$1
+
 	mkdir -p /var/named/srvctl
 	chown -R named:named /var/named/srvctl
 
-	named_conf=/var/named/srvctl/$C.conf
-	named_slave_conf=/var/named/srvctl/$C.slave.conf
-	named_zone=/var/named/srvctl/$C.zone
+	named_conf=/var/named/srvctl/$D.conf
+	named_slave_conf=/var/named/srvctl/$D.slave.conf
+	named_zone=/var/named/srvctl/$D.zone
 
 	if [ ! -f $named_conf ]
 	then
-		echo '## srvctl named.conf '$C > $named_conf
-		echo 'zone "'$C'" {' >> $named_conf
+## TODO convert to single string and command, this is ugly.
+		echo '## srvctl named.conf '$D > $named_conf
+		echo 'zone "'$D'" {' >> $named_conf
 		echo '	type master;'  >> $named_conf
 		echo '	file "'$named_zone'";' >> $named_conf
 		echo '};' >> $named_conf
@@ -500,8 +518,8 @@ function create_named_zone {
 
 	if [ ! -f $named_slave_conf ]
 	then
-		echo '## srvctl named.slave.conf '$C > $named_slave_conf
-		echo 'zone "'$C'" {' >> $named_slave_conf
+		echo '## srvctl named.slave.conf '$D > $named_slave_conf
+		echo 'zone "'$D'" {' >> $named_slave_conf
 		echo '	type slave;'  >> $named_slave_conf
 		echo '	masters {'$HOSTIPv4';};'  >> $named_slave_conf
 		echo '	file "'$named_zone'";' >> $named_slave_conf
@@ -510,18 +528,18 @@ function create_named_zone {
 
 	if [ ! -f $named_zone ]
 	then
+		
 
 		serial_file=/var/named/serial-counter.txt
 
 		if [ ! -f $serial_file ]
 		then
-		  echo '1' > $serial_file
-		  serial='1'
+		  serial='1'	
+		  echo $serial > $serial_file
 		else	
 		  serial=$(($(cat $serial_file)+1))
 		  echo $serial >  $serial_file
 		fi
-
 
 		set_file $named_zone '$TTL 1D
 @	IN SOA	@ hostmaster.'$CDN'. (
@@ -537,6 +555,7 @@ function create_named_zone {
 @	IN	MX	10	mail
 	AAAA	::1'
 
+## TODO add IPv6 support
 
 	fi
 
@@ -544,21 +563,33 @@ function create_named_zone {
 	chown named:named $named_slave_conf
 	chown named:named $named_zone
 
-	if [ ! -L $SRV/$C/named.conf ]
-	then
-	   ln -s $named_conf $SRV/$C/named.conf
-	fi
+	## TODO create a nice file structure and re-enable this.
+	#if [ ! -L $SRV/$C/$D.named.conf ]
+	#then
+	#   ln -s $named_conf $SRV/$C/$D.named.conf
+	#fi
 
-	if [ ! -L $SRV/$C/named.conf ]
-	then
-	   ln -s $named_zone $SRV/$C/named.zone
-	fi
+	#if [ ! -L $SRV/$C/$D.named.zone ]
+	#then
+	#   ln -s $named_zone $SRV/$C/$D.named.zone
+	#fi
 }
 
 function  get_randomstr {
     randomstr=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 }
 
+function msg_yum_version_installed {
+    v=$(yum info $1 | grep -m1 Version)
+    i=$(yum info $1 | grep -m1 installed)    
+    msg "$1 ${v:13:8} ${i:13}"
+
+}
+
+if [ ! -z $(echo $LD_LIBRARY_PATH | grep '/usr/local/lib') ]
+then
+	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+fi
 ## srvctl functions end here.
 
 ##############################
@@ -570,13 +601,19 @@ function  get_randomstr {
 hint "version	" "Display what srvctl version we are using."
 if [ "$CMD" == "version" ]
 then
-
+  msg "Kernel: "$(uname -r)
   ver=$(head $0 | grep "# version ")
-  echo 'srvctl: '${ver:10}
+  msg 'srvctl: '${ver:10}
 
   if $onHS
   then 
-    echo 'LXC: '$(lxc-info --version)
+
+    msg 'LXC: '$(lxc-info --version)' installed'
+    msg_yum_version_installed Pound
+    msg_yum_version_installed postfix
+    msg_yum_version_installed perdition
+    msg_yum_version_installed bind
+    msg_yum_version_installed clamav
   fi
 
 ok
@@ -590,6 +627,10 @@ then
 
 	add_user
 
+	if $onVE
+	then 
+		echo "This is the mailing system at $CDN, your account has been created." | mail -s "Welcome!" $U
+	fi
 ok
 fi ## adduser
 
@@ -649,50 +690,63 @@ then
 	echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
 	echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
 
+	## TODO .. well, there are certainly more things to uninstall.
+
 ok
 fi
 
-hint "update-install" "This will update srvctl, recompile LXC and update some related packages."
+hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
 then
 
-### srvctl
+	if [ "$2" == "all" ]
+	then
+	   all=true
+	else
+	   all=false
+	fi
 
-## TODO create a srvctl file in /bin and ..
-# ln /bin/srvctl /var/srvctl
+	### srvctl
 
-echo "srvctl should be located at /bin/srvctl"
+	## TODO create a srvctl file in /bin and ..
+	# ln /bin/srvctl /var/srvctl
 
-## TODO yum -y update
+	echo "srvctl should be located at /bin/srvctl"
 
-## TODO make sure networking is set and okay.
-# /etc/sysconfig/network-scripts/ifcfg-em1
-# /etc/sysconfig/network
-# systemctl stop NetworkManager.service
-# systemctl remove NetworkManager
-# systemctl enable network.service
-# systemctl start network.service
+	## TODO yum -y update
 
+	## TODO make sure networking is set and okay.
+	# /etc/sysconfig/network-scripts/ifcfg-em1
+	# /etc/sysconfig/network
+	# systemctl stop NetworkManager.service
+	# systemctl remove NetworkManager
+	# systemctl enable network.service
+	# systemctl start network.service
 
-### WEB
+## @update-install
+if [ "$(lxc-info --version)" == "$LXC_VERSION" ] && ! $all
+then
+msg "LXC is OK! ($LXC_VERSION)"
+else
+log "Installing LXC!"
+exit
+	## LXC is also part of docker-io
+	#yum install docker-io
+	    
+	## lxc can be installed as rpm
+	#yum -y install lxc lxc-templates
 
-    ## LXC is also part of docker-io
-    #yum install docker-io
-    
-    ## lxc can be installed as rpm
-    #yum -y install lxc lxc-templates
+	## packages needed for compilation and for running
+	log "Install Development Tools"
+	yum -y groupinstall "Development Tools"
+	yum -y install automake
+	yum -y install graphviz
+	yum -y install libcap-devel
 
-    ## packages needed for compilation and for running
-    log "Install Development Tools"
-    yum -y groupinstall "Development Tools"
-    yum -y install automake
-    yum -y install graphviz
-    yum -y install libcap-devel
+	log "Install LXC "$LXC_VERSION
 
-    log "Install LXC "$LXC_VERSION
-
-    cd /root
-    rm -rf lxc
+	cd /root
+	rm -rf lxc
 
 	if [ "$LXC_VERSION" == "git" ]
 	then
@@ -700,30 +754,30 @@ echo "srvctl should be located at /bin/srvctl"
 	  git clone git://github.com/lxc/lxc
 
 	else
-    	  ## we use a version-release now.
+		  ## we use a version-release now.
 	  wget https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
 	  unzip lxc-$LXC_VERSION.zip
 	  mv lxc-lxc-$LXC_VERSION lxc
 	fi
 
  
-    cd lxc
+	cd lxc
 
-    log "LXC-building: autogen"
-    ./autogen.sh
+	log "LXC-building: autogen"
+	./autogen.sh
 
-    log "LXC-building: configure"
-    ./configure
+	log "LXC-building: configure"
+	./configure
 
-    log "LXC-building: make"
-    make
+	log "LXC-building: make"
+	make
 
-    log "LXC-building: install"
-    make install
+	log "LXC-building: install"
+	make install
 
-    add_conf /root/.bash_profile "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
+	add_conf /root/.bash_profile "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 
-    log "Configure libvirt network"
+	log "Configure libvirt network"
 
 ## Networking with libvirt
 	yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
@@ -754,57 +808,72 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 
 ## TODO, .. I think the primary interface - with a gateway - is enough. The default should be kept though.
 
-    ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml
+	ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml
 
-    systemctl enable libvirtd.service
-    systemctl start  libvirtd.service
-    systemctl status libvirtd.service
+	systemctl enable libvirtd.service
+	systemctl start  libvirtd.service
+	systemctl status libvirtd.service
+
+	#### RESTART REQUIRED HERE
+	log "LXC Installed. Restart required. Please run this command again after a reboot to continiue. Exiting."
+	exit
+
+fi ## Install LXC
+
+## @update-install
+
+	## srvctl
+
+	## TODO change counter location to /var/srvctl/counter
+	if [ -f /etc/srvctl/counter ]
+	then
+	 msg "Counter exists, counting at "$(cat /etc/srvctl/counter)
+	else
+	 log "Counter does not exist. Creating."
+	 echo '0' > /etc/srvctl/counter
+	fi
+
+	## make sure srvctl enviroment directories exists
+	mkdir -p $SRV
+	mkdir -p $TMP
+	mkdir -p /var/srvctl/share
+	mkdir -p /etc/srvctl
+
+	## this will save a little space. 
+	## TODO: I'm not a distro engineer, but I think there is space for optimalisation. Move locale-archive to shar efolder
+
+	if [ ! -f /var/srvctl/locale-archive ]
+	then
+	 log "Shared local archive does not exist. Copying from host."
+	 cp /usr/lib/locale/locale-archive /var/srvctl
+	fi
 
 
-#### RESTART REQUIRED HERE
+	## default path for containers
+	add_conf "/usr/local/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
 
-    ## srvctl
-    mkdir -p /etc/srvctl
+	## just in case
+	bak /etc/hosts
 
-    if [ -f /etc/srvctl/counter ];
-    then
-     log "Counter exists."
-    else
-     log "Counter does not exist. Creating."
-     echo '0' > /etc/srvctl/counter
-    fi
-
-    ## setup srvctl enviroment
-    mkdir -p $SRV
-    mkdir -p $TMP
-    mkdir -p /var/srvctl
-    mkdir -p /etc/srvctl
-
-    ## this will save a little space. 
-    cp /usr/lib/locale/locale-archive /var/srvctl 
-
-    ## TODO: I'm not a distro engineer, but I think there is space for optimalisation.
+	## create ssh key for root
+	if [ ! -f /root/.ssh/id_rsa.pub ]
+	then
+	  ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
+	  log "Created ssh keypair for root."
+	fi
 
 
-    ## default path for containers
 
-    echo "lxc.lxcpath="$SRV > /usr/local/etc/lxc/lxc.conf
+	## Customisations in our template
+	fedora_template=/usr/local/share/lxc/templates/lxc-fedora
+	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
 
-    ## just in case
-    bak /etc/hosts
+## @update-install
+if [ ! -f $fedora_template ] && ! $all
+then
+	log "Create Custom template"
 
-    ## create ssh key for root
-    if [ ! -f /root/.ssh/id_rsa.pub ]
-    then
-      ssh-keygen -t rsa -b 4096 -f /root/.ssh/id_rsa -N ''
-    fi
-
-    log "Create Custom template"
-
-    ## Customisations in our template
-    cd /usr/local/share/lxc/templates
-
-    set_file lxc-fedora-srv '#!/bin/bash
+	set_file $srvctl_template '#!/bin/bash
 
 	## You may want to add your own sillyables, or faorite characters and customy security measures.
 	declare -a pwarra=("B" "C" "D" "F" "G" "H" "J" "K" "L" "M" "N" "P" "R" "S" "T" "V" "Z")
@@ -830,62 +899,45 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 	root_password=$p
 
 '
-    chmod 755 lxc-fedora-srv
+	chmod 755 $srvctl_template
 
-    cat lxc-fedora >> lxc-fedora-srv
-    ## cosmetical TODO remove second #!/bin/bash
+	cat $fedora_template >> $srvctl_template
+	## cosmetical TODO remove second #!/bin/bash
 
-    ## disable the root password redefining force
-    sed_file lxc-fedora-srv 'chroot $rootfs_path passwd -e root' '## srvctl-disabled: chroot $rootfs_path passwd -e root'
-    sed_file lxc-fedora-srv 'Container rootfs and config have been created.' 'Container rootfs and config have been created."'
-    ## and do not display the dialog for that subject
-    sed_file lxc-fedora-srv 'Edit the config file to check/enable networking setup.' 'exit 0'
+	## disable the root password redefining force
+	sed_file $srvctl_template 'chroot $rootfs_path passwd -e root' '## srvctl-disabled: chroot $rootfs_path passwd -e root'
+	sed_file $srvctl_template 'Container rootfs and config have been created.' 'Container rootfs and config have been created."'
+	## and do not display the dialog for that subject
+	sed_file $srvctl_template 'Edit the config file to check/enable networking setup.' 'exit 0'
 
-    ## Add additional default packages 
-    sed_file lxc-fedora-srv '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail"'
+	## Add additional default packages 
+	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail"'
 
-    ## After modifocation of the last line, in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
-    rm -rf /usr/local/var/cache/lxc/fedora
+	## After modifocation of the last line, in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
+	log "Clearing yum cache for container creation."
+	rm -rf /usr/local/var/cache/lxc/fedora
+
+
+fi ## if fedora_template does not exists.
+
+## @update-install
+
 
 
 ## TODO / ISSUE : dovecot can not be added, as it freezes the install process
 
 
-    log "Install Pound Reverse Proxy for HTTP" 
-
-    ## The pound-served custom error documents
-
-set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
-<b>Error 414</b> @ '$(hostname)'<br />
-Request URI is too long.
-</font><p></body>'
-
-set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
-<b>Error 500</b> @ '$(hostname)'<br />
-An internal server error occurred. Please try again later.
-</font><p></body>'
-
-set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
-<b>Error 501</b> @ '$(hostname)'<br />
-Request URI is too long.
-</font><p></body>'
-
-set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
-<b>Error 503</b> @ '$(hostname)'<br />
-The service is not available. Please try again later.
-</font><p></body>'
-
-wget -o /var/www/html/favicon.ico http://d250.hu/favicon.ico
-wget -o /var/www/html/lablogo.png http://d250.hu/lablogo.png
-
-    ## Pound is a reverse Proxy for http
-    yum -y install Pound
-    bak /etc/pound.cfg
-
-    mkdir /etc/pound
+	##log "Install Pound Reverse Proxy for HTTP" 
 
 
-    set_file /etc/pound.cfg '## srvctl pound.cfg
+
+if [ ! -f /etc/pound.cfg ] && ! $all
+then
+	## Pound is a reverse Proxy for http
+	yum -y install Pound
+	bak /etc/pound.cfg
+
+	set_file /etc/pound.cfg '## srvctl pound.cfg
 User "pound"
 Group "pound"
 Control "/var/lib/pound/pound.cfg"
@@ -928,6 +980,9 @@ End
 ## Include the default host here, as a fallback.
 # Include "/srv/default-host/pound"
 '
+	systemctl enable pound.service
+
+
 	echo '## srvctl primary domains' >> /etc/srvctl/pound-http-pridomains.cfg
 	echo '## srvctl subdomains' >> /etc/srvctl/pound-http-subdomains.cfg
 
@@ -935,25 +990,64 @@ End
 	echo '## srvctl subdomains' >> /etc/srvctl/pound-https-subdomains.cfg
 
 	## note, also certificate files are referenced from containers pound-https file.
-	
-	systemctl enable pound.service
+	## The pound-served custom error documents
 
+set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 414</b> @ '$(hostname)'<br />
+Request URI is too long.
+</font><p></body>'
+
+set_file /var/www/html/500.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 500</b> @ '$(hostname)'<br />
+An internal server error occurred. Please try again later.
+</font><p></body>'
+
+set_file /var/www/html/501.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 501</b> @ '$(hostname)'<br />
+Request URI is too long.
+</font><p></body>'
+
+set_file /var/www/html/503.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
+<b>Error 503</b> @ '$(hostname)'<br />
+The service is not available. Please try again later.
+</font><p></body>'
+
+
+	if [ ! -f /var/www/html/favicon.ico ] && ! $all
+	then
+	   msg "Downloading favicon.ico from $CDN"
+	   wget -o /var/www/html/favicon.ico http://$CDN/favicon.ico
+	fi
+
+	if [ ! -f /var/www/html/logo.png ] && ! $all
+	then
+	   msg "Downloading logo.png from $CDN" 
+	   wget -o /var/www/html/logo.png http://$CDN/logo.png
+	fi
+	
+fi ## install pound
+
+## @update-install
 set_file_limits
 
 ### E-mail
 
-yum -y install postfix
+if [ ! -f /etc/postfix/main.cf ] && ! $all
+then
+	log "Installing the Postfix mail subsystem."
 
-pc=/etc/postfix/main.cf
+	yum -y install postfix
 
-sed_file $pc 'inet_interfaces = localhost' '#inet_interfaces = localhost'
+	pc=/etc/postfix/main.cf
+
+	sed_file $pc 'inet_interfaces = localhost' '#inet_interfaces # localhost'
 
 
-if grep -q  '## srvctl postfix configuration directives' $pc; then
- log "Skipping Postfix configuration, as it seems to be configured."
-else
+	if grep -q  '## srvctl postfix configuration directives' $pc; then
+	 log "Skipping Postfix configuration, as it seems to be configured."
+	else
 
-echo '
+		echo '
 ## srvctl postfix configuration directives
 ## RECIEVING
 
@@ -993,17 +1087,26 @@ smtpd_sasl_local_domain = '$CDN'
 ## Max 25MB mail size
 message_size_limit=26214400 
 ' >> $pc
+	fi ## add postfix directives
 
-fi
 
 
-echo '# srvctl postfix relaydomains' >> /etc/postfix/relaydomains
+	echo '# srvctl postfix relaydomains' >> /etc/postfix/relaydomains
 
-postmap /etc/postfix/relaydomains
-systemctl enable postfix.service
-systemctl start postfix.service
+	postmap /etc/postfix/relaydomains
+	systemctl enable postfix.service
+	systemctl start postfix.service
 
-log "Set /etc/aliases"
+## TODO set postfix main.cf for SMTPS on port 465
+
+fi ## postfix
+## @update-install
+
+
+if [ ! -f /etc/aliases.db ] && ! $all
+then
+
+log "Set /etc/aliases.db"
 
 ## We will mainly use these files to copy over to clients. Main thing is: info should not be aliased.
 set_file /etc/aliases '
@@ -1105,9 +1208,14 @@ decode:		root
 #root:		marc
 '
 
-## TODO alternatives set postfix as default MTA
+## TODO alternatives set postfix as default MTA - or newaliases wont work.
+newaliases
 
-## TODO set postfix main.cf for SMTPS on port 465
+
+
+fi ## set aliases.db
+
+
 
 ## To create proper SMTPD Auth proxy method http://www.postfix.org/SASL_README.html
 ## saslauthd can verify the SMTP client credentials by using them to log into an IMAP server. 
@@ -1175,20 +1283,22 @@ decode:		root
 ##
 ## TODO: this information is submitted to the cyrus sasl devel mailing list. keep an eye on it.
 
-newaliases
+
 
 ## IMAP4S proxy
+if [ ! -f /etc/perdition/perdition.conf ] && ! $all
+then
 
-yum -y install perdition
+	log "Install perdition"
 
-## perdition is run as template.service
-https://github.com/Hubbitus/Fedora-packaging/blob/master/SOURCES/perdition-template.service
+	yum -y install perdition
 
-## TODO: install certtificates!!
+	## perdition is run as template.service
+	## https://github.com/Hubbitus/Fedora-packaging/blob/master/SOURCES/perdition-template.service
 
-echo "Install your certificates for perdition! "
+	## TODO set perdition service files 
 
-set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
+	set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
 ## Logging settings
 
 # Turn on verbose debuging.
@@ -1233,7 +1343,7 @@ ssl_no_cert_verify
 ssl_no_cn_verify
 '
 
-set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
+	set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
 
 # (.*)@'$(hostname)': localhost
 
@@ -1242,18 +1352,26 @@ set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
 (.*)@(.*): $2
 '
 
-systemctl enable perdition-imap4s.service
-systemctl start perdition-imap4s.service
-systemctl status perdition-imap4s.service
+	systemctl enable perdition-imap4s.service
+	systemctl start perdition-imap4s.service
+	systemctl status perdition-imap4s.service
 
-echo "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
-echo "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem ppostfix.crt.pem ppostfix.ca.pem) "
+	## TODO: install certtificates!!
+	echo "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+	echo "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem ppostfix.crt.pem ppostfix.ca.pem) "
+
+
+fi ## install postfix
+## @update-install
 
 ## configure DNS server
+if [ ! -f /etc/named.conf ] && ! $all
+then
+	log "Installing BIND (named) DNS server."
 
-yum -y install bind bind-utils
+	yum -y install bind bind-utils
 
-set_file /etc/named.conf '// srvctl generated named.conf
+	set_file /etc/named.conf '// srvctl generated named.conf
 
 options {
     listen-on port 53 { any; };
@@ -1292,14 +1410,16 @@ include "/etc/srvctl/named.conf.local";
 set_file /etc/srvctl/named.conf.local '## srvctl generated 
 '
 
-rsync -a /usr/share/doc/bind/sample/etc/named.rfc1912.zones /etc
-rsync -a /usr/share/doc/bind/sample/var/named /var
-mkdir /var/named/dynamic
+	rsync -a /usr/share/doc/bind/sample/etc/named.rfc1912.zones /etc
+	rsync -a /usr/share/doc/bind/sample/var/named /var
+	mkdir /var/named/dynamic
 
-chown -R named:named /var/named
+	chown -R named:named /var/named
 
+fi ## install named
+## @update-install
 
-## TODO: firewall-config. open tcp port 993 permanently
+## TODO: firewall-config. open ports permanently
 
 ## TODO IF install dovecot, add listen = 127.0.0.1 to dovecot.conf
 ## and enable
@@ -1310,52 +1430,72 @@ chown -R named:named /var/named
 
 
 
-yum -y install clamav clamav-update
-sed_file /etc/freshclam.conf "Example" "### Example"
-sed_file /etc/freshclam.conf "#DNSDatabaseInfo current.cvd.clamav.net" "DNSDatabaseInfo current.cvd.clamav.net"
-freshclam
-
-
 ## User tools
-yum -y install tigervnc-server
 
-## install version managers
-yum -y install mercurial
-yum -y install git
+if [ ! -f /etc/freshclam.conf ] && ! $all
+then
+	log "Installing Userspace tools."
 
+	msg "Clamav antivirus"
+	yum -y install clamav clamav-update
+	sed_file /etc/freshclam.conf "Example" "### Exampl."
+	sed_file /etc/freshclam.conf "#DNSDatabaseInfo current.cvd.clamav.net" "DNSDatabaseInfo current.cvd.clamav.net"
 
+	msg "Tigervnc server"
+	yum -y install tigervnc-server
 
-
-log "Creating devel-shortcuts in /shortcuts"
-## some quick links for root
-## this has no real imporance so it can be any directory for your convinience
-mkdir /shortcuts
-cd /shortcuts
-
-ln -s $SRV
-ln -s /etc/hosts
-ln -s /etc/pound.cfg
-ln -s /etc/srvctl/pound-http-pridomains.cfg
-ln -s /etc/srvctl/pound-http-subdomains.cfg
-ln -s /etc/srvctl/pound-https-pridomains.cfg
-ln -s /etc/srvctl/pound-https-subdomains.cfg
-ln -s /usr/bin/srvctl srvctl
-ln -s /usr/local/etc/lxc/lxc.conf
-ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
-ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
+	msg "Version managers"
+	yum -y install mercurial
+	yum -y install git
 
 
-log "Reboot required. Please verify srv-net functionality."
+fi
+
+
+## TODO run clamscan ...
+
+
+
+
+
+if [ ! -d /shortcuts ] 
+then
+	log "Creating devel-shortcuts in /shortcuts"
+	## some quick links for root
+	## this has no real imporance so it can be any directory for your convinience
+	mkdir /shortcuts
+	cd /shortcuts
+
+	ln -s $SRV
+	ln -s /etc/hosts
+	ln -s /etc/pound.cfg
+	ln -s /etc/srvctl/pound-http-pridomains.cfg
+	ln -s /etc/srvctl/pound-http-subdomains.cfg
+	ln -s /etc/srvctl/pound-https-pridomains.cfg
+	ln -s /etc/srvctl/pound-https-subdomains.cfg
+	ln -s /usr/bin/srvctl srvctl
+	ln -s /usr/local/etc/lxc/lxc.conf
+	ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
+	ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
+fi
+
 
 if [ -s /root/.ssh/authorized_keys  ]
 then
-  log "ATTENTION! Disabled password based ssh login. ADD YOUR SSH KEY!"
   sed_file /etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
-  echo "Note: to undo, you may run:  cat /etc/ssh/sshd_config.bak > /etc/ssh/sshd_config"
+else
+  msg "Password based ssh login couldnt be disabled, no authorized keys."
 fi
 
+## @update-install
+## installation / configuration should be done.
+log "Running updates"
+
+freshclam
+yum -y update
+
 ok
-fi # update-install
+fi ## update-install
 
 ## This is mainly for dev! This should be disabled in production!
 if [ "$CMD" == "reset-install" ]
@@ -1876,7 +2016,7 @@ fi
 
 function regenerate_etc_hosts {
 
- log "regenerate etc_hosts" ## fist in $TMP
+ msg "regenerate etc_hosts" ## fist in $TMP
  echo '# srvctl generated' > $TMP/hosts
  echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
  echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
@@ -1898,14 +2038,28 @@ function regenerate_etc_hosts {
 
 	if [ -z $ip ] 
 	then
-		echo "ERROR tmp: hosts - MISSING IP ADDRESS: "$C
-		all_ok=false
+		err "ERROR tmp: hosts - MISSING IP ADDRESS: "$C
 	else
+
  	  echo $ip'		'$C >>  $TMP/hosts
 	  echo $ip'		mail.'$C >>  $TMP/hosts
+	  echo $C' #' >>  $TMP/relaydomains
+
+		if [ -f /$SRV/$C/aliases ]
+		then
+			for A in $(cat /$SRV/$C/aliases)
+			do
+				msg "$A is an alias of $C"
+ 	  			echo $ip'		'$A >>  $TMP/hosts
+	  			echo $ip'		mail.'$A >>  $TMP/hosts
+				echo $A' #' >>  $TMP/relaydomains
+				
+			done
+		fi
+
 	  echo ''  >>  $TMP/hosts
 
-	  echo $C' #' >>  $TMP/relaydomains
+
 	fi
  done ## regenerated etc_hosts
 
@@ -1920,7 +2074,7 @@ function regenerate_etc_hosts {
 
 function regenerate_known_hosts {
 
- log "regenerate known hosts"
+ msg "regenerate known hosts"
 
  echo '# srvctl generated' > $TMP/known_hosts
  
@@ -1935,13 +2089,16 @@ function regenerate_known_hosts {
 	ip=$(cat $SRV/$C/config.ipv4)
 	
 	echo "# "$C >> $TMP/known_hosts
+
+	## TODO find an offline method to gather host-keys of containers not running.
 	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $ip >> $TMP/known_hosts
 	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> $TMP/known_hosts
+
 	echo '' >> $TMP/known_hosts
 
 	
 	else
- 		echo "WARNING tmp: .ssh known_hosts - VE NOT RUNNING: "$C
+ 		err "Generate known_hosts - VE NOT RUNNING: "$C
 	fi
  done ## regenerated known_hosts
 
@@ -1952,7 +2109,7 @@ rsync -a $TMP/known_hosts /root/.ssh
 
 function regenerate_pound_files {
 
- log "regenerate pound files"
+ msg "regenerate pound files"
 
  echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
  echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
@@ -1963,20 +2120,20 @@ function regenerate_pound_files {
  for C in $(lxc-ls)
  do
 
-	set_is_running
-	if $is_running
-	then
+	#set_is_running
+	#if $is_running
+	#then
 
 		if [ ! -f $SRV/$C/pound ]
 		then
 			create_poundfile
-			echo "NOTICE Pound file created for "$C
+			msg "Pound file created for "$C
 		fi	
 	
 		if [ ! -f $SRV/$C/cert/$C.pem ]
 		then
 			rsync -a $SRV/$C/cert $TMP
-			echo "WARNING - CERTIFICIATE MISSING: CREATING NEW "$C
+			msg "creating missing certificate for "$C
 			create_certificate		
 		fi
 
@@ -1994,23 +2151,31 @@ function regenerate_pound_files {
 			echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
 		fi
 
-		if [ "$cert_status" == "OK" ]
-		then 
-			if [ ! -f $SRV/$C/pound-https ]
-			then
+		if [ ! -f $SRV/$C/pound-https ]
+		then
+			if [ "$cert_status" == "OK" ]
+			then 
+
 				echo '## srvctl generated' > $SRV/$C/pound-https
 				echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
 				echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
+			
+			else
+
+				echo '## srvctl generated - Check certificate!' > $SRV/$C/pound-https
+				echo '# Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
+				echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
+				err "ERROR - Certificate check failed on $C, loading certificate disabled in pound-https"
 			fi
 		else
-
-			echo '## srvctl generated - Check certificate!' > $SRV/$C/pound-https
-			echo '# Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-			echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
-			echo "WARNING! - CERTIFICATE CHECK FAILED ON "$C
-			all_ok=false 
+			if [ ! "$cert_status" == "OK" ]
+			then
+				## msg "$C certificate OK!"
+				
+			##else
+				err "$C certificate check failed, but pound-https not modified, as it is configured."
+			fi
 		fi
-
 
 
 
@@ -2023,13 +2188,13 @@ function regenerate_pound_files {
 		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-pridomains.cfg
 		fi
 
-	else
- 		echo "WARNING tmp: pound-check skip - VE NOT RUNNING: "$C
-	fi
+	#else
+ 	#	err "WARNING tmp: pound-check skip - VE NOT RUNNING: "$C
+	#fi
 
  done ## regenerated pound files
 
-echo "Updateing regenerated pound config files in /etc" 	
+msg "Updateing regenerated pound config files in /etc" 	
 
 bak /etc/srvctl/pound-http-subdomains.cfg
 bak /etc/srvctl/pound-http-pridomains.cfg
@@ -2045,33 +2210,32 @@ rsync -a $TMP/pound-https-pridomains.cfg /etc
 
 function regenerate_root_configs {
 
-echo "Checking root's .ssh configs"
+#echo "Checking root's .ssh configs"
 
 ### User checks
 	## for root
 	if [ ! -f /root/.ssh/id_rsa.pub ]
 	then
-	  echo "FATAL ERROR - NO KEYPAIR FOR ROOT!"
-	  all_ok=false
+	  err "ERROR - NO KEYPAIR FOR ROOT!"
 	fi
 
 	if [ ! -f /root/.ssh/authorized_keys ]
 	then
-	  echo "WARNING - NO authorized_keys FOR ROOT!"
-	  echo '' >> /root/.ssh/authorized_keys
+	  err "WARNING - NO authorized_keys FOR ROOT!"
+	  #echo '' >> /root/.ssh/authorized_keys
 	fi
 
 }
 
 function regenerate_users {
   ## First of all, make sure all users we have defined for sites, are all present.
- log "Regenarating user-list."
+ msg "regenarating user-list"
  for C in $(lxc-ls)
  do
 	
 	for U in $(cat $SRV/$C/users)
 	do		
-		echo "User: $U at $C"
+		# echo "User: $U at $C"
 		
 		## if the user doesent exists ... well, create it.
 		add_user
@@ -2081,27 +2245,25 @@ function regenerate_users {
 
 function generate_user_configs {
 	
-	echo "Generating user configs for $U"
+	# echo "Generating user configs for $U"
 
 	## create keypair
 	if [ ! -f /home/$U/.ssh/id_rsa.pub ]
 	then
-	  echo "NOTE - CREATING KEYPAIR FOR USER "$U
+	  msg "Creating keypair for user "$U
 	  create_keypair
 	fi
 
 	## create known_hosts
-	if [ -f /home/$U/.ssh/known_hosts ]
-	then
-		bak /home/$U/.ssh/known_hosts
-	fi
-
+	bak /home/$U/.ssh/known_hosts
 	rsync -a /root/.ssh/known_hosts /home/$U/.ssh
 	chown $U:$U /home/$U/.ssh/known_hosts
+
 
 	## create authorised_keys
 	if [ ! -f /home/$U/.ssh/authorized_keys ]
 	then
+	  log "Creating authorized_keys for $U"
 	  rsync -a /root/.ssh/authorized_keys /home/$U/.ssh
 	  ## TODO: Add authorised keys from users here
 	  chown $U:$U /home/$U/.ssh/authorized_keys
@@ -2111,7 +2273,7 @@ function generate_user_configs {
 
 function regenerate_users_configs {
 
-	log "Regenrateing user configs"
+	msg "regenrateing user configs"
 
   for U in $(ls /home)
   do
@@ -2121,16 +2283,15 @@ function regenerate_users_configs {
 
 function generate_user_structure ## for user $U, Container $C
 {
-		echo "Generating user structure for $U in $C"
+		# echo "Generating user structure for $U in $C"
 
-		## Fisrt, add users local public key to container root user - for ssh access.
+		## First, add users local public key to container root user - for ssh access.
 		if [ -f /home/$U/.ssh/id_rsa.pub ]
 		then
 			bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		else
-			## Error.
-			echo "No id_rsa.pub for user "$U
+			err "No id_rsa.pub for user "$U
 		fi
 
 		## Second, create common share
@@ -2141,65 +2302,93 @@ function generate_user_structure ## for user $U, Container $C
 
 		## everything prepared, this is the thing.
 		echo "/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $SRV/$C/fstab
+
 }
 
 function regenerate_users_structure {
- log "Updateing user-structure."
- for C in $(lxc-ls)
- do
 
-	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
-	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
-
-	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $SRV/$C/fstab
+	msg "Updateing user-structure."
 	
-	for U in $(cat $SRV/$C/users)
+	for C in $(lxc-ls)
 	do
-		generate_user_structure
-	done
- done
+
+		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
+		chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
+
+		echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $SRV/$C/fstab
+	
+		for U in $(cat $SRV/$C/users)
+		do
+			generate_user_structure
+		done
+ 	done
 }
 
 function regenerate_dns {
+	
+	msg "Regenerate DNS - named/bind configs"
 
-log "Update DNS - named/bind configs"
+	rm -rf /var/named/srvctl/*
 
- named_conf_local=$TMP/named.conf.local
- named_slave_conf_global=$TMP/named.slave.conf.global.$(hostname)
+	named_conf_local=$TMP/named.conf.local
+	 named_slave_conf_global=$TMP/named.slave.conf.global.$(hostname)
 
- echo '## srvctl named.conf.local' > $named_conf_local
- echo '## srvctl named.slave.conf.global.'$(hostname) > $named_slave_conf_global
+	echo '## srvctl named.conf.local' > $named_conf_local
+	echo '## srvctl named.slave.conf.global.'$(hostname) > $named_slave_conf_global
 
- for C in $(lxc-ls)
- do
-	create_named_zone
-	echo 'include "/var/named/srvctl/'$C'.conf";' >> $named_conf_local
-	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
- done
+	for C in $(lxc-ls)
+	do
+		create_named_zone $C
+		echo 'include "/var/named/srvctl/'$C'.conf";' >> $named_conf_local
+		echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
 
- bak /etc/srvctl/named.conf.local
- bak /etc/srvctl/named.slave.conf.global.$(hostname)
+		if [ -f /$SRV/$C/aliases ]
+		then
+			for A in $(cat /$SRV/$C/aliases)
+			do
+				#msg "$A is an alias of $C"
+				create_named_zone $A
+				echo 'include "/var/named/srvctl/'$A'.conf";' >> $named_conf_local
+				echo 'include "/var/named/srvctl/'$A'.slave.conf";' >> $named_slave_conf_global
+			
+			done
+		fi
 
- rsync -a $named_conf_local /etc/srvctl
- rsync -a $named_slave_conf_global /etc/srvctl
+	done
 
- systemctl restart named.service
- systemctl status named.service
+	bak /etc/srvctl/named.conf.local
+	bak /etc/srvctl/named.slave.conf.global.$(hostname)
 
- ## update this variable as it was synced to its real location
- named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
+	rsync -a $named_conf_local /etc/srvctl
+	rsync -a $named_slave_conf_global /etc/srvctl
 
- ## to make sure everything is correct we regenerate the dns share too
- rm $dns_share
- tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
+	## update this variable as it was synced to its real location
+	named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
+
+	systemctl restart named.service
+
+
+	test=$(systemctl is-active named.service)
+
+	if [ "$test" == "active" ]
+	then
+		msg "Creating DNS share."
+
+		## to make sure everything is correct we regenerate the dns share too
+		rm $dns_share
+		tar -czPf $dns_share $named_slave_conf_global /var/named/srvctl
+
+	else
+		err "DNS Error."
+		systemctl status named.service
+	fi
+
 }
 
 ## regenerate configs 
 hint "regenerate	" "Regenerate configuration files, and restart affected services."
 if [ "$CMD" == "regenerate" ]
 then
-
-	all_ok=true
 
 	regenerate_etc_hosts 
 
@@ -2216,15 +2405,6 @@ then
 	regenerate_users_structure
 
 	regenerate_dns
-
-	## Finalise
-
-	if $all_ok
-	then
-		echo "ALL OK!"
-	else
-		echo -e ${red}"CRITICAL ERRORS FOUND! Please fix!."${NC}
-	fi	
 
 ok
 fi ## regenerate
@@ -2399,14 +2579,14 @@ message_size_limit=26214400
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
 	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
-	<img src="lablogo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
+	<img src="logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
 	<p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">' > $index
 
 	echo '<b>'$C'</b> @ '$(hostname) >> $index
 
 	echo '</font><p></body>' >> $index
 
-	cp /var/www/html/lablogo.png $rootfs/var/www/html
+	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
 
 	## make the installation smaller	
@@ -2438,7 +2618,7 @@ message_size_limit=26214400
 
 	named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
 
-	create_named_zone
+	create_named_zone $C
 	echo 'include "/var/named/srvctl/'$C'.conf";' >> /etc/srvctl/named.conf.local
 	echo 'include "/var/named/srvctl/'$C'.slave.conf";' >> $named_slave_conf_global
 
@@ -2461,6 +2641,11 @@ message_size_limit=26214400
 
 	## set containers sendmail que directory in order to allow apache to use php's mail function. (Didnt find a better way yet.) 
 	chmod 773 $SRV/$C/rootfs/var/spool/clientmqueue
+
+	## As of June 2014, systemd-journald is running amok in the containers. To prevent 100% CPU usage, it has to be disabled.
+	## To undo, you may run: rm $SRV/$C/rootfs/etc/systemd/system/systemd-journald.service
+	## Or, in the containers mask / unmask journald.service - reboot container to apply.
+	ln -s '/dev/null' "$SRV/$C/rootfs/etc/systemd/system/systemd-journald.service"
 
 	#### START #### 
 	log "Starting container."	
