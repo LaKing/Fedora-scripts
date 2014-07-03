@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.03-16:58:56
-# version 1.10.3
+# Last update:2014.07.03-22:09:17
+# version 1.10.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1282,11 +1282,13 @@ fi ## set aliases.db
 ## exit from telnet Ctrl-AltGr-G quit
 ##
 ## TODO: this information is submitted to the cyrus sasl devel mailing list. keep an eye on it.
-
+## for now we will aply a customization in the next step.
 
 
 ## IMAP4S proxy
-if [ ! -f /etc/perdition/perdition.conf ] && ! $all
+#if [ ! -f /etc/perdition/perdition.conf ] && ! $all
+
+if true
 then
 
 	log "Install perdition"
@@ -1352,16 +1354,65 @@ ssl_no_cn_verify
 (.*)@(.*): $2
 '
 
-	systemctl enable perdition-imap4s.service
-	systemctl start perdition-imap4s.service
-	systemctl status perdition-imap4s.service
+## srvctl custom unit files to make it work with different pid files.
 
-	## TODO: install certtificates!!
-	echo "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
-	echo "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem ppostfix.crt.pem ppostfix.ca.pem) "
+mkdir -p /var/run/perdition
+
+set_file /usr/lib/systemd/system/imap4.service '[Unit]
+Description=Perdition IMAP4 reverse proxy
+After=syslog.target network.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/perdition/perdition-imap4.pid
+EnvironmentFile=-/etc/sysconfig/perdition
+ExecStart=/usr/sbin/perdition.imap4 --pid_file /var/run/perdition/perdition-imap4.pid --protocol IMAP4 --ssl_mode none
+
+[Install]
+WantedBy=multi-user.target
+'
+
+set_file /usr/lib/systemd/system/imap4s.service '[Unit]
+Description=Perdition IMAP4S reverse proxy
+After=syslog.target network.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/perdition/perdition-imap4s.pid
+EnvironmentFile=-/etc/sysconfig/perdition
+ExecStart=/usr/sbin/perdition.imap4s --pid_file /var/run/perdition/perdition-imap4s.pid --protocol IMAP4S
+
+[Install]
+WantedBy=multi-user.target
+'
+
+	systemctl enable imap4.service
+	systemctl start imap4.service
+	systemctl status imap4.service
 
 
-fi ## install postfix
+	systemctl enable imap4s.service
+	systemctl start imap4s.service
+	systemctl status imap4s.service
+
+
+	## TODO: check for installed certtificates!!
+	msg "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
+	msg "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem postfix.crt.pem postfix.ca.pem) "
+
+	## saslauthd
+
+	err "ATTENTION! Due to incompatibility of saslauthd and perdition, we will apply a custom version of saslauthd here."
+	
+	wget -o /root/saslauthd http://d250.hu/scripts/bin/saslauthd
+
+	mv /usr/sbin/saslauthd /usr/sbin/saslauthd.bak
+	cp /root/saslauthd /usr/sbin/saslauthd
+
+	chmod 755 /usr/sbin/saslauthd
+	
+
+fi ## install perdition
 ## @update-install
 
 ## configure DNS server
@@ -2016,113 +2067,108 @@ fi
 
 function regenerate_etc_hosts {
 
- msg "regenerate etc_hosts" ## fist in $TMP
- echo '# srvctl generated' > $TMP/hosts
- echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
- echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
- echo '' >> $TMP/hosts
- echo '' > $TMP/relaydomains
+	msg "regenerate etc_hosts" ## fist in $TMP
+	echo '# srvctl generated' > $TMP/hosts
+	echo '127.0.0.1		localhost.localdomain localhost' >> $TMP/hosts
+	echo '::1		localhost6.localdomain6 localhost6' >> $TMP/hosts
+	echo '' >> $TMP/hosts
+	echo '' > $TMP/relaydomains
 
- for C in $(lxc-ls)
- do
+	for C in $(lxc-ls)
+	do
 
-	ip=$(cat $SRV/$C/config.ipv4)
+		ip=$(cat $SRV/$C/config.ipv4)
 
-	if [ -z $ip ] 
-	then
-	  ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
-	  ip=${ipv4:19:-2}
-	  echo $ip > $SRV/$C/config.ipv4
-	fi
-
-
-	if [ -z $ip ] 
-	then
-		err "ERROR tmp: hosts - MISSING IP ADDRESS: "$C
-	else
-
- 	  echo $ip'		'$C >>  $TMP/hosts
-	  echo $ip'		mail.'$C >>  $TMP/hosts
-	  echo $C' #' >>  $TMP/relaydomains
-
-		if [ -f /$SRV/$C/aliases ]
+		if [ -z $ip ] 
 		then
-			for A in $(cat /$SRV/$C/aliases)
-			do
-				msg "$A is an alias of $C"
- 	  			echo $ip'		'$A >>  $TMP/hosts
-	  			echo $ip'		mail.'$A >>  $TMP/hosts
-				echo $A' #' >>  $TMP/relaydomains
-				
-			done
+		  ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
+		  ip=${ipv4:19:-2}
+		  echo $ip > $SRV/$C/config.ipv4
 		fi
 
-	  echo ''  >>  $TMP/hosts
+
+		if [ -z $ip ] 
+		then
+			err "ERROR tmp: hosts - MISSING IP ADDRESS: "$C
+		else
+
+	 	  echo $ip'		'$C >>  $TMP/hosts
+		  echo $ip'		mail.'$C >>  $TMP/hosts
+		  echo $C' #' >>  $TMP/relaydomains
+
+			if [ -f /$SRV/$C/aliases ]
+			then
+				for A in $(cat /$SRV/$C/aliases)
+				do
+					#msg "$A is an alias of $C"
+	 	  			echo $ip'		'$A >>  $TMP/hosts
+		  			echo $ip'		mail.'$A >>  $TMP/hosts
+					echo $A' #' >>  $TMP/relaydomains
+				
+				done
+			fi
+
+		  echo ''  >>  $TMP/hosts
 
 
-	fi
- done ## regenerated etc_hosts
+		fi
+	done ## regenerated etc_hosts
 
- bak /etc/hosts
- rsync -a $TMP/hosts /etc
+	bak /etc/hosts
+	rsync -a $TMP/hosts /etc
 
- bak /etc/postfix/relaydomains
- rsync -a $TMP/relaydomains /etc/postfix/relaydomains
- postmap /etc/postfix/relaydomains
+	bak /etc/postfix/relaydomains
+	rsync -a $TMP/relaydomains /etc/postfix/relaydomains
+	postmap /etc/postfix/relaydomains
 
 } 
 
 function regenerate_known_hosts {
 
- msg "regenerate known hosts"
+	msg "regenerate known hosts"
 
- echo '# srvctl generated' > $TMP/known_hosts
- 
- for C in $(lxc-ls)
- do
-	set_is_running
+	echo '# srvctl generated' > $TMP/known_hosts
+	 
+	for C in $(lxc-ls)
+	do
+		set_is_running
 
-	if $is_running
-	then
- 	#echo 'OK: '$C
+		if $is_running
+		then
+		 	#echo 'OK: '$C
 
-	ip=$(cat $SRV/$C/config.ipv4)
+			ip=$(cat $SRV/$C/config.ipv4)
 	
-	echo "# "$C >> $TMP/known_hosts
+			echo "# "$C >> $TMP/known_hosts
 
-	## TODO find an offline method to gather host-keys of containers not running.
-	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $ip >> $TMP/known_hosts
-	2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> $TMP/known_hosts
+			## TODO find an offline method to gather host-keys of containers not running.
+			2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $ip >> $TMP/known_hosts
+			2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> $TMP/known_hosts
 
-	echo '' >> $TMP/known_hosts
-
+			echo '' >> $TMP/known_hosts
 	
-	else
- 		err "Generate known_hosts - VE NOT RUNNING: "$C
-	fi
- done ## regenerated known_hosts
+		else
+	 		err "Generate known_hosts - VE NOT RUNNING: "$C
+		fi
+	done ## regenerated known_hosts
 
-rsync -a $TMP/known_hosts /root/.ssh
+	rsync -a $TMP/known_hosts /root/.ssh
 
 }
 
 
 function regenerate_pound_files {
 
- msg "regenerate pound files"
+	msg "regenerate pound files"
 
- echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
- echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
- echo '# srvctl generated' > $TMP/pound-https-subdomains.cfg
- echo '# srvctl generated' > $TMP/pound-https-pridomains.cfg
+	echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
+	echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
+	echo '# srvctl generated' > $TMP/pound-https-subdomains.cfg
+	echo '# srvctl generated' > $TMP/pound-https-pridomains.cfg
 
 
- for C in $(lxc-ls)
- do
-
-	#set_is_running
-	#if $is_running
-	#then
+	for C in $(lxc-ls)
+	do
 
 		if [ ! -f $SRV/$C/pound ]
 		then
@@ -2188,23 +2234,31 @@ function regenerate_pound_files {
 		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-pridomains.cfg
 		fi
 
-	#else
- 	#	err "WARNING tmp: pound-check skip - VE NOT RUNNING: "$C
-	#fi
+	done ## regenerated pound files
 
- done ## regenerated pound files
+	msg "Updateing regenerated pound config files in /etc" 	
 
-msg "Updateing regenerated pound config files in /etc" 	
+	bak /etc/srvctl/pound-http-subdomains.cfg
+	bak /etc/srvctl/pound-http-pridomains.cfg
+	bak /etc/srvctl/pound-https-subdomains.cfg
+	bak /etc/srvctl/pound-https-pridomains.cfg
 
-bak /etc/srvctl/pound-http-subdomains.cfg
-bak /etc/srvctl/pound-http-pridomains.cfg
-bak /etc/srvctl/pound-https-subdomains.cfg
-bak /etc/srvctl/pound-https-pridomains.cfg
+	rsync -a $TMP/pound-http-subdomains.cfg /etc
+	rsync -a $TMP/pound-http-pridomains.cfg /etc
+	rsync -a $TMP/pound-https-subdomains.cfg /etc
+	rsync -a $TMP/pound-https-pridomains.cfg /etc
 
-rsync -a $TMP/pound-http-subdomains.cfg /etc
-rsync -a $TMP/pound-http-pridomains.cfg /etc
-rsync -a $TMP/pound-https-subdomains.cfg /etc
-rsync -a $TMP/pound-https-pridomains.cfg /etc
+	systemctl restart pound.service
+
+	test=$(systemctl is-active pound.service)
+
+	if [ "$test" == "active" ]
+	then
+		msg "Restarted pound.service."
+	else
+		err "Pound restart FAILED!"
+		systemctl status pound.service
+	fi
 
 }
 
