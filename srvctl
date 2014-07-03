@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.03-22:12:52
-# version 1.10.4
+# Last update:2014.07.03-22:36:26
+# version 1.10.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1397,15 +1397,39 @@ WantedBy=multi-user.target
 
 	## saslauthd
 
-	err "ATTENTION! Due to incompatibility of saslauthd and perdition, we will apply a custom version of saslauthd here."
+	msg "ATTENTION! Due to incompatibility of saslauthd and perdition, we will apply a custom version of saslauthd, that has to be located at /root/saslauthd"
 	
-	wget -o /root/saslauthd http://d250.hu/scripts/bin/saslauthd
-
+	if [ ! -f /root/saslauthd ]
+	then
+		err "No custom saslauthd file detected. Attemt to download a compiled 64bit executable from d250.hu."
+		wget -o /root/saslauthd http://d250.hu/scripts/bin/saslauthd
+	fi
+	
 	mv /usr/sbin/saslauthd /usr/sbin/saslauthd.bak
 	cp /root/saslauthd /usr/sbin/saslauthd
 
 	chmod 755 /usr/sbin/saslauthd
-	
+
+	saslauthd -v
+
+	bak /etc/sysconfig/saslauthd
+
+	set_file /etc/sysconfig/saslauthd '# Directory in which to place saslauthds listening socket, pid file, and so
+# on.  This directory must already exist.
+SOCKETDIR=/run/saslauthd
+
+# Mechanism to use when checking passwords.  Run "saslauthd -v" to get a list
+# of which mechanism your installation was compiled with the ablity to use.
+MECH=rimap
+
+# Additional flags to pass to saslauthd on the command line.  See saslauthd(8)
+# for the list of accepted flags.
+FLAGS="-O localhost"'
+
+	systemctl stop saslauthd.service
+	systemctl start saslauthd.service
+	systemctl enable saslauthd.service
+	systemctl status saslauthd.service
 
 fi ## install perdition
 ## @update-install
