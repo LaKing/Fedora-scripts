@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.03-22:36:26
-# version 1.10.5
+# Last update:2014.07.04-15:02:29
+# version 1.10.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -629,7 +629,7 @@ then
 
 	if $onVE
 	then 
-		echo "This is the mailing system at $CDN, your account has been created." | mail -s "Welcome!" $U
+		echo "This is the mailing system at $CDN, your account has been created." | mail -s "Welcome" $U
 	fi
 ok
 fi ## adduser
@@ -1031,7 +1031,7 @@ fi ## install pound
 set_file_limits
 
 ### E-mail
-
+## Postfix
 if [ ! -f /etc/postfix/main.cf ] && ! $all
 then
 	log "Installing the Postfix mail subsystem."
@@ -1089,15 +1089,51 @@ message_size_limit=26214400
 ' >> $pc
 	fi ## add postfix directives
 
-
-
 	echo '# srvctl postfix relaydomains' >> /etc/postfix/relaydomains
+
+
+set_file /etc/postfix/master.cf '
+# Postfix master process configuration file. (minimized) 
+# ==========================================================================
+# service type  private unpriv  chroot  wakeup  maxproc command + args
+#               (yes)   (yes)   (yes)   (never) (100)
+# ==========================================================================
+smtp      inet  n       -       n       -       -       smtpd
+smtps     inet  n       -       n       -       -       smtpd
+  -o syslog_name=postfix/smtps
+  -o smtpd_tls_wrappermode=yes
+  -o smtpd_sasl_auth_enable=yes
+  -o smtpd_reject_unlisted_recipient=no
+  -o smtpd_recipient_restrictions=permit_sasl_authenticated,reject
+pickup    unix  n       -       n       60      1       pickup
+cleanup   unix  n       -       n       -       0       cleanup
+qmgr      unix  n       -       n       300     1       qmgr
+tlsmgr    unix  -       -       n       1000?   1       tlsmgr
+rewrite   unix  -       -       n       -       -       trivial-rewrite
+bounce    unix  -       -       n       -       0       bounce
+defer     unix  -       -       n       -       0       bounce
+trace     unix  -       -       n       -       0       bounce
+verify    unix  -       -       n       -       1       verify
+flush     unix  n       -       n       1000?   0       flush
+proxymap  unix  -       -       n       -       -       proxymap
+proxywrite unix -       -       n       -       1       proxymap
+smtp      unix  -       -       n       -       -       smtp
+relay     unix  -       -       n       -       -       smtp
+showq     unix  n       -       n       -       -       showq
+error     unix  -       -       n       -       -       error
+retry     unix  -       -       n       -       -       error
+discard   unix  -       -       n       -       -       discard
+local     unix  -       n       n       -       -       local
+virtual   unix  -       n       n       -       -       virtual
+lmtp      unix  -       -       n       -       -       lmtp
+anvil     unix  -       -       n       -       1       anvil
+scache    unix  -       -       n       -       1       scache
+'
 
 	postmap /etc/postfix/relaydomains
 	systemctl enable postfix.service
 	systemctl start postfix.service
 
-## TODO set postfix main.cf for SMTPS on port 465
 
 fi ## postfix
 ## @update-install
@@ -1286,12 +1322,10 @@ fi ## set aliases.db
 
 
 ## IMAP4S proxy
-#if [ ! -f /etc/perdition/perdition.conf ] && ! $all
-
-if true
+if [ ! -f /etc/perdition/perdition.conf ] && ! $all
 then
 
-	log "Install perdition"
+	log "Install perdition, with modified service files: imap4.service, imap4s.service"
 
 	yum -y install perdition
 
@@ -1361,7 +1395,7 @@ After=syslog.target network.target
 Type=forking
 PIDFile=/var/run/perdition/perdition-imap4.pid
 EnvironmentFile=-/etc/sysconfig/perdition
-ExecStart=/usr/sbin/perdition.imap4 --pid_file /var/run/perdition/perdition-imap4.pid --protocol IMAP4 --ssl_mode none
+ExecStart=/usr/sbin/perdition.imap4 --pid_file /var/run/perdition/perdition-imap4.pid --protocol IMAP4 --ssl_mode tls_outgoing --bind_address 127.0.0.1
 
 [Install]
 WantedBy=multi-user.target
@@ -1381,14 +1415,8 @@ ExecStart=/usr/sbin/perdition.imap4s --pid_file /var/run/perdition/perdition-ima
 WantedBy=multi-user.target
 '
 
-	systemctl enable imap4.service
-	systemctl start imap4.service
-	systemctl status imap4.service
-
-
-	systemctl enable imap4s.service
-	systemctl start imap4s.service
-	systemctl status imap4s.service
+set_file /etc/sasl2/smtpd.conf 'pwcheck_method: saslauthd
+mech_list: LOGIN'
 
 
 	## TODO: check for installed certtificates!!
@@ -1424,11 +1452,23 @@ MECH=rimap
 
 # Additional flags to pass to saslauthd on the command line.  See saslauthd(8)
 # for the list of accepted flags.
-FLAGS="-O localhost"'
+FLAGS="-O localhost -r"'
+
+	systemctl daemon-reload
+
+	systemctl stop imap4.service
+	systemctl enable imap4.service
+	systemctl start imap4.service
+	systemctl status imap4.service
+
+	systemctl stop imap4.service
+	systemctl enable imap4s.service
+	systemctl start imap4s.service
+	systemctl status imap4s.service
 
 	systemctl stop saslauthd.service
-	systemctl start saslauthd.service
 	systemctl enable saslauthd.service
+	systemctl start saslauthd.service
 	systemctl status saslauthd.service
 
 fi ## install perdition
@@ -2499,6 +2539,7 @@ then
 	sed_file /etc/srvctl/pound-https-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
 	sed_file /etc/srvctl/pound-https-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
 
+	## remove from known_hosts ... regenerate?
 
 	if [ -d "$SRV/$C" ]; then
 	  echo "Container folder does exists"
