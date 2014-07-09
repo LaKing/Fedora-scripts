@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.04-15:02:29
-# version 1.10.6
+# Last update:2014.07.09-19:18:06
+# version 1.20.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -20,17 +20,24 @@ then
   exit
 fi
 
+####################################################
+## Some init stuff
+
 ## some formatted date 
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
+MSG="## srvctl modification. $NOW"
+
 
 ####################################################
-## Configuration defaults - Overwrite in config!
+## Configuration defaults - Overwritten in config!
 ##
+##(TODO: or rpm / yum if latest version will be available in a repo, so not yet .)
 
-## use latst version or "git" (TODO: or rpm / yum is latest version will be available ina repo, so not yet.)
-LXC_VERSION="1.0.4"
+## srvctl config 
+## Use with "" if value contains spaces.
 
-MSG="## srvctl modification. $NOW"
+## use latst version or the keyword 'git' 
+LXC_VERSION=1.0.4
 
 ## logfile
 LOG=/var/log/srvctl.log
@@ -38,45 +45,47 @@ LOG=/var/log/srvctl.log
 ## temporal backup and work directory
 TMP=/temp
 
-## The main /srv folder
+## The main /srv folder mount point - SSD recommended
 SRV=/srv
 
 ## Used for certificate generation - do not leave it empty in config file.
-ssl_password="no_pass"
+ssl_password=no_pass
 
-## Company codename
-CMP='Unknown'
+## Company codename - use your own
+CMP=Unknown
 
-## Company domain name
-CDN='unknown.com'
+## Company domain name - use your own
+CDN=Unknown
 
 ## CC as Certificate creation
-CCC="HU"
-CCST="Hungary"
-CCL="Budapest"
+CCC=HU
+CCST=Hungary
+CCL=Budapest
 
-## for php.ini in containers
-php_timezone="Europe/Budapest"
-
-## IPv4 Address ## TODO: dig command not available on a minimal-container, get it with: $(dig +time=1 +short $(hostname))
-HOSTIPv4='127.0.0.1'
-
-## File to share this system's VE domains to ns servers
-dns_share='/root/dns.tar.gz'
+## IPv4 Address of the host
+HOSTIPv4=127.0.0.1
 
 ## IPv6 address of the host
-HOSTIPv6="?"
+HOSTIPv6=::1
 
 ## IPv6 address range base
-RANGEv6="?"
-
+RANGEv6=::1
 PREFIXv6=64
 
-## MYSQL / MARIADB conf file that stores the mysql root password - in containers
-MDF="/etc/mysqldump.conf"
+## File to share this system's VE domains to ns servers - http share recommended
+dns_share=/root/dns.tar.gz
 
-## These where the sourceable variables.  
-## Import custom configuration directives now, and customize your variables.
+
+#### the following options are exported to containers, when they get created..
+
+## for php.ini in containers
+php_timezone=Europe/Budapest
+
+
+
+##########################################################
+## These where the sourceable variables - used in update-install too!
+## Import custom configuration directives now, t oapply customized variables.
 source /etc/srvctl/config 2> /dev/null
 ##
 ##########################################################
@@ -104,6 +113,10 @@ CSD=$(pwd)
 ## Lablib functions
 
 ## constants
+
+## MYSQL / MARIADB conf file that stores the mysql root password - in containers
+MDF=/etc/mysqldump.conf
+
 
 green='\e[32m'
 red='\e[31m'
@@ -185,6 +198,13 @@ HINT="Usage:	srvctl command [argument]
 The list of supported commands:"
 
 
+if $onHS
+then
+	if [ -z $(echo $LD_LIBRARY_PATH | grep '/usr/local/lib') ]
+	then
+		export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+	fi
+fi
 
 ## hint provides a sort of help functionality
 function hint {
@@ -292,7 +312,7 @@ function restart_pound {
 
 function create_certificate { ## for container $C
 
-	## Prepare Certificate creation
+	## Prepare self-signed Certificate creation
 	msg "Create certificate for $C."
 
 	mkdir $SRV/$C/cert
@@ -586,10 +606,47 @@ function msg_yum_version_installed {
 
 }
 
-if [ ! -z $(echo $LD_LIBRARY_PATH | grep '/usr/local/lib') ]
-then
-	export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-fi
+function generate_lxc_config {
+
+mac=$(to_mac $counter)
+ip4=$(to_ip $counter)	
+
+echo "10.10."$ip4 > $SRV/$C/config.ipv4
+
+set_file $SRV/$C/config '# Template for srvctl created fedora container #'$counter' '$C'
+lxc.network.type = veth
+lxc.network.flags = up
+lxc.network.link = inet-br
+lxc.network.hwaddr = 00:00:00:aa:'$mac'
+lxc.network.ipv4 = 192.168.'$ip4'/8
+lxc.network.name = inet-'$counter'
+lxc.network.ipv4.gateway = auto
+#lxc.network.ipv6.gateway = auto
+
+
+lxc.network.type = veth
+lxc.network.flags = up
+lxc.network.link = srv-net
+lxc.network.hwaddr = 00:00:10:10:'$mac'
+lxc.network.ipv4 = 10.10.'$ip4'/8
+lxc.network.name = srv-'$counter'
+
+lxc.rootfs = '$SRV'/'$C'/rootfs
+lxc.include = /usr/local/share/lxc/config/fedora.common.conf
+lxc.utsname = '$C'
+lxc.autodev = 1
+
+lxc.mount = '$SRV'/'$C'/fstab
+'
+
+echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $SRV/$C/fstab
+
+}
+
+
+
+
+
 ## srvctl functions end here.
 
 ##############################
@@ -656,16 +713,6 @@ then
 ok
 fi ## start
 
-hint "diagnose	" "Run a set of diagnostic commands."
-if [ "$CMD" == "diagnose" ]
-then
-
-	netstat -tulpn
-
-ok
-fi
-
-
 ############################
 ## 
 ##  SERVER SIDE FUNCTIONS
@@ -673,27 +720,26 @@ fi
 ############################
 
 if $onHS
-then 
-
-## no identation.
+then ## no identation.
 
 
-hint "uninstall	" "Remove srvctl from this system."
-if [ "$CMD" == "uninstall" ]
+
+hint "diagnose	" "Run a set of diagnostic commands."
+if [ "$CMD" == "diagnose" ]
 then
 
-	yum -y remove libvirt*
-	rm -rf /etc/libvirt
+	systemctl status pop3s.service
+	systemctl status imap4s.service
+	systemctl status imap4.service
+	systemctl status saslauthd.service
+	systemctl status postfix.service
+	systemctl status pound.service
 
-	bak /etc/hosts
-
-	echo '127.0.0.1		localhost.localdomain localhost' > /etc/hosts
-	echo '::1		localhost6.localdomain6 localhost6' >> /etc/hosts
-
-	## TODO .. well, there are certainly more things to uninstall.
+	netstat -tulpn
 
 ok
 fi
+
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
@@ -711,9 +757,12 @@ then
 	## TODO create a srvctl file in /bin and ..
 	# ln /bin/srvctl /var/srvctl
 
-	echo "srvctl should be located at /bin/srvctl"
+	if [ ! $0 == "/bin/srvctl" ]
+	then
+		msg "srvctl should be located at /bin/srvctl"
+	fi
 
-	## TODO yum -y update
+	## TODO yum -y update ?
 
 	## TODO make sure networking is set and okay.
 	# /etc/sysconfig/network-scripts/ifcfg-em1
@@ -723,13 +772,125 @@ then
 	# systemctl enable network.service
 	# systemctl start network.service
 
+	mkdir -p /etc/srvctl
+
+	if [ ! -f /etc/srvctl/config ]
+	then
+	
+	get_password
+
+set_file /etc/srvctl/config "## srvctl config 
+## Use with "" if value contains spaces.
+
+## use latst version or the keyword 'git' 
+#LXC_VERSION=1.0.4
+
+## logfile
+#LOG=/var/log/srvctl.log
+
+## temporal backup and work directory
+#TMP=/temp
+
+## The main /srv folder mount point - SSD recommended
+#SRV=/srv
+
+## Used for certificate generation - do not leave it empty in config file.
+ssl_password=ssl_pass_$password
+
+## Company codename - use your own
+#CMP=Unknown
+
+## Company domain name - use your own
+#CDN=Unknown
+
+## CC as Certificate creation
+#CCC=HU
+#CCST=Hungary
+#CCL=Budapest
+
+## IPv4 Address of the host
+#HOSTIPv4=127.0.0.1
+
+## IPv6 address of the host
+#HOSTIPv6=::1
+
+## IPv6 address range base
+#RANGEv6=::1
+#PREFIXv6=64
+
+## File to share this system's VE domains to ns servers - http share recommended
+#dns_share=/root/dns.tar.gz
+
+#### the following options are exported to containers, when they get created..
+
+## for php.ini in containers
+#php_timezone=Europe/Budapest
+
+
+"
+	msg "Generated default /etc/srvctl/config for customization. Please edit, and restart the update-install process. Exiting."
+	exit
+
+	fi
+
+## Requirement checks .--
+## certificate
+		if [ ! -f /root/crt.pem ]
+		then
+			err "Requirement-check, error: certificate check failed on /root/crt.pem - file not found. Exiting."
+			exit
+		fi
+
+		if [ ! -f /root/key.pem ]
+		then
+			err "Requirement-check, error: certificate check failed on /root/key.pem - file not found. Exiting."
+			exit
+		fi
+
+		if [ -f /root/ca-bundle.pem ]
+		then
+			no_ca_bundle_hashmark=''
+			cert_status=$(openssl verify -CAfile /root/ca-bundle.pem /root/crt.pem | tail -n 1 | tail -c 3)
+
+			if [ ! "$cert_status" == "OK" ]
+			then
+				err "Requirement-check, error: certificate check failed with /root/ca-bundle.pem /root/crt.pem - Exiting"
+				exit
+
+			fi
+		else
+			msg "No ca-bundle.pem found."
+			no_ca_bundle_hashmark='#// '
+			cert_status=$(openssl verify /root/crt.pem | tail -n 1 | tail -c 3)
+
+			if [ ! "$cert_status" == "OK" ]
+			then
+				err "Requirement-check, error: certificate check failed. /root/crt.pem - Exiting"
+				exit
+
+			fi
+		fi
+
+## saslauthd
+
+	if [ ! -f /root/saslauthd ]
+	then
+		msg "No custom saslauthd file detected. Attemt to download a compiled 64bit executable from d250.hu."
+		wget -O /root/saslauthd http://d250.hu/scripts/bin/saslauthd
+	fi
+
+	if [ ! -f /root/saslauthd ]
+	then
+		err "Due to incompatibility of saslauthd <= 2.1.26 and perdition, a custom version of saslauthd is required, that has to be located at /root/saslauthd. Exiting."
+		exit
+	fi
+
+
 ## @update-install
-if [ "$(lxc-info --version)" == "$LXC_VERSION" ] && ! $all
+if [ ! "$(lxc-info --version)" == "$LXC_VERSION" ] || $all
 then
-msg "LXC is OK! ($LXC_VERSION)"
-else
 log "Installing LXC!"
-exit
+
 	## LXC is also part of docker-io
 	#yum install docker-io
 	    
@@ -782,6 +943,8 @@ exit
 ## Networking with libvirt
 	yum -y install libvirt-daemon-driver-network libvirt-daemon-config-network libvirt-daemon-config-nwfilter
 
+	## DHCP is only for manually created containers. srvctl containers should use static ip addresses.
+
 	set_file /etc/libvirt/qemu/networks/default.xml '<network>
   <name>default</name>
   <uuid>00000000-0000-aaaa-aaaa-aaaaaaaaaaaa</uuid>
@@ -790,7 +953,7 @@ exit
   <forward/>
   <ip address="192.168.0.1" netmask="255.255.0.0">
     <dhcp>
-      <range start="192.168.0.2" end="192.168.255.254"/>
+      <range start="192.168.0.2" end="192.168.0.254"/>
     </dhcp>
   </ip>
 </network>
@@ -806,18 +969,23 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 </network>
 '
 
-## TODO, .. I think the primary interface - with a gateway - is enough. The default should be kept though.
+## TODO, .. set a new bridge for ipv6
 
-	ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml
+	ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml 2> /dev/null
 
 	systemctl enable libvirtd.service
 	systemctl start  libvirtd.service
 	systemctl status libvirtd.service
 
-	#### RESTART REQUIRED HERE
-	log "LXC Installed. Restart required. Please run this command again after a reboot to continiue. Exiting."
-	exit
+	#### RESTART REQUIRED HERE, if libvirt networks got modified.
+	if ! $all
+	then
+		log "LXC Installed. Restart required. Please run this command again after a reboot to continiue. Exiting."
+		exit
+	fi
 
+else
+msg "LXC is OK! ($LXC_VERSION)"
 fi ## Install LXC
 
 ## @update-install
@@ -869,7 +1037,8 @@ fi ## Install LXC
 	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
 
 ## @update-install
-if [ ! -f $fedora_template ] && ! $all
+##if [ ! -f $fedora_template ] || $all
+if true
 then
 	log "Create Custom template"
 
@@ -882,7 +1051,7 @@ then
 	declare -a pwarrb=("a" "e" "i" "o" "u")
 	pwlb=${#pwarrb[@]}	
 
-	declare -a pwarrc=("" "." ":" "@" ".." "::" '@@')
+	declare -a pwarrc=("" "." ":" "@" ".." "::" "@@")
 	pwlc=${#pwarrc[@]}
 
 	p=''
@@ -911,7 +1080,17 @@ then
 	sed_file $srvctl_template 'Edit the config file to check/enable networking setup.' 'exit 0'
 
 	## Add additional default packages 
-	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd wordpress mariadb mariadb-server postfix mailx sendmail"'
+	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip"'
+
+	## wordpress mariadb mariadb-server postfix mailx sendmail dovecot .. 
+
+	## TODO Dovecot fails with
+	##  warning: %post(dovecot-1:2.2.13-1.fc20.x86_64) scriptlet failed, exit status 1
+	## Non-fatal POSTIN scriptlet failure in rpm package 1:dovecot-2.2.13-1.fc20.x86_64
+	## therefore it should be installed once the container started.
+
+	## httpd needs to be installed here, other wise it failes with cpio set_file_cap error.redsnapper921
+
 
 	## After modifocation of the last line, in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
 	log "Clearing yum cache for container creation."
@@ -931,7 +1110,7 @@ fi ## if fedora_template does not exists.
 
 
 
-if [ ! -f /etc/pound.cfg ] && ! $all
+if [ ! -f /etc/pound.cfg ] || $all
 then
 	## Pound is a reverse Proxy for http
 	yum -y install Pound
@@ -972,16 +1151,31 @@ ListenHTTPS
     Include "/etc/srvctl/pound-https-subdomains.cfg"
     Include "/etc/srvctl/pound-https-pridomains.cfg"
 
-    ## The CA provided files have to be included in here.
-    # Include "/etc/srvctl/pound-include-ca.cfg"
+    ## The certificate from root.
+    Cert "/etc/pound/pound.pem"
 
 End
 
 ## Include the default host here, as a fallback.
 # Include "/srv/default-host/pound"
 '
-	systemctl enable pound.service
+	## certificate chainfile
+	mkdir -p /etc/pound
+	
 
+	cat /root/crt.pem > /etc/pound/crt.pem
+	cat /root/key.pem > /etc/pound/key.pem
+	cat /root/ca-bundle.pem > /etc/pound/ca-bundle.pem
+
+	cat /root/crt.pem > /etc/pound/pound.pem
+	echo '' >> /etc/pound/pound.pem
+	cat /root/key.pem >> /etc/pound/pound.pem
+	echo '' >> /etc/pound/pound.pem
+	cat /root/ca-bundle.pem >> /etc/pound/pound.pem
+
+	#  echo $MSG >> /etc/srvctl/pound-include-ca.cfg
+	#  echo 'CAlist "/etc/srvctl/ca-bundle.pem"' >> /etc/srvctl/pound-include-ca.cfg
+	## TODO check for /etc/pki maybe?
 
 	echo '## srvctl primary domains' >> /etc/srvctl/pound-http-pridomains.cfg
 	echo '## srvctl subdomains' >> /etc/srvctl/pound-http-subdomains.cfg
@@ -1013,26 +1207,45 @@ The service is not available. Please try again later.
 </font><p></body>'
 
 
-	if [ ! -f /var/www/html/favicon.ico ] && ! $all
+	if [ ! -f /var/www/html/favicon.ico ] || $all
 	then
 	   msg "Downloading favicon.ico from $CDN"
 	   wget -o /var/www/html/favicon.ico http://$CDN/favicon.ico
 	fi
 
-	if [ ! -f /var/www/html/logo.png ] && ! $all
+	if [ ! -f /var/www/html/logo.png ] || $all
 	then
 	   msg "Downloading logo.png from $CDN" 
 	   wget -o /var/www/html/logo.png http://$CDN/logo.png
 	fi
-	
+
+	if [ ! -f /var/www/html/favicon.ico ]
+	then
+	   err "No favicon.ico from could be located."
+	fi
+
+	if [ ! -f /var/www/html/logo.png ]
+	then
+	   err "No logo.png from could be located."
+	fi
+
+	systemctl stop pound.service
+	systemctl enable pound.service
+	systemctl start pound.service
+	systemctl status pound.service
+
 fi ## install pound
+
+	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
+	## My attempts to do so, did not work, therefore I kept this concept of the containers sitting together on srv-net with static IP's
+
 
 ## @update-install
 set_file_limits
 
 ### E-mail
 ## Postfix
-if [ ! -f /etc/postfix/main.cf ] && ! $all
+if [ ! -f /etc/postfix/main.cf ] || $all
 then
 	log "Installing the Postfix mail subsystem."
 
@@ -1046,6 +1259,7 @@ then
 	if grep -q  '## srvctl postfix configuration directives' $pc; then
 	 log "Skipping Postfix configuration, as it seems to be configured."
 	else
+		bak $pc
 
 		echo '
 ## srvctl postfix configuration directives
@@ -1065,9 +1279,9 @@ relay_domains = $mydomain, hash:/etc/postfix/relaydomains
 
 ## SENDING
 ## SMTPS
-smtpd_tls_CAfile =    /etc/postfix/postfix-ca-bundle.pem
-smtpd_tls_cert_file = /etc/postfix/postfix.crt.pem
-smtpd_tls_key_file =  /etc/postfix/postfix.key.pem
+'$no_ca_bundle_hashmark'smtpd_tls_CAfile =    /etc/postfix/ca-bundle.pem
+smtpd_tls_cert_file = /etc/postfix/crt.pem
+smtpd_tls_key_file =  /etc/postfix/key.pem
 smtpd_tls_security_level = may
 smtpd_use_tls = yes
 
@@ -1130,6 +1344,10 @@ anvil     unix  -       -       n       -       1       anvil
 scache    unix  -       -       n       -       1       scache
 '
 
+	cat /root/ca-bundle.pem > /etc/postfix/ca-bundle.pem
+	cat /root/crt.pem > /etc/postfix/crt.pem
+	cat /root/key.pem > /etc/postfix/key.pem
+
 	postmap /etc/postfix/relaydomains
 	systemctl enable postfix.service
 	systemctl start postfix.service
@@ -1139,7 +1357,7 @@ fi ## postfix
 ## @update-install
 
 
-if [ ! -f /etc/aliases.db ] && ! $all
+if [ ! -f /etc/aliases.db ] || $all
 then
 
 log "Set /etc/aliases.db"
@@ -1322,10 +1540,10 @@ fi ## set aliases.db
 
 
 ## IMAP4S proxy
-if [ ! -f /etc/perdition/perdition.conf ] && ! $all
+if [ ! -f /etc/perdition/perdition.conf ] || $all
 then
 
-	log "Install perdition, with modified service files: imap4.service, imap4s.service"
+	log "Install perdition, with custom service files: imap4.service, imap4s.service, pop3s.service"
 
 	yum -y install perdition
 
@@ -1372,6 +1590,16 @@ strip_domain remote_login
 ## For the default dovecot config, no ssl verification is needed
 ssl_no_cert_verify
 ssl_no_cn_verify
+
+ssl_no_cn_verify
+
+## SSL files
+'$no_ca_bundle_hashmark'ssl_ca_chain_file /etc/perdition/ca-bundle.pem
+ssl_cert_file /etc/perdition/crt.pem
+ssl_key_file /etc/perdition/key.pem
+
+## ...
+
 '
 
 	set_file /etc/perdition/popmap.re '#### srvctl tuned popmap.re
@@ -1415,30 +1643,35 @@ ExecStart=/usr/sbin/perdition.imap4s --pid_file /var/run/perdition/perdition-ima
 WantedBy=multi-user.target
 '
 
+set_file /usr/lib/systemd/system/pop3s.service '[Unit]
+Description=Perdition POP3S reverse proxy
+After=syslog.target network.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/perdition/perdition-pop3s.pid
+EnvironmentFile=-/etc/sysconfig/perdition
+ExecStart=/usr/sbin/perdition.pop3s --pid_file /var/run/perdition/perdition-pop3s.pid --protocol POP3S
+
+[Install]
+WantedBy=multi-user.target
+'
+
 set_file /etc/sasl2/smtpd.conf 'pwcheck_method: saslauthd
 mech_list: LOGIN'
 
 
-	## TODO: check for installed certtificates!!
-	msg "You MUST install SSL certificates for perdition in /etc/perdition (perdition.key.pem perdition.crt.pem perdition.ca.pem) "
-	msg "You MUST install SSL certificates for postfix in /etc/postfix (postfix.key.pem postfix.crt.pem postfix.ca.pem) "
+	cat /root/ca-bundle.pem > /etc/perdition/ca-bundle.pem
+	cat /root/crt.pem > /etc/perdition/crt.pem
+	cat /root/key.pem > /etc/perdition/key.pem
 
 	## saslauthd
-
-	msg "ATTENTION! Due to incompatibility of saslauthd and perdition, we will apply a custom version of saslauthd, that has to be located at /root/saslauthd"
-	
-	if [ ! -f /root/saslauthd ]
-	then
-		err "No custom saslauthd file detected. Attemt to download a compiled 64bit executable from d250.hu."
-		wget -o /root/saslauthd http://d250.hu/scripts/bin/saslauthd
+	if ! diff /root/saslauthd /usr/sbin/saslauthd >/dev/null ; then
+	 	rm -fr /usr/sbin/saslauthd
+		cp /root/saslauthd /usr/sbin/saslauthd
+		chmod 755 /usr/sbin/saslauthd
+		saslauthd -v
 	fi
-	
-	mv /usr/sbin/saslauthd /usr/sbin/saslauthd.bak
-	cp /root/saslauthd /usr/sbin/saslauthd
-
-	chmod 755 /usr/sbin/saslauthd
-
-	saslauthd -v
 
 	bak /etc/sysconfig/saslauthd
 
@@ -1466,6 +1699,11 @@ FLAGS="-O localhost -r"'
 	systemctl start imap4s.service
 	systemctl status imap4s.service
 
+	systemctl stop pop3s.service
+	systemctl enable pop3s.service
+	systemctl start pop3s.service
+	systemctl status pop3s.service
+
 	systemctl stop saslauthd.service
 	systemctl enable saslauthd.service
 	systemctl start saslauthd.service
@@ -1475,7 +1713,7 @@ fi ## install perdition
 ## @update-install
 
 ## configure DNS server
-if [ ! -f /etc/named.conf ] && ! $all
+if [ ! -f /etc/named.conf ] || $all
 then
 	log "Installing BIND (named) DNS server."
 
@@ -1522,7 +1760,7 @@ set_file /etc/srvctl/named.conf.local '## srvctl generated
 
 	rsync -a /usr/share/doc/bind/sample/etc/named.rfc1912.zones /etc
 	rsync -a /usr/share/doc/bind/sample/var/named /var
-	mkdir /var/named/dynamic
+	mkdir -p /var/named/dynamic
 
 	chown -R named:named /var/named
 
@@ -1542,7 +1780,7 @@ fi ## install named
 
 ## User tools
 
-if [ ! -f /etc/freshclam.conf ] && ! $all
+if [ ! -f /etc/freshclam.conf ] || $all
 then
 	log "Installing Userspace tools."
 
@@ -1561,32 +1799,37 @@ then
 
 fi
 
+## public ftp server
+# yum -y install vsftpd
+# systemctl enable vsftpd.service
+# systemctl start vsftpd.service
+
+## public torrent seed
+# yum -y install opentracker-ipv4 opentracker-ipv6
+# systemctl enable opentracker-ipv4.service
+# systemctl start opentracker-ipv4.service
+# yum -y install qbittorrent
 
 ## TODO run clamscan ...
 
 
 
 
-
-if [ ! -d /shortcuts ] 
+scd=/root/srvctl
+if [ ! -d $scd ] 
 then
-	log "Creating devel-shortcuts in /shortcuts"
+	log "Creating srvctl-shortcuts in $scd"
 	## some quick links for root
 	## this has no real imporance so it can be any directory for your convinience
-	mkdir /shortcuts
-	cd /shortcuts
+	mkdir -p $scd
 
-	ln -s $SRV
-	ln -s /etc/hosts
-	ln -s /etc/pound.cfg
-	ln -s /etc/srvctl/pound-http-pridomains.cfg
-	ln -s /etc/srvctl/pound-http-subdomains.cfg
-	ln -s /etc/srvctl/pound-https-pridomains.cfg
-	ln -s /etc/srvctl/pound-https-subdomains.cfg
-	ln -s /usr/bin/srvctl srvctl
-	ln -s /usr/local/etc/lxc/lxc.conf
-	ln -s /usr/local/share/lxc/templates/lxc-fedora-srv
-	ln -s /usr/local/var/cache/lxc/fedora cache-lxc-fedora
+	ln -s $SRV $scd/$SRV
+	ln -s /etc/hosts $scd/hosts	
+	ln -s /etc/pound.cfg $scd/pound.cfg
+
+	ln -s /usr/local/etc/lxc/lxc.conf $scd/lxc.conf
+	ln -s /usr/local/share/lxc/templates/lxc-fedora-srv $scd/lxc-fedora-srv
+	ln -s /usr/local/var/cache/lxc/fedora $scd/cache-lxc-fedora 
 fi
 
 
@@ -1621,13 +1864,10 @@ then
 	done
 
 	rm -rf $SRV/*
-	rm -rf /root/.ssh/known_hosts
-	rm -rf /etc/srvctl/*
-
-	echo '## srvctl pound-http-pridomains.cfg' > /etc/srvctl/pound-http-pridomains.cfg
-	echo '## srvctl pound-http-subdomains.cfg' > /etc/srvctl/pound-http-subdomains.cfg
-	echo '## srvctl pound-https-pridomains.cfg' > /etc/srvctl/pound-https-pridomains.cfg
-	echo '## srvctl pound-https-subdomains.cfg' > /etc/srvctl/pound-https-subdomains.cfg
+	# rm -rf /root/.ssh/known_hosts
+	rm -rf /etc/srvctl
+	rm -rf /root/srvctl
+	rm -rf /var/srvctl
 
 	systemctl stop pound.service
 
@@ -2589,12 +2829,6 @@ then
 		log "Adding domain #$counter $C"
 	fi
 
-
-
-	## This arguiment is given as enviroment variable
-	#root_prompt_password=no
-
-
 	log "Create container."
 	## templates are usually in /usr/local/share/lxc/templates, lxc-fedora-srv has to be installed!
 	lxc-create -n $C -t fedora-srv
@@ -2604,50 +2838,74 @@ then
 
 	#mkdir -p $SRV/$C 
 	echo $counter > $SRV/$C/config.counter
-	
-	cfg=$SRV/$C/config
-	mnt=$SRV/$C/fstab
+
 	rootfs=$SRV/$C/rootfs
 
-	mac=$(to_mac $counter)
-	ip=$(to_ip $counter)	
+	generate_lxc_config
 
-	echo "10.10."$ip > $SRV/$C/config.ipv4
+	set_file $rootfs/etc/resolv.conf "# Generated by srvctl
+search local
+nameserver 10.10.0.1
+"
 
-	echo "# Template for srvctl created fedora container #"$counter >	$cfg
-	echo "lxc.network.type = veth" >> $cfg
-	echo "lxc.network.flags = up" >> $cfg
-	echo "lxc.network.link = inet-br" >> $cfg
-	echo "lxc.network.hwaddr = 00:00:00:aa:"$mac >> $cfg
-	echo "" >> $cfg
+	mkdir -m 600 $rootfs/root/.ssh
+	cat /root/.ssh/id_rsa.pub > $rootfs/root/.ssh/authorized_keys
+	chmod 600 $rootfs/root/.ssh/authorized_keys
+	
+	ip=$(to_ip $counter)
 
-	echo "lxc.network.type = veth" >> $cfg
-	echo "lxc.network.flags = up" >> $cfg
-	echo "lxc.network.link = srv-net" >> $cfg
-	echo "lxc.network.hwaddr = 00:00:10:10:"$mac >> $cfg
-	echo "lxc.network.ipv4 = 10.10."$ip"/8" >> $cfg
-	echo "" >> $cfg
+	## Add IP to hosts file
+	echo "10.10.$ip		$C"  >> /etc/hosts
+	echo "10.10.$ip		mail.$C"  >> /etc/hosts
+	echo ""  >> /etc/hosts
 
-	echo "lxc.rootfs = $SRV/$C/rootfs" >> $cfg
-	echo "lxc.include = /usr/local/share/lxc/config/fedora.common.conf" >> $cfg
-	echo "lxc.utsname = $C" >> $cfg
-	echo "lxc.autodev = 1" >> $cfg
-	echo "" >> $cfg
-	echo "lxc.mount = $SRV/$C/fstab" >> $cfg
-
-	echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" >> $mnt
-
-
-	mkdir -m 600 $SRV/$C/rootfs/root/.ssh
-	cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
-	chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
+	## set (fix) hostname
+	echo $C > $rootfs/etc/hostname
 
 	## Container should be in the same timezone as the host.
-	rsync -a /etc/localtime $SRV/$C/rootfs/etc
+	rsync -a /etc/localtime $rootfs/etc
+
+	## make the installation smaller	
+	rm $rootfs/usr/lib/locale/locale-archive
+	mkdir -p $rootfs/var/srvctl
+	mkdir -p $rootfs/etc/srvctl
+
+set_file $rootfs/etc/srvctl/config '## srvctl generated
+## MYSQL / MARIADB conf file that stores the mysql root password - in containers
+MDF="'$MDF'"
+
+## for php.ini in containers
+php_timezone="'$php_timezone'"
+
+## IPv4 Address ## TODO: dig command not available on a minimal-container, get it with: $(dig +time=1 +short $(hostname))
+HOSTIPv4="'$HOSTIPv4'"
+'
+
+	ln -s /var/srvctl/locale-archive $rootfs/usr/lib/locale/locale-archive 
+	
+	rm -rf $rootfs/var/cache/yum/*
+
+	## add symlink to client-srvctl
+	ln -s /var/srvctl/srvctl $rootfs/bin/srvctl
+
+	## As of June 2014, systemd-journald is running amok in the containers. To prevent 100% CPU usage, it has to be disabled.
+	## To undo, you may run: rm $rootfs/etc/systemd/system/systemd-journald.service
+	## Or, in the containers mask / unmask journald.service - reboot container to apply.
+	ln -s '/dev/null' "$rootfs/etc/systemd/system/systemd-journald.service"
+
+	## create shortcut's in root's folder, so user dont get lost in the filesystem.
+	ln -s /var/www/html $rootfs/root
+
+## Sendmail
+
+	## set containers sendmail que directory in order to allow apache to use php's mail function. (Didnt find a better way yet.) 
+	chmod 773 $rootfs/var/spool/clientmqueue
+
+## Postfix
 
 	## Container should have the same aliases as the host. (Important here is to disable info)
-	rsync -a /etc/aliases $SRV/$C/rootfs/etc
-	rsync -a /etc/aliases.db $SRV/$C/rootfs/etc
+	rsync -a /etc/aliases $rootfs/etc
+	rsync -a /etc/aliases.db $rootfs/etc
 
 	echo '
 
@@ -2665,54 +2923,37 @@ home_mailbox = Maildir/
 message_size_limit=26214400
 
 
-	' >> $SRV/$C/rootfs/etc/postfix/main.cf
+	' >> $rootfs/etc/postfix/main.cf
 
-	echo "@$C root" > $SRV/$C/rootfs/etc/postfix/catchall
-	postmap $SRV/$C/rootfs/etc/postfix/catchall
-
-
-
-	## Add IP to hosts file
-	echo "10.10.$ip		$C"  >> /etc/hosts
-	echo "10.10.$ip		mail.$C"  >> /etc/hosts
-	echo ""  >> /etc/hosts
+	echo "@$C root" > $rootfs/etc/postfix/catchall
+	postmap $rootfs/etc/postfix/catchall
 
 	echo "$C #$ip"  >> /etc/postfix/relaydomains
-
 	postmap /etc/postfix/relaydomains
+
+## Apache
 
 	## enable the webserver
 	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
-	ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
-	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
+
+	##ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
+	##ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
 	##ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
 
-	## set (fix?) hostname
-	echo $C > $rootfs/etc/hostname
+
 	
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
 	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
 	<img src="logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div>
 	<p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">' > $index
-
 	echo '<b>'$C'</b> @ '$(hostname) >> $index
-
 	echo '</font><p></body>' >> $index
 
 	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
 
-	## make the installation smaller	
-	rm $rootfs/usr/lib/locale/locale-archive
-	mkdir $rootfs/var/srvctl
-	ln -s /var/srvctl/locale-archive $rootfs/usr/lib/locale/locale-archive 
-	
-	rm -rf $rootfs/var/cache/yum/*
-
-	## add symlink to client-srvctl
-
-	ln -s /var/srvctl/srvctl $rootfs/bin/srvctl
+## Pound
 
 	create_certificate
 	create_poundfile
@@ -2729,6 +2970,8 @@ message_size_limit=26214400
 
 	log "Restarting Pound."
 	restart_pound
+
+## DNS
 
 	named_slave_conf_global=/etc/srvctl/named.slave.conf.global.$(hostname)
 
@@ -2750,39 +2993,38 @@ message_size_limit=26214400
 		generate_user_structure
 	fi
 
-	## set containers timezone in php.ini, ...  	
-	sed_file $SRV/$C/rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
-
-	## set containers sendmail que directory in order to allow apache to use php's mail function. (Didnt find a better way yet.) 
-	chmod 773 $SRV/$C/rootfs/var/spool/clientmqueue
-
-	## As of June 2014, systemd-journald is running amok in the containers. To prevent 100% CPU usage, it has to be disabled.
-	## To undo, you may run: rm $SRV/$C/rootfs/etc/systemd/system/systemd-journald.service
-	## Or, in the containers mask / unmask journald.service - reboot container to apply.
-	ln -s '/dev/null' "$SRV/$C/rootfs/etc/systemd/system/systemd-journald.service"
-
 	#### START #### 
-	log "Starting container."	
 
-	## Start the container maybe
+	log "Starting container $C - 10.10.$ip $U"	
+
 	lxc-start -o $SRV/$C/lxc.log -n $C -d 
 
-	## TODO install and configure dovecot
-
-	log "$C - 10.10."$ip" started."
-
-	## create shortcut's in root's folder, so user dont get lost in the filesystem.
-	ln -s /var/www/html $SRV/$C/rootfs/root
-
-
-	## Add to host's root's known_hosts after the container booted
-	echo '' >> /root/.ssh/known_hosts
-	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts)) &
-	$(sleep 15 && $( 2>/dev/null 1>/dev/null ssh-keyscan -t rsa -H $C >> /root/.ssh/known_hosts)) &
+	## wait 120 sec max for the container to get up
 	
+	n=0
+        while [  $n -lt 120 ] 
+	do
+		res=$(ssh-keyscan -t rsa -H 10.10.$ip 2> /dev/null)
 
-	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
-	## My attempts to do so, did not workk, therefore I kept this concept of the containers sitting together on srv-net with static IP's
+		if [ "${res:0:3}" == '|1|' ]
+		then
+			n=120
+		fi
+
+	 	let n=n+1 
+		echo -n '.'
+        done
+
+	ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts 2> /dev/null
+	ssh-keyscan -t rsa -H $C >> /root/.ssh/known_hosts 2> /dev/null
+
+	echo " connected."
+
+## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
+
+	ssh $C "yum -y install dovecot"
+
+	msg "$C ready."
 
 ok
 fi ## srvctl add
@@ -2808,6 +3050,34 @@ C=$(hostname)
 ###
 ###	MariaDB related client-functions
 ###
+
+function setup_mariadb {
+
+	yum -y install mariadb mariadb-server
+	systemctl enable mariadb.service
+	systemctl start mariadb.service
+
+	systemctl status mariadb.service
+
+	msg "Secureing Mysql/MariaDB."	
+	MDA="-u root"
+
+	get_password
+
+	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
+	mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+	mysql $MDA -e "DROP DATABASE IF EXISTS test;"
+
+	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+	mysql $MDA -e "$SQL"
+	log "Set database root password to: "$password
+
+	## set up backup params
+	echo '[client]' > $MDF
+	echo 'user=root' >> $MDF
+	echo 'password='$password >> $MDF
+}
+
 
 ## Add new database
 function add_mariadb_db {
@@ -2861,276 +3131,10 @@ then
 	if [ ! -f "$MDF" ]
 	then
 
-		echo "Warning: Mysql/MariaDB not secured yet! Processing."	
-		MDA="-u root"
-
-		get_password
-
-		mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
-		mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-		mysql $MDA -e "DROP DATABASE IF EXISTS test;"
-
-		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-		mysql $MDA -e "$SQL"
-		log "Set database root password to: "$password
-
-		## set up backup params
-		echo '[client]' > $MDF
-		echo 'user=root' >> $MDF
-		echo 'password='$password >> $MDF
+		setup_mariadb
 	
 	fi
 
-	MDA="--defaults-file=$MDF -u root"
-
-	hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
-	if [ "$CMD" == "add-wordpress" ]
-	then
-
-		URI=$2
-
-		if [ -z $URI ]
-		then
-			dir=/var/www/html
-			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp'
-			bak /var/www/html/index.html
-			rm -rf /var/www/html/index.html
-		else	
-			mkdir /var/www/html/$URI
-			dir=/var/www/html/$URI
-			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp_'$URI		
-		fi
-
-		## for dependencies.
-		yum -y install unzip
-		yum -y install wordpress
-
-		## TODO: finish this properly.
-
-		wd=/root
-		curl http://wordpress.org/latest.zip > $wd/latest.zip
-	
-		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
-		cp -u -f -r $wd/wordpress/* $dir
-		rm -rf $wd/latest.zip
-		rm -rf $wd/wordpress
-		rm -rf $wd/unzip.log
-		chown -R apache:apache $dir
-	
-		cf=$dir/wp-config.php
-
-		add_mariadb_db	
-
-		## save these params to the wp folder
-		f=$dir/wp-config.php
-		echo "<?php" > $f
-		echo "// srvctl wordpress wp-config" >> $f
-		echo "define('DB_NAME', '$db_name');" >> $f
-		echo "define('DB_USER', '$db_usr');" >> $f
-		echo "define('DB_PASSWORD', '$db_pwd');" >> $f	
-		echo "define('DB_HOST', 'localhost');" >> $f
-		echo "define('DB_CHARSET', 'utf8');" >> $f
-		echo "define('DB_COLLATE', '');" >> $f
-		echo "" >> $f	
-
-		## random key's and salt's
-		get_randomstr
-		echo "define('AUTH_KEY',         '$randomstr');" >> $f
-		get_randomstr
-		echo "define('SECURE_AUTH_KEY',  '$randomstr');" >> $f
-		get_randomstr
-		echo "define('LOGGED_IN_KEY',    '$randomstr');" >> $f
-		get_randomstr
-		echo "define('NONCE_KEY',        '$randomstr');" >> $f
-		get_randomstr
-		echo "define('AUTH_SALT',        '$randomstr');" >> $f
-		get_randomstr
-		echo "define('SECURE_AUTH_SALT', '$randomstr');" >> $f
-		get_randomstr
-		echo "define('LOGGED_IN_SALT',   '$randomstr');" >> $f
-		get_randomstr
-		echo "define('NONCE_SALT',       '$randomstr');" >> $f
-
-		echo "" >> $f
-
-		echo '$'"table_prefix  = 'wp_';" >> $f
-		echo "" >> $f
-
-		echo "define('WPLANG', '');" >> $f
-		echo "define('WP_DEBUG', false);" >> $f
-		echo "" >> $f
-
-		echo "if ( !defined('ABSPATH') ) define('ABSPATH', dirname(__FILE__) . '/');" >> $f
-		echo "require_once(ABSPATH . 'wp-settings.php');" >> $f
-		echo "" >> $f
-
-		echo "" >> $f
-
-		## create an installer to install without web dialog
-		f=$dir/wp-install.php
-		echo "<?php" > $f
-		echo "// srvctl wordpress wp-install" >> $f
-		echo "define('WP_SITEURL', 'http://"$(hostname)"/"$URI"');" >> $f
-		echo "define('WP_INSTALLING',true);" >> $f
-		#echo "define('ABSPATH','/var/www/html/"$URI"/');" >> $f
-		echo "require_once('$dir/wp-config.php');" >> $f
-		echo "require_once('$dir/wp-settings.php');" >> $f
-		echo "require_once('$dir/wp-admin/includes/upgrade.php');" >> $f
-		echo "require_once('$dir/wp-includes/wp-db.php');" >> $f
-		get_password
-		echo "wp_install('"$(hostname)"','admin','root@localhost',1,'','"$password"');" >> $f		
-		
-		php -f $f
-
-		cf=/etc/httpd/conf.d/wp-prettyurl.conf
-
-		echo '## srvctl generated' >> $cf
-		echo '<Directory /var/www/html>' >> $cf
-		echo ' <IfModule mod_rewrite.c>' >> $cf
-		echo '  RewriteEngine On' >> $cf
-		echo '  RewriteBase /'$URI'/' >> $cf
-		echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
-		echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
-		echo '  RewriteRule . /index.php [L]' >> $cf
-		echo ' </IfModule>' >> $cf
-		echo '</Directory>' >> $cf
-		echo '' >> $cf
-
-		systemctl restart httpd.service
-
-		echo $password > $dir/.admin
-
-		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
-		
-		## URGENT TODO: fix https for wordpress behind pound
-	ok
-	fi ## install-wordpress
-
-	hint "add-joomla [path]" "Install the latest Joomla! "
-	if [ "$CMD" == "add-joomla" ]
-	then	
-
-		URI=$2
-
-		if [ -z $URI ]
-		then
-			dir=/var/www/html
-			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja'
-			bak /var/www/html/index.html
-			rm -rf /var/www/html/index.html
-		else	
-			rm -rf /var/www/html/$URI
-			mkdir /var/www/html/$URI
-			dir=/var/www/html/$URI
-			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja_'$URI		
-		fi
-	
-		wd=/root/joomla
-		mkdir $wd
-		
-		joomla_dl=http://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=http://).*?(?=.zip)' | grep -m 1 download`.zip
-		curl $joomla_dl > $wd/latest.zip 		
-
-		## for dependencies.
-		yum -y install unzip
-		yum -y install php
-
-		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
-		rm -rf $wd/latest.zip
-		rm -rf $wd/unzip.log
-		cp -u -f -r $wd/* $dir
-		rm -rf $wd
-		chown -R apache:apache $dir
-
-		add_mariadb_db
-
-		f=$dir/configuration.php
-		echo "<?php" > $f
-		echo "class JConfig {" >> $f
-		echo "	public \$offline = '0';" >> $f
-		echo "	public \$offline_message = 'This site is down for maintenance.<br /> Please check back again soon.';" >> $f
-		echo "	public \$display_offline_message = '1';" >> $f
-		echo "	public \$offline_image = '';" >> $f
-		echo "	public \$sitename = '"$(hostname)"';" >> $f
-		echo "	public \$editor = 'tinymce';" >> $f
-		echo "	public \$captcha = '0';" >> $f
-		echo "	public \$list_limit = '20';" >> $f
-		echo "	public \$access = '1';" >> $f
-		echo "	public \$debug = '0';" >> $f
-		echo "	public \$debug_lang = '0';" >> $f
-		echo "	public \$dbtype = 'mysqli';" >> $f
-		echo "	public \$host = 'localhost';" >> $f
-		echo "	public \$user = '$db_usr';" >> $f
-		echo "	public \$password = '$db_pwd';" >> $f
-		echo "	public \$db = '$db_name';" >> $f
-		echo "	public \$dbprefix = 'jos_';" >> $f
-		echo "	public \$live_site = '';" >> $f
-		get_randomstr
-		echo "	public \$secret = '$randomstr';" >> $f
-		echo "	public \$gzip = '0';" >> $f
-		echo "	public \$error_reporting = 'default';" >> $f
-		echo "	public \$helpurl = 'http://help.joomla.org/proxy/index.php?option=com_help&amp;keyref=Help{major}{minor}:{keyref}';" >> $f
-		echo "	public \$ftp_host = '';" >> $f
-		echo "	public \$ftp_port = '';" >> $f
-		echo "	public \$ftp_user = '';" >> $f
-		echo "	public \$ftp_pass = '';" >> $f
-		echo "	public \$ftp_root = '';" >> $f
-		echo "	public \$ftp_enable = '';" >> $f
-		echo "	public \$offset = 'UTC';" >> $f
-		echo "	public \$mailonline = '1';" >> $f
-		echo "	public \$mailer = 'mail';" >> $f
-		echo "	public \$mailfrom = 'joomla@"$(hostname)"';" >> $f
-		echo "	public \$fromname = '"$(hostname)"';" >> $f
-		echo "	public \$sendmail = '/usr/sbin/sendmail';" >> $f
-		echo "	public \$smtpauth = '0';" >> $f
-		echo "	public \$smtpuser = '';" >> $f
-		echo "	public \$smtppass = '';" >> $f
-		echo "	public \$smtphost = 'localhost';" >> $f
-		echo "	public \$smtpsecure = 'none';" >> $f
-		echo "	public \$smtpport = '25';" >> $f
-		echo "	public \$caching = '0';" >> $f
-		echo "	public \$cache_handler = 'file';" >> $f
-		echo "	public \$cachetime = '15';" >> $f
-		echo "	public \$MetaDesc = '';" >> $f
-		echo "	public \$MetaKeys = '';" >> $f
-		echo "	public \$MetaTitle = '1';" >> $f
-		echo "	public \$MetaAuthor = '1';" >> $f
-		echo "	public \$MetaVersion = '0';" >> $f
-		echo "	public \$robots = '';" >> $f
-		echo "	public \$sef = '1';" >> $f
-		echo "	public \$sef_rewrite = '0';" >> $f
-		echo "	public \$sef_suffix = '0';" >> $f
-		echo "	public \$unicodeslugs = '0';" >> $f
-		echo "	public \$feed_limit = '10';" >> $f
-		echo "	public \$log_path = '/var/www/html/logs';" >> $f
-		echo "	public \$tmp_path = '/var/www/html/tmp';" >> $f
-		echo "	public \$lifetime = '15';" >> $f
-		echo "	public \$session_handler = 'database';" >> $f
-		echo "}" >> $f
-
-		dbf=$dir/installation/sql/mysql/joomla.sql
-
-		sed_file $dbf "#__" "jos_"
-
-		mysql $MDA -e "USE $db_name; source $dbf;"
-	
-		dbf=$dir/installation/sql/mysql/add-admin.sql
-
-		set_file $dbf 'INSERT INTO `'$db_name'`.`jos_users` (`id`, `name`, `username`, `email`, `password`, `block`, `sendEmail`, `registerDate`, `lastvisitDate`, `activation`, `params`, `lastResetTime`, `resetCount`, `otpKey`, `otep`, `requireReset`)'" VALUES ('939', 'Super User', 'admin', 'root@localhost', MD5('$password'), '0', '1', CURRENT_DATE(), CURRENT_DATE(), '0', '', CURRENT_DATE(), '0', '', '', '0');
-"'INSERT INTO `jos_user_usergroup_map` (`user_id`,`group_id`) '"VALUES ('939','8');"
-
-		cat $dbf
-		mysql $MDA -e "USE $db_name; source $dbf;"
-
-		rm -rf $dir/installation
-		
-		echo $password > $dir/.admin
-
-		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
-
-		## TODO: init Joomla database.
-	ok
-	fi ## install-joomla
 
 	hint "import-db DATABASE" "Import a mysql database."
 	if [ "$CMD" == "import-db" ] 
@@ -3318,6 +3322,18 @@ then
 	ok
 	fi
 
+else
+
+	hint "setup-mariadb	" "install MariaDB (mysql) database."
+	if [ "$CMD" == "setup-mariadb" ] 
+	then	
+		setup_mariadb
+	ok
+	fi ## setup mariadb
+
+fi ## MariaDB related fuctions
+
+
 if [ ${C:0:4} == "dev." ] 
 then
 
@@ -3325,11 +3341,16 @@ then
 	if [ "$CMD" == "add-codepad" ]
 	then
 
+		setup_mariadb
+
+		MDA="--defaults-file=$MDF -u root"
+
 		## install packages
 		yum -y install nodejs
 		yum -y install npm
 		yum -y install gzip git-core curl python openssl-devel
 		yum -y install postgresql-devel
+		yum -y install mariadb mariadb-server
 
 		if [ ! -d "/home/codepad-user" ]; then
 			adduser codepad-user
@@ -3440,22 +3461,269 @@ WantedBy=multi-user.target
 
 fi ## if dev.
 
-else
 
-	hint "setup-mariadb	" "install MariaDB (mysql) database."
-	if [ "$CMD" == "setup-mariadb" ] 
-	then
-		yum -y install mariadb-server
-		systemctl enable mariadb.service
-		systemctl start mariadb.service
+hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
+if [ "$CMD" == "add-wordpress" ]
+then
+		yum -y install wordpress
 
-		systemctl status mariadb.service
+		setup_mariadb
 
-	ok
-	fi ## setup mariadb
+		MDA="--defaults-file=$MDF -u root"
 
-fi ## MariaDB related fuctions
+		URI=$2
 
+		if [ -z $URI ]
+		then
+			dir=/var/www/html
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp'
+			bak /var/www/html/index.html
+			rm -rf /var/www/html/index.html
+		else	
+			mkdir /var/www/html/$URI
+			dir=/var/www/html/$URI
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_wp_'$URI		
+		fi
+
+		## for dependencies.
+		yum -y install unzip
+		yum -y install wordpress
+
+		## set containers timezone in php.ini, ...  	
+		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+
+
+		wd=/root
+		curl http://wordpress.org/latest.zip > $wd/latest.zip
+	
+		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
+		cp -u -f -r $wd/wordpress/* $dir
+		rm -rf $wd/latest.zip
+		rm -rf $wd/wordpress
+		rm -rf $wd/unzip.log
+		chown -R apache:apache $dir
+	
+		cf=$dir/wp-config.php
+
+		add_mariadb_db	
+
+		## save these params to the wp folder
+		f=$dir/wp-config.php
+		echo "<?php" > $f
+		echo "// srvctl wordpress wp-config" >> $f
+		echo "define('DB_NAME', '$db_name');" >> $f
+		echo "define('DB_USER', '$db_usr');" >> $f
+		echo "define('DB_PASSWORD', '$db_pwd');" >> $f	
+		echo "define('DB_HOST', 'localhost');" >> $f
+		echo "define('DB_CHARSET', 'utf8');" >> $f
+		echo "define('DB_COLLATE', '');" >> $f
+		echo "" >> $f	
+
+		## random key's and salt's
+		get_randomstr
+		echo "define('AUTH_KEY',         '$randomstr');" >> $f
+		get_randomstr
+		echo "define('SECURE_AUTH_KEY',  '$randomstr');" >> $f
+		get_randomstr
+		echo "define('LOGGED_IN_KEY',    '$randomstr');" >> $f
+		get_randomstr
+		echo "define('NONCE_KEY',        '$randomstr');" >> $f
+		get_randomstr
+		echo "define('AUTH_SALT',        '$randomstr');" >> $f
+		get_randomstr
+		echo "define('SECURE_AUTH_SALT', '$randomstr');" >> $f
+		get_randomstr
+		echo "define('LOGGED_IN_SALT',   '$randomstr');" >> $f
+		get_randomstr
+		echo "define('NONCE_SALT',       '$randomstr');" >> $f
+
+		echo "" >> $f
+
+		echo '$'"table_prefix  = 'wp_';" >> $f
+		echo "" >> $f
+
+		echo "define('WPLANG', '');" >> $f
+		echo "define('WP_DEBUG', false);" >> $f
+		echo "" >> $f
+
+		echo "if ( !defined('ABSPATH') ) define('ABSPATH', dirname(__FILE__) . '/');" >> $f
+		echo "require_once(ABSPATH . 'wp-settings.php');" >> $f
+		echo "" >> $f
+
+		echo "" >> $f
+
+		## create an installer to install without web dialog
+		f=$dir/wp-install.php
+		echo "<?php" > $f
+		echo "// srvctl wordpress wp-install" >> $f
+		echo "define('WP_SITEURL', 'http://"$(hostname)"/"$URI"');" >> $f
+		echo "define('WP_INSTALLING',true);" >> $f
+		#echo "define('ABSPATH','/var/www/html/"$URI"/');" >> $f
+		echo "require_once('$dir/wp-config.php');" >> $f
+		echo "require_once('$dir/wp-settings.php');" >> $f
+		echo "require_once('$dir/wp-admin/includes/upgrade.php');" >> $f
+		echo "require_once('$dir/wp-includes/wp-db.php');" >> $f
+		get_password
+		echo "wp_install('"$(hostname)"','admin','root@localhost',1,'','"$password"');" >> $f		
+		
+		php -f $f
+
+		cf=/etc/httpd/conf.d/wp-prettyurl.conf
+
+		echo '## srvctl generated' >> $cf
+		echo '<Directory /var/www/html>' >> $cf
+		echo ' <IfModule mod_rewrite.c>' >> $cf
+		echo '  RewriteEngine On' >> $cf
+		echo '  RewriteBase /'$URI'/' >> $cf
+		echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
+		echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
+		echo '  RewriteRule . /index.php [L]' >> $cf
+		echo ' </IfModule>' >> $cf
+		echo '</Directory>' >> $cf
+		echo '' >> $cf
+
+		systemctl restart httpd.service
+
+		echo $password > $dir/.admin
+
+		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
+		
+		## URGENT TODO: fix https for wordpress behind pound
+ok
+fi ## install-wordpress
+
+hint "add-joomla [path]" "Install the latest Joomla! "
+if [ "$CMD" == "add-joomla" ]
+then	
+
+		setup_mariadb
+
+		MDA="--defaults-file=$MDF -u root"
+
+		URI=$2
+
+		if [ -z $URI ]
+		then
+			dir=/var/www/html
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja'
+			bak /var/www/html/index.html
+			rm -rf /var/www/html/index.html
+		else	
+			rm -rf /var/www/html/$URI
+			mkdir /var/www/html/$URI
+			dir=/var/www/html/$URI
+			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja_'$URI		
+		fi
+	
+		wd=/root/joomla
+		mkdir $wd
+		
+		joomla_dl=http://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=http://).*?(?=.zip)' | grep -m 1 download`.zip
+		curl $joomla_dl > $wd/latest.zip 		
+
+		## for dependencies.
+		yum -y install unzip php php-common php-gd php-mcrypt php-pear php-pecl-memcache php-mhash php-mysql php-xml php-mbstring
+
+		## set containers timezone in php.ini, ...  	
+		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+
+		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
+		rm -rf $wd/latest.zip
+		rm -rf $wd/unzip.log
+		cp -u -f -r $wd/* $dir
+		rm -rf $wd
+		chown -R apache:apache $dir
+
+		add_mariadb_db
+
+		f=$dir/configuration.php
+		echo "<?php" > $f
+		echo "class JConfig {" >> $f
+		echo "	public \$offline = '0';" >> $f
+		echo "	public \$offline_message = 'This site is down for maintenance.<br /> Please check back again soon.';" >> $f
+		echo "	public \$display_offline_message = '1';" >> $f
+		echo "	public \$offline_image = '';" >> $f
+		echo "	public \$sitename = '"$(hostname)"';" >> $f
+		echo "	public \$editor = 'tinymce';" >> $f
+		echo "	public \$captcha = '0';" >> $f
+		echo "	public \$list_limit = '20';" >> $f
+		echo "	public \$access = '1';" >> $f
+		echo "	public \$debug = '0';" >> $f
+		echo "	public \$debug_lang = '0';" >> $f
+		echo "	public \$dbtype = 'mysqli';" >> $f
+		echo "	public \$host = 'localhost';" >> $f
+		echo "	public \$user = '$db_usr';" >> $f
+		echo "	public \$password = '$db_pwd';" >> $f
+		echo "	public \$db = '$db_name';" >> $f
+		echo "	public \$dbprefix = 'jos_';" >> $f
+		echo "	public \$live_site = '';" >> $f
+		get_randomstr
+		echo "	public \$secret = '$randomstr';" >> $f
+		echo "	public \$gzip = '0';" >> $f
+		echo "	public \$error_reporting = 'default';" >> $f
+		echo "	public \$helpurl = 'http://help.joomla.org/proxy/index.php?option=com_help&amp;keyref=Help{major}{minor}:{keyref}';" >> $f
+		echo "	public \$ftp_host = '';" >> $f
+		echo "	public \$ftp_port = '';" >> $f
+		echo "	public \$ftp_user = '';" >> $f
+		echo "	public \$ftp_pass = '';" >> $f
+		echo "	public \$ftp_root = '';" >> $f
+		echo "	public \$ftp_enable = '';" >> $f
+		echo "	public \$offset = 'UTC';" >> $f
+		echo "	public \$mailonline = '1';" >> $f
+		echo "	public \$mailer = 'mail';" >> $f
+		echo "	public \$mailfrom = 'joomla@"$(hostname)"';" >> $f
+		echo "	public \$fromname = '"$(hostname)"';" >> $f
+		echo "	public \$sendmail = '/usr/sbin/sendmail';" >> $f
+		echo "	public \$smtpauth = '0';" >> $f
+		echo "	public \$smtpuser = '';" >> $f
+		echo "	public \$smtppass = '';" >> $f
+		echo "	public \$smtphost = 'localhost';" >> $f
+		echo "	public \$smtpsecure = 'none';" >> $f
+		echo "	public \$smtpport = '25';" >> $f
+		echo "	public \$caching = '0';" >> $f
+		echo "	public \$cache_handler = 'file';" >> $f
+		echo "	public \$cachetime = '15';" >> $f
+		echo "	public \$MetaDesc = '';" >> $f
+		echo "	public \$MetaKeys = '';" >> $f
+		echo "	public \$MetaTitle = '1';" >> $f
+		echo "	public \$MetaAuthor = '1';" >> $f
+		echo "	public \$MetaVersion = '0';" >> $f
+		echo "	public \$robots = '';" >> $f
+		echo "	public \$sef = '1';" >> $f
+		echo "	public \$sef_rewrite = '0';" >> $f
+		echo "	public \$sef_suffix = '0';" >> $f
+		echo "	public \$unicodeslugs = '0';" >> $f
+		echo "	public \$feed_limit = '10';" >> $f
+		echo "	public \$log_path = '/var/www/html/logs';" >> $f
+		echo "	public \$tmp_path = '/var/www/html/tmp';" >> $f
+		echo "	public \$lifetime = '15';" >> $f
+		echo "	public \$session_handler = 'database';" >> $f
+		echo "}" >> $f
+
+		dbf=$dir/installation/sql/mysql/joomla.sql
+
+		sed_file $dbf "#__" "jos_"
+
+		mysql $MDA -e "USE $db_name; source $dbf;"
+	
+		dbf=$dir/installation/sql/mysql/add-admin.sql
+
+		set_file $dbf 'INSERT INTO `'$db_name'`.`jos_users` (`id`, `name`, `username`, `email`, `password`, `block`, `sendEmail`, `registerDate`, `lastvisitDate`, `activation`, `params`, `lastResetTime`, `resetCount`, `otpKey`, `otep`, `requireReset`)'" VALUES ('939', 'Super User', 'admin', 'root@localhost', MD5('$password'), '0', '1', CURRENT_DATE(), CURRENT_DATE(), '0', '', CURRENT_DATE(), '0', '', '', '0');
+"'INSERT INTO `jos_user_usergroup_map` (`user_id`,`group_id`) '"VALUES ('939','8');"
+
+		cat $dbf
+		mysql $MDA -e "USE $db_name; source $dbf;"
+
+		rm -rf $dir/installation
+		
+		echo $password > $dir/.admin
+
+		systemctl restart httpd.service
+		
+		log "Joomla! installed. https://"$(hostname)"/$URI/administrator admin:$password"
+
+ok
+fi ## install-joomla
 
 
 #hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
@@ -3667,7 +3935,7 @@ else
 fi
 
 ## return to the directory we started from.
-cd $CSD
+cd $CSD >> /dev/null 2>1
 
 exit
 
