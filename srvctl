@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.10-03:45:37
-# version 1.30.1
+# Last update:2014.07.10-03:51:41
+# version 1.30.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -261,52 +261,6 @@ function to_mac {
 }
 
 
-function restart_pound {
-
-	systemctl restart pound.service
-	service_status=$(systemctl is-active pound.service)
-
-	if [ $service_status == "active" ]
-	then 
-
-	## Pound, our web-front should never stop.
-	## Make a copy of configs, just to make sure.
-	## bak files are for humans, we do a last-cfg here.
-	
-	## actual domains are the ones set as container names
-	## primary domains are the ones in form of *.domain.name
-	## subdomains are *.sub.domain.name formatted domains.
-	## pri and subdomain files match things like www.* or other subdomains, as containers may have apache virtual hosts
-	## actual domains need to match exactly.
-
-	## TODO - make the system so it does not check based on last known good config, but instead turn on domains - that work - one by one
-	## in case of a failure.
-
-	  ### TODO cat /etc/srvctl/pound-http-actdomains.cfg >   /etc/srvctl/pound-http-actdomains.last-cfg 	
-	  cat /etc/srvctl/pound-http-pridomains.cfg >   /etc/srvctl/pound-http-pridomains.last-cfg 	
-	  cat /etc/srvctl/pound-http-subdomains.cfg >   /etc/srvctl/pound-http-subdomains.last-cfg
-	  ### TODO cat /etc/srvctl/pound-https-actdomains.cfg >  /etc/srvctl/pound-https-actdomains.last-cfg 
-	  cat /etc/srvctl/pound-https-pridomains.cfg >  /etc/srvctl/pound-https-pridomains.last-cfg 	
-	  cat /etc/srvctl/pound-https-subdomains.cfg >  /etc/srvctl/pound-https-subdomains.last-cfg 
-
-	else
-	  err "restart pound  FAILED. Reverting to last known good pound configuration."
-
-	  ### TODO cat /etc/srvctl/pound-http-actdomains.cfg >  /etc/srvctl/pound-http-actdomains.fail-cfg	
-	  cat /etc/srvctl/pound-http-pridomains.cfg >  /etc/srvctl/pound-http-pridomains.fail-cfg
-	  cat /etc/srvctl/pound-http-subdomains.cfg >  /etc/srvctl/pound-http-subdomains.fail-cfg
-	  ### TODO cat /etc/srvctl/pound-https-actdomains.last-cfg >  /etc/srvctl/pound-https-actdomains.cfg
-	  cat /etc/srvctl/pound-https-pridomains.last-cfg >  /etc/srvctl/pound-https-pridomains.cfg
-	  cat /etc/srvctl/pound-https-subdomains.last-cfg >  /etc/srvctl/pound-https-subdomains.cfg
-
-	  systemctl restart pound.service
-
-	fi
-
-	## Display status
-  	systemctl status  pound.service
-
-}
 
 
 
@@ -639,13 +593,6 @@ hint "restart SERVICE" "You can use this command to restart a certain service vi
 if [ "$CMD" == "restart" ]
 then
 	argument service
-
-	if [ "$ARG" == "pound" ]
-	then
-
-	  restart_pound	
-	
-	else
 
 	systemctl restart $ARG.service
 	systemctl status  $ARG.service
@@ -1121,13 +1068,6 @@ End
 	#  echo 'CAlist "/etc/srvctl/ca-bundle.pem"' >> /etc/srvctl/pound-include-ca.cfg
 	## TODO check for /etc/pki maybe?
 
-	echo '## srvctl primary domains' >> /etc/srvctl/pound-http-pridomains.cfg
-	echo '## srvctl subdomains' >> /etc/srvctl/pound-http-subdomains.cfg
-
-	echo '## srvctl primary domains' >> /etc/srvctl/pound-https-pridomains.cfg
-	echo '## srvctl subdomains' >> /etc/srvctl/pound-https-subdomains.cfg
-
-	## note, also certificate files are referenced from containers pound-https file.
 	## The pound-served custom error documents
 
 set_file /var/www/html/414.html '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;"><img src="http://'$CDN'/logo.png" alt="'"$CMP"'" style="display: block; margin-left: auto; margin-right: auto; vertical-align: middle"></div><p align="center"><font color="#aaa" style="margin-left: auto; margin-right: auto" size="6px" face="Arial">
@@ -2399,24 +2339,6 @@ function regenerate_known_hosts {
 
 }
 
-function create_poundfile { ## for container $C
-
-err "Deprecated."
-
-}
-
-
-function test_pound_activity {
-
-	systemctl restart pound.service
-	
-	if [ ! "$(systemctl is-active pound.service)" = "active" ]
-	then
-	  systemctl status pound.service -l
-	  err "Pound failure "$1"  .."
-	fi
-}
-
 
 function regenerate_pound_files {
 cd /root
@@ -3082,21 +3004,10 @@ message_size_limit=26214400
 
 ## Pound
 
-	create_certificate
-	create_poundfile
-
-
-	if $SUBDOMAIN 
-	then
-	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/srvctl/pound-http-subdomains.cfg
-	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/srvctl/pound-https-subdomains.cfg
-	else
-	  echo 'Include "'$SRV'/'$C'/pound-http"' >> /etc/srvctl/pound-http-pridomains.cfg
-	  echo 'Include "'$SRV'/'$C'/pound-https"' >> /etc/srvctl/pound-https-pridomains.cfg
-	fi
-
-	log "Restarting Pound."
-	restart_pound
+	##create_certificate
+	
+	regenerate_pound_files
+	
 
 ## DNS
 
