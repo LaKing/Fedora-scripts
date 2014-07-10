@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.09-19:18:06
-# version 1.20.1
+# Last update:2014.07.10-03:45:37
+# version 1.30.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -373,64 +373,7 @@ function create_certificate { ## for container $C
 }
 
 
-function create_poundfile { ## for container $C
 
-	## for actual domains with exact match
-	set_file $SRV/$C/pound '## srvctl '$C'
-	Service
-                  HeadRequire "Host: '$C'"
-                  BackEnd
-                      Address '$(cat $SRV/$C/config.ipv4)'
-                      Port    80
-                  End
-	End'
-
-	## for primary and subdomains with *. match
-	set_file $SRV/$C/pound '## srvctl '$C'
-	Service
-                  HeadRequire "Host:.*'$C'.*"
-                  BackEnd
-                      Address '$(cat $SRV/$C/config.ipv4)'
-                      Port    80
-                  End
-	End'
-
-	echo '## srvctl generated' > $SRV/$C/pound-http
-	echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
-
-
-
-	echo '## srvctl generated' > $SRV/$C/pound-https
-
-	  if [ -f $SRV/$C/cert/$C.pem ]
-	  then
-		echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-	  fi
-
-	if [ ${C:0:4} == "dev." ] 
-	then
-	  
-	  msg "Setting up as developer-domain. ( translating port 9001 to 443)."
-
-	set_file $SRV/$C/pound-dev '## srvctl '$C'
-	Service
-                  HeadRequire "Host:.*'$C'.*"
-                  BackEnd
-                      Address '$(cat $SRV/$C/config.ipv4)'
-                      Port    9001
-		      TimeOut 300
-                  End
-	End'
-
-	  echo 'Include "'$SRV'/'$C'/pound-dev"' >> $SRV/$C/pound-https	
-
-	else
-
-  	  echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
-
-	fi
-
-}
 
 function create_keypair { ## for user $U
 
@@ -1080,7 +1023,7 @@ then
 	sed_file $srvctl_template 'Edit the config file to check/enable networking setup.' 'exit 0'
 
 	## Add additional default packages 
-	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip"'
+	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip clucene-core make openssl rsync"'
 
 	## wordpress mariadb mariadb-server postfix mailx sendmail dovecot .. 
 
@@ -1114,7 +1057,6 @@ if [ ! -f /etc/pound.cfg ] || $all
 then
 	## Pound is a reverse Proxy for http
 	yum -y install Pound
-	bak /etc/pound.cfg
 
 	set_file /etc/pound.cfg '## srvctl pound.cfg
 User "pound"
@@ -1134,8 +1076,7 @@ ListenHTTP
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
-    Include "/etc/srvctl/pound-http-subdomains.cfg"
-    Include "/etc/srvctl/pound-http-pridomains.cfg"
+    Include "/var/pound/http-includes.cfg"
 
 End
 ListenHTTPS
@@ -1148,11 +1089,11 @@ ListenHTTPS
     Err501 "/var/www/html/501.html"
     Err503 "/var/www/html/503.html"
 
-    Include "/etc/srvctl/pound-https-subdomains.cfg"
-    Include "/etc/srvctl/pound-https-pridomains.cfg"
-
     ## The certificate from root.
     Cert "/etc/pound/pound.pem"
+
+    Include "/var/pound/https-includes.cfg"
+
 
 End
 
@@ -1172,6 +1113,9 @@ End
 	cat /root/key.pem >> /etc/pound/pound.pem
 	echo '' >> /etc/pound/pound.pem
 	cat /root/ca-bundle.pem >> /etc/pound/pound.pem
+
+
+	mkdir -p /var/pound
 
 	#  echo $MSG >> /etc/srvctl/pound-include-ca.cfg
 	#  echo 'CAlist "/etc/srvctl/ca-bundle.pem"' >> /etc/srvctl/pound-include-ca.cfg
@@ -2455,97 +2399,278 @@ function regenerate_known_hosts {
 
 }
 
+function create_poundfile { ## for container $C
+
+err "Deprecated."
+
+}
+
+
+function test_pound_activity {
+
+	systemctl restart pound.service
+	
+	if [ ! "$(systemctl is-active pound.service)" = "active" ]
+	then
+	  systemctl status pound.service -l
+	  err "Pound failure "$1"  .."
+	fi
+}
+
 
 function regenerate_pound_files {
-
+cd /root
 	msg "regenerate pound files"
 
-	echo '# srvctl generated' > $TMP/pound-http-subdomains.cfg
-	echo '# srvctl generated' > $TMP/pound-http-pridomains.cfg
-	echo '# srvctl generated' > $TMP/pound-https-subdomains.cfg
-	echo '# srvctl generated' > $TMP/pound-https-pridomains.cfg
+	rm -rf /var/pound
+	mkdir -p /var/pound
+
+	## We will use a sort of layering, with up to 8 layers. 
+	
+	## We assume that /etc/pound.cfg has two includes ...
+	echo $MSG > /var/pound/http-includes.cfg
+	echo $MSG > /var/pound/https-includes.cfg
+	echo $MSG > /var/pound/https-certificates.cfg
+
+	echo $MSG > /var/pound/http-8-domains.cfg
+	echo $MSG > /var/pound/http-7-domains.cfg
+	echo $MSG > /var/pound/http-6-domains.cfg
+	echo $MSG > /var/pound/http-5-domains.cfg
+	echo $MSG > /var/pound/http-4-domains.cfg
+	echo $MSG > /var/pound/http-3-domains.cfg
+	echo $MSG > /var/pound/http-2-domains.cfg
+	echo $MSG > /var/pound/http-1-domains.cfg
+
+	echo $MSG > /var/pound/https-8-domains.cfg
+	echo $MSG > /var/pound/https-7-domains.cfg
+	echo $MSG > /var/pound/https-6-domains.cfg
+	echo $MSG > /var/pound/https-5-domains.cfg
+	echo $MSG > /var/pound/https-4-domains.cfg
+	echo $MSG > /var/pound/https-3-domains.cfg
+	echo $MSG > /var/pound/https-2-domains.cfg
+	echo $MSG > /var/pound/https-1-domains.cfg
+
+	echo 'Include "/var/pound/https-certificates.cfg"' >> /var/pound/https-includes.cfg
+	
+	echo 'Include "/var/pound/http-8-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-7-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-6-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-5-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-4-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-3-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-2-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-1-domains.cfg"' >> /var/pound/http-includes.cfg
+
+	echo 'Include "/var/pound/https-8-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-7-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-6-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-5-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-4-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-3-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-2-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-1-domains.cfg"' >> /var/pound/https-includes.cfg
+
 
 
 	for C in $(lxc-ls)
 	do
 
-		if [ ! -f $SRV/$C/pound ]
-		then
-			create_poundfile
-			msg "Pound file created for "$C
-		fi	
-	
-		if [ ! -f $SRV/$C/cert/$C.pem ]
-		then
-			rsync -a $SRV/$C/cert $TMP
-			msg "creating missing certificate for "$C
-			create_certificate		
-		fi
 
+		# echo "@ "$C
+		cfg_dir=/var/pound/$C
+		mkdir -p $cfg_dir
 
-		if [ -f $SRV/$C/cert/ca-bundle.pem ]
-		then
-			cert_status=$(openssl verify -CAfile $SRV/$C/cert/ca-bundle.pem $SRV/$C/cert/$C.pem | tail -n 1 | tail -c 3)
-		else
-			cert_status=$(openssl verify $SRV/$C/cert/$C.pem | tail -n 1 | tail -c 3)
-		fi
+		cp -r $SRV/$C/cert $cfg_dir
 
-		if [ ! -f $SRV/$C/pound-http ]
-		then
-			echo '## srvctl generated' > $SRV/$C/pound-http
-			echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-http
-		fi
+		for d in $( find $cfg_dir/cert -maxdepth 1 -type d )
+		do
 
-		if [ ! -f $SRV/$C/pound-https ]
-		then
+			### Import each certificate if test passes
+
+			# echo "# "$d
+			if [ ! -f $d/pound.pem ]
+			then
+				## TODO check if this is overcomplicated
+				## No ready-to-go pound.pem found, attemting to generate one. 
+				## either from some.key and some.crt 
+				cat $d/*.crt 2> /dev/null >> $d/pound.pem
+				echo '' >> $d/pound.pem
+				cat $d/*.key 2> /dev/null >> $d/pound.pem
+				echo '' >> $d/pound.pem
+				## or from a concrete key.pem and crt.pem
+				cat $d/crt.pem 2> /dev/null >> $d/pound.pem
+				echo '' >> $d/pound.pem
+				cat $d/key.pem 2> /dev/null >> $d/pound.pem
+				echo '' >> $d/pound.pem
+				## and a ca-bundle.
+				cat $d/ca-bundle.pem 2> /dev/null >> $d/pound.pem	
+			fi
+			
+			flag_ca_bundle=" "
+			if [ -f $d/ca-bundle.pem ]
+			then
+				flag_ca_bundle=" -CAfile $d/ca-bundle.pem "
+			fi
+
+			cert_status=$(openssl verify $flag_ca_bundle $d/pound.pem 2> /dev/null | tail -n 1 | tail -c 3)
+
 			if [ "$cert_status" == "OK" ]
 			then 
-
-				echo '## srvctl generated' > $SRV/$C/pound-https
-				echo 'Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-				echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
-			
+				## echo "VALID CERT FOUND"
+				echo 'Cert "'$d'/pound.pem"' >> /var/pound/https-certificates.cfg
 			else
-
-				echo '## srvctl generated - Check certificate!' > $SRV/$C/pound-https
-				echo '# Cert "'$SRV'/'$C'/cert/'$C'.pem"' >> $SRV/$C/pound-https
-				echo 'Include "'$SRV'/'$C'/pound"' >> $SRV/$C/pound-https
-				err "ERROR - Certificate check failed on $C, loading certificate disabled in pound-https"
+				## echo "CERT INVALID"
+				bak $d/pound.pem
+				rm -rf $d/pound.pem
 			fi
-		else
-			if [ ! "$cert_status" == "OK" ]
+
+		done
+
+		## create configs
+		ip=$(cat $SRV/$C/config.ipv4)		
+	
+
+		for A in $(echo $C && cat /$SRV/$C/aliases 2> /dev/null)
+		do
+
+			set_file $cfg_dir/$A-service '## srvctl '$C'
+			Service
+				  HeadRequire "Host: .*'$A'.*"
+				  BackEnd
+				      Address '$ip'
+				      Port    80
+				  End
+			End'
+
+			http=$A-service
+			https=$A-service
+
+			if [ -f $SRV/$C/pound-no-http ]
 			then
-				## msg "$C certificate OK!"
-				
-			##else
-				err "$C certificate check failed, but pound-https not modified, as it is configured."
+	
+				set_file $cfg_dir/$A-no-http-service '## srvctl '$C'
+				Service
+					  HeadRequire "Host: .*'$A'.*"
+					  Redirect "https://'$A'"
+				End'
+				http=$A-no-http-service
 			fi
+
+
+			if [ -f $SRV/$C/pound-redirect ] && [ ! -z $(cat $SRV/$C/pound-redirect) ]
+			then
+	
+				set_file $cfg_dir/$A-redirect-service '## srvctl '$C'
+				Service
+					  HeadRequire "Host: .*'$A'.*"
+					  Redirect "https://'$(cat $SRV/$C/pound-redirect)'"
+				End'
+				http=$A-redirect-service
+				https=$A-redirect-service
+			fi
+
+
+			if [ ${A:0:4} == "dev." ] 
+			then
+			  
+			 	## msg "Setting up as developer-domain. ( translating port 9001 to 443)."
+
+				set_file $cfg_dir/$A-service-dev '## srvctl '$C'
+				Service
+					  HeadRequire "Host: .*'$A'.*"
+					  BackEnd
+					      Address '$ip'
+					      Port    9001
+					      TimeOut 300
+					  End
+				End'
+
+				https=$A-service-dev
+			fi
+		
+			##
+			## Other customizations might come here
+			##
+
+			## dnl will count the dots in the domain
+			dnl=$(echo $A | grep -o "\." | grep -c "\.")
+
+			## finally inlcude the demanded service
+			echo 'Include "'$cfg_dir/$http'"' >> /var/pound/http-$dnl-domains.cfg
+			echo 'Include "'$cfg_dir/$https'"' >> /var/pound/https-$dnl-domains.cfg
+
+		done ## for C and aliases
+
+
+
+		if [ "$1" == "debug" ]
+		then
+			
+			systemctl restart pound.service
+			test=$(systemctl is-active pound.service)
+
+			if [ "$test" == "active" ]
+			then
+				msg "$C pound OK"
+				
+				## Ok, make a backup of this state.
+				cat /var/pound/http-includes.cfg > /var/pound/http-includes.lok
+				cat /var/pound/https-includes.cfg > /var/pound/https-includes.lok
+				cat /var/pound/https-certificates.cfg > /var/pound/https-certificates.lok
+
+				cat /var/pound/http-8-domains.cfg > /var/pound/http-8-domains.lok
+				cat /var/pound/http-7-domains.cfg > /var/pound/http-7-domains.lok
+				cat /var/pound/http-6-domains.cfg > /var/pound/http-6-domains.lok
+				cat /var/pound/http-5-domains.cfg > /var/pound/http-5-domains.lok
+				cat /var/pound/http-4-domains.cfg > /var/pound/http-4-domains.lok
+				cat /var/pound/http-3-domains.cfg > /var/pound/http-3-domains.lok
+				cat /var/pound/http-2-domains.cfg > /var/pound/http-2-domains.lok
+				cat /var/pound/http-1-domains.cfg > /var/pound/http-1-domains.lok
+
+				cat /var/pound/https-8-domains.cfg > /var/pound/https-8-domains.lok
+				cat /var/pound/https-7-domains.cfg > /var/pound/https-7-domains.lok
+				cat /var/pound/https-6-domains.cfg > /var/pound/https-6-domains.lok
+				cat /var/pound/https-5-domains.cfg > /var/pound/https-5-domains.lok
+				cat /var/pound/https-4-domains.cfg > /var/pound/https-4-domains.lok
+				cat /var/pound/https-3-domains.cfg > /var/pound/https-3-domains.lok
+				cat /var/pound/https-2-domains.cfg > /var/pound/https-2-domains.lok
+				cat /var/pound/https-1-domains.cfg > /var/pound/https-1-domains.lok
+
+
+			else
+				## Error in this config, skip it, ..
+
+				cat /var/pound/http-includes.lok > /var/pound/http-includes.cfg
+				cat /var/pound/https-includes.lok > /var/pound/https-includes.cfg
+				cat /var/pound/https-certificates.lok > /var/pound/https-certificates.cfg
+
+				cat /var/pound/http-8-domains.lok > /var/pound/http-8-domains.cfg
+				cat /var/pound/http-7-domains.lok > /var/pound/http-7-domains.cfg
+				cat /var/pound/http-6-domains.lok > /var/pound/http-6-domains.cfg
+				cat /var/pound/http-5-domains.lok > /var/pound/http-5-domains.cfg
+				cat /var/pound/http-4-domains.lok > /var/pound/http-4-domains.cfg
+				cat /var/pound/http-3-domains.lok > /var/pound/http-3-domains.cfg
+				cat /var/pound/http-2-domains.lok > /var/pound/http-2-domains.cfg
+				cat /var/pound/http-1-domains.lok > /var/pound/http-1-domains.cfg
+
+				cat /var/pound/https-8-domains.lok > /var/pound/https-8-domains.cfg
+				cat /var/pound/https-7-domains.lok > /var/pound/https-7-domains.cfg
+				cat /var/pound/https-6-domains.lok > /var/pound/https-6-domains.cfg
+				cat /var/pound/https-5-domains.lok > /var/pound/https-5-domains.cfg
+				cat /var/pound/https-4-domains.lok > /var/pound/https-4-domains.cfg
+				cat /var/pound/https-3-domains.lok > /var/pound/https-3-domains.cfg
+				cat /var/pound/https-2-domains.lok > /var/pound/https-2-domains.cfg
+				cat /var/pound/https-1-domains.lok > /var/pound/https-1-domains.cfg
+				
+				log "$C Pound restart FAILED!"
+				systemctl status pound.service
+			fi
+			sleep 3
 		fi
+		
 
 
-
-		if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
-		then 
-		  echo 'Include "'$SRV'/'$C'/pound-http"' >> $TMP/pound-http-subdomains.cfg
-		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-subdomains.cfg
-		else
-		  echo 'Include "'$SRV'/'$C'/pound-http"' >> $TMP/pound-http-pridomains.cfg
-		  echo 'Include "'$SRV'/'$C'/pound-https"' >> $TMP/pound-https-pridomains.cfg
-		fi
-
-	done ## regenerated pound files
-
-	msg "Updateing regenerated pound config files in /etc" 	
-
-	bak /etc/srvctl/pound-http-subdomains.cfg
-	bak /etc/srvctl/pound-http-pridomains.cfg
-	bak /etc/srvctl/pound-https-subdomains.cfg
-	bak /etc/srvctl/pound-https-pridomains.cfg
-
-	rsync -a $TMP/pound-http-subdomains.cfg /etc
-	rsync -a $TMP/pound-http-pridomains.cfg /etc
-	rsync -a $TMP/pound-https-subdomains.cfg /etc
-	rsync -a $TMP/pound-https-pridomains.cfg /etc
+	done ## foreach container
 
 	systemctl restart pound.service
 
@@ -2557,6 +2682,8 @@ function regenerate_pound_files {
 	else
 		err "Pound restart FAILED!"
 		systemctl status pound.service
+		msg "Debbuging pound configuration..."
+		regenerate_pound_files debug
 	fi
 
 }
@@ -3935,7 +4062,7 @@ else
 fi
 
 ## return to the directory we started from.
-cd $CSD >> /dev/null 2>1
+cd $CSD >> /dev/null 2> /dev/null
 
 exit
 
