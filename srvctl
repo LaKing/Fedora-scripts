@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.10-03:51:41
-# version 1.30.2
+# Last update:2014.07.10-04:13:17
+# version 1.30.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -597,8 +597,6 @@ then
 	systemctl restart $ARG.service
 	systemctl status  $ARG.service
 	systemctl enable  $ARG.service
-
-	fi ## pound.service
 
 ok
 fi ## start
