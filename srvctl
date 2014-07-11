@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.10-04:13:17
-# version 1.30.3
+# Last update:2014.07.11-04:29:26
+# version 1.30.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -968,7 +968,7 @@ then
 	sed_file $srvctl_template 'Edit the config file to check/enable networking setup.' 'exit 0'
 
 	## Add additional default packages 
-	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip clucene-core make openssl rsync"'
+	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip clucene-core make openssl rsync nfs-utils"'
 
 	## wordpress mariadb mariadb-server postfix mailx sendmail dovecot .. 
 
@@ -1092,13 +1092,13 @@ The service is not available. Please try again later.
 	if [ ! -f /var/www/html/favicon.ico ] || $all
 	then
 	   msg "Downloading favicon.ico from $CDN"
-	   wget -o /var/www/html/favicon.ico http://$CDN/favicon.ico
+	   wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
 	fi
 
 	if [ ! -f /var/www/html/logo.png ] || $all
 	then
 	   msg "Downloading logo.png from $CDN" 
-	   wget -o /var/www/html/logo.png http://$CDN/logo.png
+	   wget -O /var/www/html/logo.png http://$CDN/logo.png
 	fi
 
 	if [ ! -f /var/www/html/favicon.ico ]
@@ -2400,6 +2400,7 @@ cd /root
 		cfg_dir=/var/pound/$C
 		mkdir -p $cfg_dir
 
+		mkdir -p $SRV/$C/cert
 		cp -r $SRV/$C/cert $cfg_dir
 
 		for d in $( find $cfg_dir/cert -maxdepth 1 -type d )
@@ -2447,7 +2448,7 @@ cd /root
 		done
 
 		## create configs
-		ip=$(cat $SRV/$C/config.ipv4)		
+		_ip=$(cat $SRV/$C/config.ipv4)		
 	
 
 		for A in $(echo $C && cat /$SRV/$C/aliases 2> /dev/null)
@@ -2457,7 +2458,7 @@ cd /root
 			Service
 				  HeadRequire "Host: .*'$A'.*"
 				  BackEnd
-				      Address '$ip'
+				      Address '$_ip'
 				      Port    80
 				  End
 			End'
@@ -2499,7 +2500,7 @@ cd /root
 				Service
 					  HeadRequire "Host: .*'$A'.*"
 					  BackEnd
-					      Address '$ip'
+					      Address '$_ip'
 					      Port    9001
 					      TimeOut 300
 					  End
@@ -2821,11 +2822,6 @@ then
 
 	lxc-stop -k -n $ARG
 
-	sed_file /etc/srvctl/pound-http-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/srvctl/pound-http-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/srvctl/pound-https-pridomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-	sed_file /etc/srvctl/pound-https-subdomains.cfg 'Include "'$SRV'/'$C '## REMOVED '$C' '$NOW
-
 	## remove from known_hosts ... regenerate?
 
 	if [ -d "$SRV/$C" ]; then
@@ -2837,6 +2833,8 @@ then
 
 	fi
 
+	## TODO regenerate everything
+	regenerate_pound_files
 	restart_pound
 
 ok
@@ -2867,15 +2865,6 @@ then
 	counter=$(($(cat /etc/srvctl/counter)+1))
 	echo $counter >  /etc/srvctl/counter
 
-	if (( $(echo $C | grep -o "\." | grep -c "\.") > 1 )) 
-	then 
-		SUBDOMAIN=true
-		log "Adding subdomain #$counter $C"
-	else
-		SUBDOMAIN=false
-		log "Adding domain #$counter $C"
-	fi
-
 	log "Create container."
 	## templates are usually in /usr/local/share/lxc/templates, lxc-fedora-srv has to be installed!
 	lxc-create -n $C -t fedora-srv
@@ -2899,11 +2888,11 @@ nameserver 10.10.0.1
 	cat /root/.ssh/id_rsa.pub > $rootfs/root/.ssh/authorized_keys
 	chmod 600 $rootfs/root/.ssh/authorized_keys
 	
-	ip=$(to_ip $counter)
+	ipXY=$(to_ip $counter)
 
 	## Add IP to hosts file
-	echo "10.10.$ip		$C"  >> /etc/hosts
-	echo "10.10.$ip		mail.$C"  >> /etc/hosts
+	echo "10.10.$ipXY		$C"  >> /etc/hosts
+	echo "10.10.$ipXY		mail.$C"  >> /etc/hosts
 	echo ""  >> /etc/hosts
 
 	## set (fix) hostname
@@ -2975,16 +2964,23 @@ message_size_limit=26214400
 	echo "@$C root" > $rootfs/etc/postfix/catchall
 	postmap $rootfs/etc/postfix/catchall
 
-	echo "$C #$ip"  >> /etc/postfix/relaydomains
+	echo "$C #$ipXY"  >> /etc/postfix/relaydomains
 	postmap /etc/postfix/relaydomains
+
+## NFS
+
+	set_file  $rootfs/etc/exports '## srvctl 
+/var/www/html 10.10.0.1(rw)
+'
 
 ## Apache
 
 	## enable the webserver
 	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
+	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
+	ln -s '/usr/lib/systemd/system/nfs.service' $rootfs'/etc/systemd/system/multi-user.target.wants/nfs.service'
 
 	##ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
-	##ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
 	##ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
 
 
@@ -3002,7 +2998,8 @@ message_size_limit=26214400
 
 ## Pound
 
-	##create_certificate
+
+	create_certificate
 	
 	regenerate_pound_files
 	
@@ -3029,9 +3026,9 @@ message_size_limit=26214400
 		generate_user_structure
 	fi
 
-	#### START #### 
+## 	#### START #### 
 
-	log "Starting container $C - 10.10.$ip $U"	
+	log "Starting container $C - 10.10.$ipXY $U"	
 
 	lxc-start -o $SRV/$C/lxc.log -n $C -d 
 
@@ -3040,7 +3037,7 @@ message_size_limit=26214400
 	n=0
         while [  $n -lt 120 ] 
 	do
-		res=$(ssh-keyscan -t rsa -H 10.10.$ip 2> /dev/null)
+		res=$(ssh-keyscan -t rsa -H 10.10.$ipXY 2> /dev/null)
 
 		if [ "${res:0:3}" == '|1|' ]
 		then
@@ -3051,7 +3048,7 @@ message_size_limit=26214400
 		echo -n '.'
         done
 
-	ssh-keyscan -t rsa -H 10.10.$ip >> /root/.ssh/known_hosts 2> /dev/null
+	ssh-keyscan -t rsa -H 10.10.$ipXY >> /root/.ssh/known_hosts 2> /dev/null
 	ssh-keyscan -t rsa -H $C >> /root/.ssh/known_hosts 2> /dev/null
 
 	echo " connected."
@@ -3059,7 +3056,8 @@ message_size_limit=26214400
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
 	ssh $C "yum -y install dovecot"
-
+	ssh $C "systemctl enable dovecot.service"
+	ssh $C "systemctl start dovecot.service"
 	msg "$C ready."
 
 ok
@@ -3088,6 +3086,8 @@ C=$(hostname)
 ###
 
 function setup_mariadb {
+
+	## TODO connection check
 
 	yum -y install mariadb mariadb-server
 	systemctl enable mariadb.service
@@ -3503,7 +3503,7 @@ if [ "$CMD" == "add-wordpress" ]
 then
 		yum -y install wordpress
 
-		setup_mariadb
+		#setup_mariadb
 
 		MDA="--defaults-file=$MDF -u root"
 
