@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.12-20:14:13
+# Last update:2014.07.12-20:58:08
 # version 1.31.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -629,7 +629,7 @@ then
 	systemctl status pound.service
 
 	msg "NETWORK PORTS and PROTOCOLLS"
-	#netstat -tulpn
+	netstat -tulpn
 	msg "POP3"
 	netstat -np | grep ":995"
 	msg "IMAP4S"
@@ -1459,11 +1459,10 @@ then
 	log "Install perdition, with custom service files: imap4.service, imap4s.service, pop3s.service"
 
 	yum -y install perdition
+	##   + vanessa_logger vanessa_socket
 
-	## perdition is run as template.service
-	## https://github.com/Hubbitus/Fedora-packaging/blob/master/SOURCES/perdition-template.service
-
-	## TODO set perdition service files 
+	## perdition is run as template.service by default.
+	## we use our own unit files and service names.
 
 	set_file /etc/perdition/perdition.conf '#### srvctl tuned perdition.conf
 ## Logging settings
@@ -2611,11 +2610,11 @@ function regenerate_pound_files {
 		for A in $(echo $_C && cat /$SRV/$_C/aliases 2> /dev/null)
 		do
 
-			set_file $cfg_dir/$A-service '## srvctl '$_C'
+			set_file $cfg_dir/$A-service '## srvctl '$_C' '$_ip'
 			Service
 				  HeadRequire "Host: .*'$A'.*"
 				  BackEnd
-				      Address '$_ip'
+				      Address '$_C'
 				      Port    80
 				  End
 			End'
@@ -2626,7 +2625,7 @@ function regenerate_pound_files {
 			if [ -f $SRV/$_C/pound-no-http ]
 			then
 	
-				set_file $cfg_dir/$A-no-http-service '## srvctl '$_C'
+				set_file $cfg_dir/$A-no-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: .*'$A'.*"
 					  Redirect "https://'$A'"
@@ -2638,7 +2637,7 @@ function regenerate_pound_files {
 			if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
 			then
 	
-				set_file $cfg_dir/$A-redirect-service '## srvctl '$_C'
+				set_file $cfg_dir/$A-redirect-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: .*'$A'.*"
 					  Redirect "https://'$(cat $SRV/$_C/pound-redirect)'"
@@ -2657,7 +2656,7 @@ function regenerate_pound_files {
 				Service
 					  HeadRequire "Host: .*'$A'.*"
 					  BackEnd
-					      Address '$_ip'
+					      Address '$_C'
 					      Port    9001
 					      TimeOut 300
 					  End
@@ -2758,8 +2757,12 @@ function regenerate_pound_files {
 	then
 		msg "Restarted pound.service."
 	else
+		## pound syntax check
+		pound -c -f /etc/pound.cfg
+
 		err "Pound restart FAILED!"
 		systemctl status pound.service
+
 		msg "Debbuging pound configuration..."
 		regenerate_pound_files debug
 	fi
