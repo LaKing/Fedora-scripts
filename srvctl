@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.12-04:07:11
-# version 1.30.9
+# Last update:2014.07.12-19:56:33
+# version 1.31.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -620,7 +620,7 @@ then ## no identation.
 hint "diagnose	" "Run a set of diagnostic commands."
 if [ "$CMD" == "diagnose" ]
 then
-
+	msg "FULL STATUS MESSAGES"
 	systemctl status pop3s.service
 	systemctl status imap4s.service
 	systemctl status imap4.service
@@ -628,8 +628,17 @@ then
 	systemctl status postfix.service
 	systemctl status pound.service
 
-	netstat -tulpn
-
+	msg "NETWORK PORTS"
+	#netstat -tulpn
+	netstat -np | grep ":995"
+	netstat -np | grep ":993"
+	netstat -np | grep ":143"
+	netstat -np | grep ":465"
+	netstat -np | grep ":25"
+	netstat -np | grep ":22"
+	netstat -np | grep ":21"
+	netstat -np | grep ":80"
+	netstat -np | grep ":443"
 ok
 fi
 
@@ -2801,9 +2810,9 @@ function generate_user_configs {
 
 	mkdir -p /root/srvctl-users/authorized_keys
 	## create user submitted authorised_keys
-	if [ ! -f /home/$U/.ssh/authorized_keys ]
-	then
-		log "Creating authorized_keys for $U"  
+	##if [ ! -f /home/$U/.ssh/authorized_keys ]
+	#then
+		#log "Creating authorized_keys for $U"  
 		cat /root/.ssh/authorized_keys > /home/$U/.ssh/authorized_keys
 		echo '' >> /home/$U/.ssh/authorized_keys
 		if [ -f  /root/srvctl-users/authorized_keys/$U ]
@@ -2813,7 +2822,7 @@ function generate_user_configs {
 			msg "No authorized keys for $U in /root/srvctl-users/authorized_keys"
 		fi		
 		chown $U:$U /home/$U/.ssh/authorized_keys
-	fi
+	#fi
 }
 
 
@@ -2871,6 +2880,15 @@ function regenerate_users_structure {
 			generate_user_structure
 			nfs_share_html
 		done
+
+		for U in $(ls /home)
+		do
+			if [ -f /root/srvctl-users/authorized_keys/$U ]
+			then
+				cat /root/srvctl-users/authorized_keys/$U > /home/$U/.ssh/authorized_keys
+			fi
+		done
+
  	done
 }
 
