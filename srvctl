@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.12-03:30:41
-# version 1.30.7
+# Last update:2014.07.12-03:54:27
+# version 1.30.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1103,13 +1103,13 @@ The service is not available. Please try again later.
 	if [ ! -f /var/www/html/favicon.ico ] || $all
 	then
 	   msg "Downloading favicon.ico from $CDN"
-	   wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
+	   #wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
 	fi
 
 	if [ ! -f /var/www/html/logo.png ] || $all
 	then
 	   msg "Downloading logo.png from $CDN" 
-	   wget -O /var/www/html/logo.png http://$CDN/logo.png
+	   #wget -O /var/www/html/logo.png http://$CDN/logo.png
 	fi
 
 	if [ ! -f /var/www/html/favicon.ico ]
@@ -1955,14 +1955,17 @@ function nfs_share {
 
 function nfs_unmount {
 	## or user $U on container $C
-	umount $C:/var/www/htm
+	##umount $C:/var/www/htm
 
 	if [ -f $SRV/$C/users ]
 	then
 		for U in $(ls /home)
 		do
-			umount $U /home/$U/$C/html
-			rm -rf /home/$U/$C/html
+			if [ -d /home/$U/$C/html ] 
+			then
+				umount $U /home/$U/$C/html
+				rm -rf /home/$U/$C/html
+			fi 
 		done
 	fi
 }
