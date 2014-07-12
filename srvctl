@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.12-03:54:27
-# version 1.30.8
+# Last update:2014.07.12-04:07:11
+# version 1.30.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1823,6 +1823,12 @@ function get_ip {
 function get_state {
 
 	ms='STOPPED'
+
+	if [ -f $SRV/$C/disabled ]
+	then
+		ms='DISABLED'
+	fi
+
 	pcs=''
 	msc=${red}	
 
@@ -2050,7 +2056,7 @@ then
 
 	set_is_running
 	
-	if ! $is_running
+	if [ ! -f $SRV/$C/disabled ] && ! $is_running
 	then
 	  printf ${yellow}"%-10s"${NC} "STARTED"	
 	else
@@ -2059,7 +2065,7 @@ then
 
 	get_info
 
-	if ! $is_running
+	if [ ! -f $SRV/$C/disabled ] && ! $is_running
 	then
 	  lxc-start -n $C -d
 	fi
@@ -2083,7 +2089,7 @@ then
 
 		set_is_running
 	
-		if ! $is_running
+		if [ ! -f $SRV/$C/disabled ] && ! $is_running
 		then
 		  printf ${yellow}"%-10s"${NC} "STARTED"	
 		else
@@ -2092,7 +2098,7 @@ then
 
 		get_info
 
-		if ! $is_running
+		if [ ! -f $SRV/$C/disabled ] && ! $is_running
 		then
 		  lxc-start -n $C -d
 		fi
