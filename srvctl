@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.12-03:10:25
-# version 1.30.5
+# Last update:2014.07.12-03:30:05
+# version 1.30.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2428,7 +2428,7 @@ function regenerate_known_hosts {
 	 
 	for _C in $(lxc-ls)
 	do
-		if [ ! -f $SRV/$_C/host-key ]
+		if [ ! -f $SRV/$_C/host-key ] || $all
 		then
 
 			set_is_running $_C
@@ -2437,7 +2437,7 @@ function regenerate_known_hosts {
 
 				scan_host_key $_C
 			else
-		 		err "VE STOPPED, No host-key for: "$_C
+		 		err "VE is STOPPED, No host-key for: "$_C
 				## host	key is needed for .ssh/known-hosts
 			fi
 			
@@ -2449,10 +2449,11 @@ function regenerate_known_hosts {
 			cat $SRV/$_C/host-key >> /root/.ssh/srvctl_hosts
 		fi
 
-	done ## regenerated known_hosts
+	done ## regenerated  containers hosts
 	
 	echo '## .. srvctl generated' >> /root/.ssh/srvctl_hosts
 
+	## apply srvctl-known_hosts to root
 	if [ -f /root/.ssh/own_hosts ]
 	then
 		cat /root/.ssh/own_hosts > /root/.ssh/known_hosts
@@ -2460,8 +2461,6 @@ function regenerate_known_hosts {
 	else
 		cat /root/.ssh/srvctl_hosts > /root/.ssh/known_hosts
 	fi
-	
-	
 
 }
 
@@ -3202,7 +3201,7 @@ message_size_limit=26214400
 
 	scan_host_key $C
 
-	cat $SRV/$C/host-key >> /root/.ssh/srvctl_hosts
+	regenerate_known_hosts
 
 	echo "Post installation, ..."
 
@@ -3215,6 +3214,7 @@ message_size_limit=26214400
 	if [ ! -z "$U" ]
 	then
 		nfs_share_html
+
 	fi
 
 	msg "$C ready."
