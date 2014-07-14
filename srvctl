@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.12-20:58:08
-# version 1.31.1
+# Last update:2014.07.14-20:22:53
+# version 1.31.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -110,12 +110,18 @@ ARG=$2
 ## Current start directory
 CSD=$(pwd)
 
+cd /root
+
 ## Lablib functions
 
 ## constants
 
+
 ## MYSQL / MARIADB conf file that stores the mysql root password - in containers
 MDF=/etc/mysqldump.conf
+
+## global variables with default values
+all_arg_set=false
 
 
 green='\e[32m'
@@ -128,9 +134,12 @@ NC='\e[0m' # No Color
 function bak {
     ## create a backup of the file, with the same name, same location .bak extension
     ## filename=$1
+if [ -f $1 ]
+then	
     echo $MSG" (bak)" >> $1.bak
     cat $1 >> $1.bak
     #echo $1" has a .bak file"
+fi
 }
 
 function set_file {
@@ -660,9 +669,7 @@ then
 
 	if [ "$2" == "all" ]
 	then
-	   all=true
-	else
-	   all=false
+	   all_arg_set=true
 	fi
 
 	### srvctl
@@ -806,7 +813,7 @@ ssl_password=ssl_pass_$password
 
 
 ## @update-install
-if [ ! "$(lxc-info --version)" == "$LXC_VERSION" ] || $all
+if [ ! "$(lxc-info --version)" == "$LXC_VERSION" ] || $all_arg_set
 then
 log "Installing LXC!"
 
@@ -826,7 +833,10 @@ log "Installing LXC!"
 	log "Install LXC "$LXC_VERSION
 
 	cd /root
-	rm -rf lxc
+	if $all_arg_set
+	then
+		rm -rf lxc
+	fi
 
 	if [ "$LXC_VERSION" == "git" ]
 	then
@@ -834,14 +844,20 @@ log "Installing LXC!"
 	  git clone git://github.com/lxc/lxc
 
 	else
-		  ## we use a version-release now.
-	  wget https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
-	  unzip lxc-$LXC_VERSION.zip
-	  mv lxc-lxc-$LXC_VERSION lxc
+		if [ ! -f /root/lxc/autogen.sh ]
+		then
+			  ## use a version-release
+			  if [ ! -f /root/lxc-$LXC_VERSION.zip ] 
+			  then 
+			  	wget -O /root/lxc-$LXC_VERSION.zip https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
+			  fi
+			  unzip /root/lxc-$LXC_VERSION.zip
+			  mv /root/lxc-lxc-$LXC_VERSION /root/lxc
+		fi
 	fi
 
  
-	cd lxc
+	cd /root/lxc
 
 	log "LXC-building: autogen"
 	./autogen.sh
@@ -897,7 +913,7 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 	systemctl status libvirtd.service
 
 	#### RESTART REQUIRED HERE, if libvirt networks got modified.
-	if ! $all
+	if ! $all_arg_set
 	then
 		log "LXC Installed. Restart required. Please run this command again after a reboot to continiue. Exiting."
 		exit
@@ -956,7 +972,7 @@ fi ## Install LXC
 	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
 
 ## @update-install
-##if [ ! -f $fedora_template ] || $all
+##if [ ! -f $fedora_template ] || $all_arg_set
 if true
 then
 	log "Create Custom template"
@@ -1029,7 +1045,7 @@ fi ## if fedora_template does not exists.
 
 
 
-if [ ! -f /etc/pound.cfg ] || $all
+if [ ! -f /etc/pound.cfg ] || $all_arg_set
 then
 	## Pound is a reverse Proxy for http
 	yum -y install Pound
@@ -1040,7 +1056,8 @@ Group "pound"
 Control "/var/lib/pound/pound.cfg"
 
 ## Default loglevel is 1
-# LogLevel    3
+LogFacility local0
+LogLevel    2
 
 ListenHTTP
 
@@ -1120,13 +1137,13 @@ The service is not available. Please try again later.
 </font><p></body>'
 
 
-	if [ ! -f /var/www/html/favicon.ico ] || $all
+	if [ ! -f /var/www/html/favicon.ico ] || $all_arg_set
 	then
 	   msg "Downloading favicon.ico from $CDN"
 	   #wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
 	fi
 
-	if [ ! -f /var/www/html/logo.png ] || $all
+	if [ ! -f /var/www/html/logo.png ] || $all_arg_set
 	then
 	   msg "Downloading logo.png from $CDN" 
 	   #wget -O /var/www/html/logo.png http://$CDN/logo.png
@@ -1142,10 +1159,21 @@ The service is not available. Please try again later.
 	   err "No logo.png from could be located."
 	fi
 
+## Pound logging. By default pound is logging to systemd-journald.
+## To work with logs, use rsyslog to export to /var/log/pound
+
+	yum -y install rsyslog
+
+	add_conf /etc/rsyslog.conf 'local0.* 			-/var/log/pound'
+
+	systemctl restart rsyslog.service
+
+
 	systemctl stop pound.service
 	systemctl enable pound.service
 	systemctl start pound.service
 	systemctl status pound.service
+
 
 fi ## install pound
 
@@ -1158,7 +1186,7 @@ set_file_limits
 
 ### E-mail
 ## Postfix
-if [ ! -f /etc/postfix/main.cf ] || $all
+if [ ! -f /etc/postfix/main.cf ] || $all_arg_set
 then
 	log "Installing the Postfix mail subsystem."
 
@@ -1270,7 +1298,7 @@ fi ## postfix
 ## @update-install
 
 
-if [ ! -f /etc/aliases.db ] || $all
+if [ ! -f /etc/aliases.db ] || $all_arg_set
 then
 
 log "Set /etc/aliases.db"
@@ -1453,7 +1481,7 @@ fi ## set aliases.db
 
 
 ## IMAP4S proxy
-if [ ! -f /etc/perdition/perdition.conf ] || $all
+if [ ! -f /etc/perdition/perdition.conf ] || $all_arg_set
 then
 
 	log "Install perdition, with custom service files: imap4.service, imap4s.service, pop3s.service"
@@ -1625,7 +1653,7 @@ fi ## install perdition
 ## @update-install
 
 ## configure DNS server
-if [ ! -f /etc/named.conf ] || $all
+if [ ! -f /etc/named.conf ] || $all_arg_set
 then
 	log "Installing BIND (named) DNS server."
 
@@ -1692,7 +1720,7 @@ fi ## install named
 
 ## User tools
 
-if [ ! -f /etc/freshclam.conf ] || $all
+if [ ! -f /etc/freshclam.conf ] || $all_arg_set
 then
 	log "Installing Userspace tools."
 
@@ -2366,7 +2394,7 @@ function regenerate_config_files {
 			err "No config.counter for $_C!"
 		fi
 
-		if [ ! -f $SRV/$_C/config.ipv4 ] || [ ! -f $SRV/$_C/config ] || $all
+		if [ ! -f $SRV/$_C/config.ipv4 ] || [ ! -f $SRV/$_C/config ] || $all_arg_set
 		then
 			generate_lxc_config $_C
 		fi
@@ -2456,7 +2484,7 @@ function regenerate_known_hosts {
 	 
 	for _C in $(lxc-ls)
 	do
-		if [ ! -f $SRV/$_C/host-key ] || $all
+		if [ ! -f $SRV/$_C/host-key ] || $all_arg_set
 		then
 
 			set_is_running $_C
@@ -2605,7 +2633,13 @@ function regenerate_pound_files {
 
 		## create configs
 		_ip=$(cat $SRV/$_C/config.ipv4)		
-	
+		_http_port=80
+
+		## custom directive
+		if [ -f $SRV/$_C/pound-http-port ]
+		then
+			_http_port=$($SRV/$_C/pound-http-port)
+		fi
 
 		for A in $(echo $_C && cat /$SRV/$_C/aliases 2> /dev/null)
 		do
@@ -2615,7 +2649,7 @@ function regenerate_pound_files {
 				  HeadRequire "Host: .*'$A'.*"
 				  BackEnd
 				      Address '$_C'
-				      Port    80
+				      Port    '$_http_port'
 				  End
 			End'
 
@@ -2817,15 +2851,15 @@ function generate_user_configs {
 	fi
 
 	## create known_hosts
-	bak /home/$U/.ssh/known_hosts
+
 	## TODO should users have their own_hosts file?
 	cat /root/.ssh/srvctl_hosts > /home/$U/.ssh/known_hosts
 	chown $U:$U /home/$U/.ssh/known_hosts
 
 	mkdir -p /root/srvctl-users/authorized_keys
 	## create user submitted authorised_keys
-	##if [ ! -f /home/$U/.ssh/authorized_keys ]
-	#then
+	if [ ! -f /home/$U/.ssh/authorized_keys ] || $all_arg_set
+	then
 		#log "Creating authorized_keys for $U"  
 		cat /root/.ssh/authorized_keys > /home/$U/.ssh/authorized_keys
 		echo '' >> /home/$U/.ssh/authorized_keys
@@ -2833,10 +2867,10 @@ function generate_user_configs {
 		then
 			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
 		else
-			msg "No authorized keys for $U in /root/srvctl-users/authorized_keys"
+			msg "No authorized ssh-rsa key in /root/srvctl-users/authorized_keys/$U"
 		fi		
 		chown $U:$U /home/$U/.ssh/authorized_keys
-	#fi
+	fi
 }
 
 
@@ -2974,9 +3008,7 @@ then
 
 	if [ "$2" == "all" ]
 	then
-	   all=true
-	else
-	   all=false
+	   all_arg_set=true
 	fi
 
 	regenerate_config_files
