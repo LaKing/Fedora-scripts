@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.14-20:22:53
-# version 1.31.2
+# Last update:2014.07.14-20:25:50
+# version 1.31.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2638,7 +2638,7 @@ function regenerate_pound_files {
 		## custom directive
 		if [ -f $SRV/$_C/pound-http-port ]
 		then
-			_http_port=$($SRV/$_C/pound-http-port)
+			_http_port=$(cat $SRV/$_C/pound-http-port)
 		fi
 
 		for A in $(echo $_C && cat /$SRV/$_C/aliases 2> /dev/null)
