@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.14-20:25:50
-# version 1.31.3
+# Last update:2014.07.14-21:27:34
+# version 1.31.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3424,6 +3424,7 @@ then
 	hint "add-db DATABASE" "Add a new database."
 	if [ "$CMD" == "add-db" ] 
 	then
+		MDA="--defaults-file=$MDF -u root"
 
 		argument db_name
 
