@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.15-18:31:11
+# Last update:2014.07.15-18:51:41
 # version 1.32.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -1995,7 +1995,7 @@ function nfs_share_html {
 	then
 		## share via NFS
 
-		if [ ! -z "$(rpcinfo -p $C | grep nfs)" ] && [ -z "$(mount | grep /home/$U/$C/html )" ]
+		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] && [ -z "$(mount | grep /home/$U/$C/html )" ]
 		then			
 			mkdir -p /home/$U/$C/html 
 			msg "Mounting NFS share at /home/$U/$C/html"
@@ -2473,12 +2473,12 @@ function regenerate_etc_hosts {
 } 
 
 function scan_host_key {
+
 	## argument: Container
-	
 	msg "Scanning host key for "$1
 
 	## TODO in the next line the container name may be better if not indicated.
-	echo "# "$1 > $SRV/$C/host-key
+	echo "# "$1 > $SRV/$1/host-key
 	ssh-keyscan -t rsa -H $(cat $SRV/$1/config.ipv4) >> $SRV/$1/host-key 2>/dev/null
 	ssh-keyscan -t rsa -H $1 >> $SRV/$1/host-key 2>/dev/null
 	echo '' >> $SRV/$1/host-key	
@@ -2900,7 +2900,6 @@ function generate_user_structure ## for user $U, Container $C
 		## add users local public key to container root user - for ssh access.
 		if [ -f /home/$U/.ssh/id_rsa.pub ]
 		then
-			bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		else
 			err "No id_rsa.pub for user "$U
@@ -2914,7 +2913,7 @@ function generate_user_structure ## for user $U, Container $C
 
 		mkdir -p $SRV/$C/rootfs/mnt/$U
 
-		## everything prepared, this is the thing.
+		## everything prepared, this is for container mount point.
 		echo "/home/$U/$C/mnt $SRV/$C/rootfs/mnt/$U none rw,bind 0 0" >> $SRV/$C/fstab
 
 		
@@ -2926,7 +2925,7 @@ function regenerate_users_structure {
 	
 	for C in $(lxc-ls)
 	do
-
+		bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 		chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
@@ -2937,16 +2936,17 @@ function regenerate_users_structure {
 			generate_user_structure
 			nfs_share_html
 		done
-
-		for U in $(ls /home)
-		do
-			if [ -f /root/srvctl-users/authorized_keys/$U ]
-			then
-				cat /root/srvctl-users/authorized_keys/$U > /home/$U/.ssh/authorized_keys
-			fi
-		done
-
  	done
+
+	for U in $(ls /home)
+	do
+		if [ -f /root/srvctl-users/authorized_keys/$U ] || $all_arg_set
+		then
+			cat /root/.ssh/authorized_keys > /home/$U/.ssh/authorized_keys
+			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
+		fi
+	done
+
 }
 
 function regenerate_dns {
