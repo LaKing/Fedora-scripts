@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-17:18:00
-# version 1.31.9
+# Last update:2014.07.15-17:21:49
+# version 1.32.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -615,6 +615,8 @@ then
 ok
 fi ## start
 
+
+hint
 ############################
 ## 
 ##  SERVER SIDE FUNCTIONS
@@ -3660,6 +3662,7 @@ else
 
 fi ## MariaDB related fuctions
 
+hint ##-----------------
 
 if [ ${C:0:4} == "dev." ] 
 then
