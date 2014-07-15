@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.15-21:55:36
+# Last update:2014.07.15-21:56:36
 # version 1.32.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -1899,7 +1899,7 @@ function get_state {
 
 	if [ -f $SRV/$C/disabled ]
 	then
-		ms='DISABLED'
+		ms='-------'
 		msc=$green
 	fi
 
