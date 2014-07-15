@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-18:58:48
-# version 1.32.3
+# Last update:2014.07.15-19:06:43
+# version 1.32.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2110,6 +2110,8 @@ then
 	
 	argument C	
 
+	rm -rf $SRV/$C/disabled
+
 	set_is_running
 	
 	if [ ! -f $SRV/$C/disabled ] && ! $is_running
@@ -2173,7 +2175,8 @@ fi
 
 ## stop
 hint "stop VE	" "Stop a container." 
-if [ "$CMD" == "stop" ]
+hint "stop VE	" "Stop and diable container." 
+if [ "$CMD" == "stop" ] || [ "$CMD" == "disable" ]
 then
 
 	argument C
@@ -2196,6 +2199,8 @@ then
 	  ssh $C shutdown -P now
 	fi
 	
+	echo $NOW > $SRV/$C/disabled
+
 	echo ''		
 
 ok
