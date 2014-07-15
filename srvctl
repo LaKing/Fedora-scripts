@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-16:39:47
-# version 1.31.8
+# Last update:2014.07.15-17:18:00
+# version 1.31.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -629,6 +629,10 @@ then ## no identation.
 hint "diagnose	" "Run a set of diagnostic commands."
 if [ "$CMD" == "diagnose" ]
 then
+
+	#echo "Postfix: "$(systemctl is-active postfix.service)	
+	#echo "Dovecot: "$(systemctl is-active dovecot.service)
+
 	msg "FULL STATUS MESSAGES"
 	systemctl status pop3s.service
 	systemctl status imap4s.service
@@ -3320,8 +3324,23 @@ C=$(hostname)
 ###	MariaDB related client-functions
 ###
 
+function check_mariadb_connection {
+
+	mysql $MDA -e exit 2> /dev/null
+
+	if [ "$?" -ne 0 ]
+	then
+		err 'CONNECTION FAILED'
+		exit
+	else
+		msg '.. mysql connected'
+	fi
+}
+
 function setup_mariadb {
 
+	## Main purpose of this function is to set up $MDA the mysql 
+		
 	test_mariadb=$(systemctl is-active mariadb.service)
 	if [ ! "$test_mariadb" == "active" ]
 	then
@@ -3336,52 +3355,58 @@ function setup_mariadb {
 
 	fi
 
-	
+	## Decide if mysql is secured, and has a defaults-file
 	if [ -f "$MDF" ]
 	then
-		MDA="--defaults-file=$MDF -u root"	
+		MDA="--defaults-file=$MDF -u root"
+
+		## check_mariadb_connection
+
+		mysql $MDA -e exit 2> /dev/null
+
+		if [ "$?" -ne 0 ]
+		then
+			err 'CONNECTION FAILED using '$MDF
+			MDA="-u root"
+		fi
+
 	else
 		MDA="-u root"
-	fi
-	echo $MDA
-	exit
-	
-
-	mysql $MDA -e exit 2> /dev/null
-
-	if [ "$?" -ne 0 ] && [ -f "$MDF" ]
-	then
-		MDA="--defaults-file=$MDF -u root"
-		msg '..  with password from '$MDF
-	else
-		msg '.. without password'
 	fi
 
 	mysql $MDA -e exit 2> /dev/null
 
 	if [ "$?" -ne 0 ]
 	then
-		err 'CONNECTION FAILED'
-		exit
-	else
-		msg '.. mysql connected'
+		msg '.. connected to mysql / mariadb'
+
+		if [ "$MDA" == "-u root" ]
+		then
+		msg "Securing ..."
+
+	 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
+		mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+		mysql $MDA -e "DROP DATABASE IF EXISTS test;"
+
+		get_password
+	
+		SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
+		mysql $MDA -e "$SQL"
+			
+			if [ "$?" -ne 0 ]
+			then
+				log "Set database root password to: "$password
+
+				bak $MDF
+
+				## set up backup params
+				echo '[client]' > $MDF
+				echo 'user=root' >> $MDF
+				echo 'password='$password >> $MDF
+			fi
+		fi
+
 	fi
-
-
-	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
-	mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-	mysql $MDA -e "DROP DATABASE IF EXISTS test;"
-
-	SQL="UPDATE mysql.user SET Password=PASSWORD('$password') WHERE User='root'; flush privileges;"
-	mysql $MDA -e "$SQL"
-	log "Set database root password to: "$password
-
-	bak $MDF
-
-	## set up backup params
-	echo '[client]' > $MDF
-	echo 'user=root' >> $MDF
-	echo 'password='$password >> $MDF
 }
 
 
@@ -3432,16 +3457,8 @@ test_mariadb=$(systemctl is-active mariadb.service)
 if [ "$test_mariadb" == "active" ]
 then
 	  
-	## Mariadb / mysql default argument with the defaults-file.
 
-	#if [ ! -f "$MDF" ]
-	#then
-
-		setup_mariadb
-
-	
-	#fi
-
+	setup_mariadb
 
 	hint "import-db DATABASE" "Import a mysql database."
 	if [ "$CMD" == "import-db" ] 
@@ -3651,9 +3668,7 @@ then
 	if [ "$CMD" == "add-codepad" ]
 	then
 
-		#setup_mariadb
-
-		MDA="--defaults-file=$MDF -u root"
+		setup_mariadb
 
 		## install packages
 		yum -y install nodejs
@@ -3777,7 +3792,7 @@ if [ "$CMD" == "add-wordpress" ]
 then
 		yum -y install wordpress
 
-		MDA="--defaults-file=$MDF -u root"
+		setup_mariadb
 
 		URI=$2
 
@@ -3905,7 +3920,7 @@ if [ "$CMD" == "add-joomla" ]
 then	
 
 
-		MDA="--defaults-file=$MDF -u root"
+		setup_mariadb
 
 		URI=$2
 
@@ -4031,38 +4046,6 @@ then
 
 ok
 fi ## install-joomla
-
-
-#hint "mailconf	" "Configure Dovecot / Postfix for email traffic. Catchall to root."
-if [ "$CMD" == "mailconf" ]
-then
-
-	yum -y install postfix
-	yum -y install dovecot
-
-	echo '@'$(hostname)' root' > /etc/postfix/virtual
-	postmap /etc/postfix/virtual
-
-## TODO !! .. this will break postfix if those lines already exists.
-
-	echo '# srvctl setup
-	## Listen on ..
-	#inet_interfaces = all
-
-	## Catch all maildefined in .. (comment it out to disable catchall)
-	#virtual_alias_maps = hash:/etc/postfix/virtual
-
-	## And send it to ..
-	#home_mailbox = Maildir/
-	' >> /etc/postfix/main.cf
-
-	systemctl restart postfix.service
-	systemctl restart dovecot.service
-	echo "Postfix: "$(systemctl is-active postfix.service)	
-	echo "Dovecot: "$(systemctl is-active dovecot.service)
-ok
-fi ## mailconf
-
 
 
 
