@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.14-21:27:34
-# version 1.31.4
+# Last update:2014.07.15-16:16:17
+# version 1.31.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -37,7 +37,7 @@ MSG="## srvctl modification. $NOW"
 ## Use with "" if value contains spaces.
 
 ## use latst version or the keyword 'git' 
-LXC_VERSION=1.0.4
+LXC_VERSION=1.0.5
 
 ## logfile
 LOG=/var/log/srvctl.log
@@ -830,7 +830,6 @@ log "Installing LXC!"
 	yum -y install graphviz
 	yum -y install libcap-devel
 
-	log "Install LXC "$LXC_VERSION
 
 	cd /root
 	if $all_arg_set
@@ -840,19 +839,23 @@ log "Installing LXC!"
 
 	if [ "$LXC_VERSION" == "git" ]
 	then
+		log "Install LXC via git"
+
 	  ## to compile it from source
 	  git clone git://github.com/lxc/lxc
-
 	else
 		if [ ! -f /root/lxc/autogen.sh ]
 		then
 			  ## use a version-release
 			  if [ ! -f /root/lxc-$LXC_VERSION.zip ] 
 			  then 
+				log "Downloading LXC $LXC_VERSION"
 			  	wget -O /root/lxc-$LXC_VERSION.zip https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
 			  fi
 			  unzip /root/lxc-$LXC_VERSION.zip
 			  mv /root/lxc-lxc-$LXC_VERSION /root/lxc
+		else
+			log "Installing using existing /root/lxc source."
 		fi
 	fi
 
@@ -3320,7 +3323,7 @@ C=$(hostname)
 function setup_mariadb {
 
 	## TODO connection check
-
+	msg "Install Mysql/MariaDB."	
 	yum -y install mariadb mariadb-server
 	systemctl enable mariadb.service
 	systemctl start mariadb.service
@@ -3330,7 +3333,26 @@ function setup_mariadb {
 	msg "Secureing Mysql/MariaDB."	
 	MDA="-u root"
 
-	get_password
+	mysql $MDA -e exit 2> /dev/null
+
+	if [ "$?" -ne 0 ]
+	then
+		MDA="--defaults-file=$MDF -u root"
+		msg '..  with password from '$MDF
+	else
+		msg '.. without password'
+	fi
+
+	mysql $MDA -e exit 2> /dev/null
+
+	if [ "$?" -ne 0 ]
+	then
+		err 'CONNECTION FAILED'
+		exit
+	else
+		msg '.. mysql connected'
+		exit
+	fi
 
 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
@@ -3402,6 +3424,7 @@ then
 	then
 
 		setup_mariadb
+
 	
 	fi
 
