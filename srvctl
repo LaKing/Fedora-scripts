@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.15-21:56:36
+# Last update:2014.07.16-01:18:10
 # version 1.32.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -1969,24 +1969,28 @@ function get_users {
 
 function get_http_response {
 
-	#indexpage_curl=$(curl -s $C)
+	set_is_running
+	if $is_running
+	then
 
-	#indexpage_tag=$(echo $indexpage_curl | grep "<title>")
+		## TODO better check's.
+		#indexpage_curl=$(curl -s $C)
+		#indexpage_tag=$(echo $indexpage_curl | grep "<title>")
+		#indexpage_title=$(curl -s $C | grep "<title>")
 
-	#indexpage_title=$(curl -s $C | grep "<title>")
-
-	curli=$(curl -s -I http://$C | head -n 1)
-	resp=${curli:9:3}	
+		curli=$(curl -s -I http://$C | head -n 1)
+		resp=${curli:9:3}	
 	
-	if [ "$resp" == "200" ]
-	then 
-	  resp_color=$green
-	else
-	  resp_color=$red
+		if [ "$resp" == "200" ]
+		then 
+		  resp_color=$green
+		else
+		  resp_color=$red
+		fi
+
+		printf ${resp_color}"%-4s"${NC} "$resp"
+	
 	fi
-
-	printf ${resp_color}"%-4s"${NC} "$resp"
-
 }
 
 function nfs_share_html {
@@ -2650,17 +2654,25 @@ function regenerate_pound_files {
 		## create configs
 		_ip=$(cat $SRV/$_C/config.ipv4)		
 		_http_port=80
+		_https_port=443
 
-		## custom directive
+		## custom directive for the backend port
 		if [ -f $SRV/$_C/pound-http-port ]
 		then
 			_http_port=$(cat $SRV/$_C/pound-http-port)
 		fi
 
+		if [ -f $SRV/$_C/pound-https-port ]
+		then
+			_https_port=$(cat $SRV/$_C/pound-https-port)
+		fi
+
+
+
 		for A in $(echo $_C && cat /$SRV/$_C/aliases 2> /dev/null)
 		do
 
-			set_file $cfg_dir/$A-service '## srvctl '$_C' '$_ip'
+			set_file $cfg_dir/$A-http-service '## srvctl '$_C' '$_ip'
 			Service
 				  HeadRequire "Host: .*'$A'.*"
 				  BackEnd
@@ -2669,8 +2681,18 @@ function regenerate_pound_files {
 				  End
 			End'
 
-			http=$A-service
-			https=$A-service
+			set_file $cfg_dir/$A-https-service '## srvctl '$_C' '$_ip'
+			Service
+				  HeadRequire "Host: .*'$A'.*"
+				  BackEnd
+				      Address '$_C'
+				      Port    '$_https_port'
+				      HTTPS
+				  End
+			End'
+
+			http=$A-http-service
+			https=$A-https-service
 
 			if [ -f $SRV/$_C/pound-no-http ]
 			then
@@ -2683,6 +2705,16 @@ function regenerate_pound_files {
 				http=$A-no-http-service
 			fi
 
+			if [ -f $SRV/$_C/pound-no-https ]
+			then
+	
+				set_file $cfg_dir/$A-no-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: .*'$A'.*"
+					  Redirect "http://'$A'"
+				End'
+				https=$A-no-https-service
+			fi
 
 			if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
 			then
