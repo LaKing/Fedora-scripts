@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-16:16:17
-# version 1.31.5
+# Last update:2014.07.15-16:20:17
+# version 1.31.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3420,13 +3420,13 @@ then
 	  
 	## Mariadb / mysql default argument with the defaults-file.
 
-	if [ ! -f "$MDF" ]
-	then
+	#if [ ! -f "$MDF" ]
+	#then
 
 		setup_mariadb
 
 	
-	fi
+	#fi
 
 
 	hint "import-db DATABASE" "Import a mysql database."
@@ -3447,7 +3447,7 @@ then
 	hint "add-db DATABASE" "Add a new database."
 	if [ "$CMD" == "add-db" ] 
 	then
-		MDA="--defaults-file=$MDF -u root"
+		#MDA="--defaults-file=$MDF -u root"
 
 		argument db_name
 
@@ -3486,9 +3486,9 @@ then
 
 		if [ "$test" == "Database" ] 
 		then
-			echo "The database is accessible."
+			msg "The database is accessible."
 		else
-			echo "Could not enter database! "
+			msg "Could not enter database! "
 
 			systemctl stop mysqld.service
 			sleep 1
@@ -3498,10 +3498,10 @@ then
 			test=$(mysql $MDA -e "show databases" | grep Database)
 			if [ "$test" == "Database" ] 
 			then
-				echo "Re-entered database in safe mode."
+				msg "Re-entered database in safe mode."
 			else
-				echo "ERROR. Could not re-enter mysql!"
-			exit
+				err "Could not re-enter mysql!"
+				exit
 			fi
 
 		fi
@@ -3512,6 +3512,7 @@ then
 
 
 		## set up backup params
+		bak $MDF
 
 		echo '[client]' > $MDF
 		echo 'user=root' >> $MDF
