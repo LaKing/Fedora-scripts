@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-16:20:17
-# version 1.31.6
+# Last update:2014.07.15-16:22:06
+# version 1.31.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3351,7 +3351,6 @@ function setup_mariadb {
 		exit
 	else
 		msg '.. mysql connected'
-		exit
 	fi
 
 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
