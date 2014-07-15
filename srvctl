@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-18:51:41
-# version 1.32.1
+# Last update:2014.07.15-18:55:45
+# version 1.32.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2940,9 +2940,13 @@ function regenerate_users_structure {
 
 	for U in $(ls /home)
 	do
-		if [ -f /root/srvctl-users/authorized_keys/$U ] || $all_arg_set
+		## users should be accessible by root with ssh
+		cat /root/.ssh/authorized_keys > /home/$U/.ssh/authorized_keys
+
+		## if the user submitted a public key, add it as well.
+		if [ -f /root/srvctl-users/authorized_keys/$U ]
 		then
-			cat /root/.ssh/authorized_keys > /home/$U/.ssh/authorized_keys
+			
 			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
 		fi
 	done
