@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-17:21:49
-# version 1.32.0
+# Last update:2014.07.15-18:31:11
+# version 1.32.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3279,6 +3279,24 @@ message_size_limit=26214400
 		echo -n '.'
         done
 
+	n=0
+        while [  $n -lt 120 ] 
+	do
+		res=$(ssh-keyscan -t rsa -H $IPv4 2> /dev/null)
+
+		if [ "$?" -gt 0 ]
+		then
+			## err
+			msg "couldnt connect ..."
+		else
+			n=120
+		fi
+
+	 	let n=n+1 
+		echo -n ','
+        done
+
+
 	echo " connected."
 
 	scan_host_key $C
@@ -3288,6 +3306,8 @@ message_size_limit=26214400
 	echo "Post installation, ..."
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
+
+	
 
 	ssh $C "yum -y install dovecot"
 	ssh $C "systemctl enable dovecot.service"
@@ -3349,7 +3369,7 @@ function setup_mariadb {
 
 		## TODO connection check
 		msg "Install Mysql/MariaDB."	
-		yum -y install mariadb mariadb-server
+		yum -y install mariadb-server
 		systemctl enable mariadb.service
 		systemctl start mariadb.service
 
@@ -3461,6 +3481,18 @@ then
 	  
 
 	setup_mariadb
+
+	hint "mysql [CMD..]	" "Enter mariadb/mysql as root, or execute SQL command."
+	if  [ "$CMD" == "mysql" ]
+	then
+		if [ -z "$2" ]
+		then
+			mysql $MDA
+		else
+			mysql $MDA -e "$2" 
+		fi 
+	ok
+	fi
 
 	hint "import-db DATABASE" "Import a mysql database."
 	if [ "$CMD" == "import-db" ] 
@@ -3638,17 +3670,6 @@ then
 	ok
 	fi
 
-	hint "mysql [CMD..]	" "Enter mariadb/mysql as root, or execute SQL command."
-	if  [ "$CMD" == "mysql" ]
-	then
-		if [ -z "$2" ]
-		then
-			mysql $MDA
-		else
-			mysql $MDA -e "$2" 
-		fi 
-	ok
-	fi
 
 else
 
