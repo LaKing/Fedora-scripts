@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-16:22:06
-# version 1.31.7
+# Last update:2014.07.15-16:39:47
+# version 1.31.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3322,20 +3322,34 @@ C=$(hostname)
 
 function setup_mariadb {
 
-	## TODO connection check
-	msg "Install Mysql/MariaDB."	
-	yum -y install mariadb mariadb-server
-	systemctl enable mariadb.service
-	systemctl start mariadb.service
+	test_mariadb=$(systemctl is-active mariadb.service)
+	if [ ! "$test_mariadb" == "active" ]
+	then
 
-	systemctl status mariadb.service
+		## TODO connection check
+		msg "Install Mysql/MariaDB."	
+		yum -y install mariadb mariadb-server
+		systemctl enable mariadb.service
+		systemctl start mariadb.service
 
-	msg "Secureing Mysql/MariaDB."	
-	MDA="-u root"
+		systemctl status mariadb.service
+
+	fi
+
+	
+	if [ -f "$MDF" ]
+	then
+		MDA="--defaults-file=$MDF -u root"	
+	else
+		MDA="-u root"
+	fi
+	echo $MDA
+	exit
+	
 
 	mysql $MDA -e exit 2> /dev/null
 
-	if [ "$?" -ne 0 ]
+	if [ "$?" -ne 0 ] && [ -f "$MDF" ]
 	then
 		MDA="--defaults-file=$MDF -u root"
 		msg '..  with password from '$MDF
@@ -3352,6 +3366,7 @@ function setup_mariadb {
 	else
 		msg '.. mysql connected'
 	fi
+
 
 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='';"
 	mysql $MDA -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
@@ -3412,9 +3427,9 @@ function add_mariadb_db {
 
 
 ##  Stay in client functions, .. but skip identation. (tabbing)
-test=$(systemctl is-active mariadb.service)
+test_mariadb=$(systemctl is-active mariadb.service)
 
-if [ "$test" == "active" ]
+if [ "$test_mariadb" == "active" ]
 then
 	  
 	## Mariadb / mysql default argument with the defaults-file.
@@ -3618,9 +3633,10 @@ then
 
 else
 
-	hint "setup-mariadb	" "install MariaDB (mysql) database."
-	if [ "$CMD" == "setup-mariadb" ] 
+	hint "install-mariadb	" "install MariaDB (mysql) database."
+	if [ "$CMD" == "install-mariadb" ] 
 	then	
+
 		setup_mariadb
 	ok
 	fi ## setup mariadb
