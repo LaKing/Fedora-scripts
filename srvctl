@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-19:06:43
-# version 1.32.4
+# Last update:2014.07.15-21:55:36
+# version 1.32.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1867,9 +1867,9 @@ function get_ip {
 
 	if [ -z $ip ] 
 	then
-	  ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
-	  ip=${ipv4:19:-2}
-	  echo $ip > $SRV/$C/config.ipv4
+		ipv4=$(grep "lxc.network.ipv4" $SRV/$C/config)
+		ip=${ipv4:19:-2}
+		echo $ip > $SRV/$C/config.ipv4
 	fi
 
 	printf ${NC}"%-14s"${NC} $ip
@@ -1879,11 +1879,6 @@ function get_ip {
 function get_state {
 
 	ms='STOPPED'
-
-	if [ -f $SRV/$C/disabled ]
-	then
-		ms='DISABLED'
-	fi
 
 	pcs=''
 	msc=${red}	
@@ -1895,12 +1890,19 @@ function get_state {
 
 	if [ "$state" == "RUNNING" ] && [ ! -z "$ip" ]
 	then
-	ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
-	msc=$green
-	ms=${ping_ms:23:5}"ms"
+		ping_ms=$(ping -r -I srv-net -W 1 -c 1 $ip | grep rtt) 
+		msc=$green
+		ms=${ping_ms:23:5}"ms"
 	else
-	ms=$state
+		ms=$state
 	fi
+
+	if [ -f $SRV/$C/disabled ]
+	then
+		ms='DISABLED'
+		msc=$green
+	fi
+
 	
 	printf ${msc}"%-10s"${NC} $ms
 
