@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.15-18:55:45
-# version 1.32.2
+# Last update:2014.07.15-18:58:48
+# version 1.32.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -510,7 +510,7 @@ function generate_lxc_config {
 ## argument container name.
 _c=$1
 
-log ".. generating lxc configarion files for $_c"
+msg "Generating lxc configarion files for $_c"
 
 _counter=$(cat $SRV/$_c/config.counter)
 
@@ -2478,7 +2478,7 @@ function scan_host_key {
 	msg "Scanning host key for "$1
 
 	## TODO in the next line the container name may be better if not indicated.
-	echo "# "$1 > $SRV/$1/host-key
+	echo "## srvctl host-key" > $SRV/$1/host-key
 	ssh-keyscan -t rsa -H $(cat $SRV/$1/config.ipv4) >> $SRV/$1/host-key 2>/dev/null
 	ssh-keyscan -t rsa -H $1 >> $SRV/$1/host-key 2>/dev/null
 	echo '' >> $SRV/$1/host-key	
