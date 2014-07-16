@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.16-19:35:21
+# Last update:2014.07.16-19:36:07
 # version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -3093,6 +3093,8 @@ then
 
 	regenerate_dns
 
+	regenerate_logfiles
+	
 ok
 fi ## regenerate
 
