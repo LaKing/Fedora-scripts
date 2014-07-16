@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.16-23:35:44
+# Last update:2014.07.17-00:53:29
 # version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -642,6 +642,8 @@ then
 	systemctl status saslauthd.service
 	systemctl status postfix.service
 	systemctl status pound.service
+	systemctl status fail2ban.service
+	fail2ban-client status
 
 	msg "NETWORK PORTS and PROTOCOLLS"
 	netstat -tulpn
@@ -2031,6 +2033,7 @@ function nfs_unmount {
 		do
 			if [ -d /home/$U/$C/html ] 
 			then
+				msg "Unmount $U $C html"
 				umount $U /home/$U/$C/html
 				rm -rf /home/$U/$C/html
 			fi 
@@ -2443,9 +2446,6 @@ function regenerate_etc_hosts {
 	do
 
 		ip=$(cat $SRV/$_C/config.ipv4)
-
-
-
 
 		if [ -z $ip ] 
 		then
@@ -3073,7 +3073,7 @@ function regenerate_logfiles {
 	done
 
 	systemctl restart fail2ban.service
-	fail2ban-client status
+	
 
 }
 
@@ -3135,6 +3135,7 @@ then
 	fi
 
 	## TODO regenerate everything
+	regenerate_etc_hosts
 	regenerate_pound_files
 	regenerate_logfiles
 
@@ -3341,16 +3342,18 @@ message_size_limit=26214400
 
 	lxc-start -o $SRV/$C/lxc.log -n $C -d 
 
-	## wait 120 sec max for the container to get up
+
+	## wait for the container to get up
+	__llimit=300
 	
 	n=0
-        while [  $n -lt 120 ] 
+        while [  $n -lt $__llimit ] 
 	do
 		res=$(ssh-keyscan -t rsa -H $IPv4 2> /dev/null)
 
 		if [ "${res:0:3}" == '|1|' ]
 		then
-			n=120
+			n=$__llimit 
 		fi
 
 	 	let n=n+1 
@@ -3358,16 +3361,14 @@ message_size_limit=26214400
         done
 
 	n=0
-        while [  $n -lt 120 ] 
-	do
-		res=$(ssh-keyscan -t rsa -H $IPv4 2> /dev/null)
 
-		if [ "$?" -gt 0 ]
+        while [  $n -lt $__llimit ] 
+	do
+		res=$(ssh $C exit)
+
+		if [ ! "$?" -gt 0 ]
 		then
-			## err
-			msg "couldnt connect ..."
-		else
-			n=120
+			n=$__llimit 
 		fi
 
 	 	let n=n+1 
