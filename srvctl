@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.16-19:38:50
+# Last update:2014.07.16-20:39:26
 # version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -3060,8 +3060,14 @@ function regenerate_logfiles {
 
 	for _C in $(lxc-ls)
 	do
-
-		ln -s $SRV/$_C/rootfs/var/log/httpd/access_log /var/log/httpd/$_C-access_log
+		if [ -f $SRV/$_C/rootfs/var/log/httpd/access_log ]
+		then
+			ln -s $SRV/$_C/rootfs/var/log/httpd/access_log /var/log/httpd/$_C-access_log
+		fi
+		if [ -f $SRV/$_C/rootfs/var/log/httpd/error_log ]
+		then
+			ln -s $SRV/$_C/rootfs/var/log/httpd/error_log /var/log/httpd/$_C-error_log
+		fi
 	done
 }
 
