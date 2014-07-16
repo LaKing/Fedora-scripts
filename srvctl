@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.16-01:18:10
-# version 1.32.5
+# Last update:2014.07.16-04:50:31
+# version 1.32.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1024,7 +1024,7 @@ then
 	sed_file $srvctl_template 'Edit the config file to check/enable networking setup.' 'exit 0'
 
 	## Add additional default packages 
-	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd postfix mailx sendmail unzip clucene-core make openssl rsync nfs-utils"'
+	sed_file $srvctl_template '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release"' '    PKG_LIST="yum initscripts passwd rsyslog vim-minimal openssh-server openssh-clients dhclient chkconfig rootfiles policycoreutils fedora-release mc httpd mod_ssl openssl postfix mailx sendmail unzip clucene-core make  rsync nfs-utils"'
 
 	## wordpress mariadb mariadb-server postfix mailx sendmail dovecot .. 
 
