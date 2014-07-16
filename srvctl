@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.16-06:00:17
-# version 1.32.7
+# Last update:2014.07.16-19:35:21
+# version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3052,6 +3052,18 @@ function regenerate_dns {
 	fi
 
 }
+
+function regenerate_logfiles {
+
+	rm -rf /var/log/httpd
+	mkdir -p /var/log/httpd
+
+	for _C in $(lxc-ls)
+	do
+		ln -s $SRV/$_C/rootfs/var/log/httpd/access_log var/log/httpd/$_C-access_log
+	done
+}
+
 
 ## regenerate configs 
 hint "regenerate [all]	" "Regenerate configuration files, and restart affected services."
