@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.16-20:39:26
+# Last update:2014.07.16-23:35:44
 # version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -3055,6 +3055,8 @@ function regenerate_dns {
 
 function regenerate_logfiles {
 
+	msg "Linking log files for fail2ban."	
+
 	rm -rf /var/log/httpd
 	mkdir -p /var/log/httpd
 
@@ -3069,6 +3071,10 @@ function regenerate_logfiles {
 			ln -s $SRV/$_C/rootfs/var/log/httpd/error_log /var/log/httpd/$_C-error_log
 		fi
 	done
+
+	systemctl restart fail2ban.service
+	fail2ban-client status
+
 }
 
 
@@ -3130,6 +3136,7 @@ then
 
 	## TODO regenerate everything
 	regenerate_pound_files
+	regenerate_logfiles
 
 ok
 fi ## reMOVE
@@ -3294,6 +3301,9 @@ message_size_limit=26214400
 	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
 	chown -R apache:apache  $rootfs/var/www/html
+
+	## we regenerate re-link all log files.
+	regenerate_logfiles
 
 ## Pound
 
