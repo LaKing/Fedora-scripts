@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.17-00:53:29
+# Last update:2014.07.17-00:55:24
 # version 1.32.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -2034,7 +2034,7 @@ function nfs_unmount {
 			if [ -d /home/$U/$C/html ] 
 			then
 				msg "Unmount $U $C html"
-				umount $U /home/$U/$C/html
+				umount /home/$U/$C/html
 				rm -rf /home/$U/$C/html
 			fi 
 		done
