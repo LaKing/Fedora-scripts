@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.16-04:50:31
-# version 1.32.6
+# Last update:2014.07.16-06:00:17
+# version 1.32.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3099,7 +3099,7 @@ then
 	## remove from known_hosts ... regenerate?
 
 	if [ -d "$SRV/$C" ]; then
-	  echo "Container folder does exists"
+	  msg "Removing container - $TMP"
 	  ## trash it! .. to TMP
 
 	  rsync -a $SRV/$C $TMP
@@ -3109,7 +3109,6 @@ then
 
 	## TODO regenerate everything
 	regenerate_pound_files
-	restart_pound
 
 ok
 fi ## reMOVE
@@ -3251,13 +3250,18 @@ message_size_limit=26214400
 	## enable the webserver
 	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
 
+	## use this patch for better logging of IP addresses
+	set_file $SRV/$C/rootfs/etc/httpd/conf.d/pound.conf '## manually generated for srvctl
+	<IfModule log_config_module>
 
+	    ### Custom log redefinition
+	    ## - with extra host header
+	    # LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %h %D \"%{Host}i\"" combined
+	    ## - As close as possible
+	    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+	    
+	</IfModule>'
 
-	##ln -s '/usr/lib/systemd/system/mariadb.service' $rootfs'/etc/systemd/system/multi-user.target.wants/mariadb.service'
-	##ln -s '/usr/lib/systemd/system/dovecot.service' $rootfs'/etc/systemd/system/multi-user.target.wants/dovecot.service'
-
-
-	
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
 	echo '<head></head><body bgcolor="#333"><div id="header" style="background-color:#151515;">
