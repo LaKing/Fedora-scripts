@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.17-16:03:30
+# Last update:2014.07.17-16:09:15
 # version 1.33.0
 #
 # Server Controll script for Fedora with LXC containers
@@ -3122,6 +3122,8 @@ then
 
 	argument C 
 
+	nfs_unmount
+
 	lxc-stop -k -n $ARG
 
 	## remove from known_hosts ... regenerate?
@@ -3137,7 +3139,9 @@ then
 
 	## TODO regenerate everything
 	regenerate_etc_hosts
+	regenerate_known_hosts
 	regenerate_pound_files
+	regenerate_dns
 	regenerate_logfiles
 
 ok
