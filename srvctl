@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.17-00:55:24
-# version 1.32.8
+# Last update:2014.07.17-15:48:25
+# version 1.32.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1645,7 +1645,7 @@ FLAGS="-O localhost -r"'
 	systemctl start imap4.service
 	systemctl status imap4.service
 
-	systemctl stop imap4.service
+	systemctl stop imap4s.service
 	systemctl enable imap4s.service
 	systemctl start imap4s.service
 	systemctl status imap4s.service
@@ -2172,6 +2172,7 @@ then
 	
 		sleep 3
 
+		## TODO fix this
 		nfs_share
 
 		echo ''
@@ -3360,11 +3361,14 @@ message_size_limit=26214400
 		echo -n '.'
         done
 
+	scan_host_key $C
+	regenerate_known_hosts
+
 	n=0
 
         while [  $n -lt $__llimit ] 
 	do
-		res=$(ssh $C exit)
+		res=$(ssh $C exit 2> /dev/null)
 
 		if [ ! "$?" -gt 0 ]
 		then
@@ -3378,9 +3382,7 @@ message_size_limit=26214400
 
 	echo " connected."
 
-	scan_host_key $C
 
-	regenerate_known_hosts
 
 	echo "Post installation, ..."
 
