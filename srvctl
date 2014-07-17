@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.17-15:50:46
+# Last update:2014.07.17-16:03:30
 # version 1.33.0
 #
 # Server Controll script for Fedora with LXC containers
@@ -2538,7 +2538,7 @@ function regenerate_known_hosts {
 	else
 		cat /root/.ssh/srvctl_hosts > /root/.ssh/known_hosts
 	fi
-
+	msg "Set known_hosts done."
 }
 
 
@@ -3302,7 +3302,8 @@ message_size_limit=26214400
 
 	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
-	chown -R apache:apache  $rootfs/var/www/html
+	## system user apache 48
+	chown -R 48:48  $rootfs/var/www/html
 
 	## we regenerate re-link all log files.
 	regenerate_logfiles
@@ -3350,6 +3351,7 @@ message_size_limit=26214400
 	n=0
         while [  $n -lt $__llimit ] 
 	do
+		sleep 0.1
 		res=$(ssh-keyscan -t rsa -H $IPv4 2> /dev/null)
 
 		if [ "${res:0:3}" == '|1|' ]
@@ -3361,7 +3363,7 @@ message_size_limit=26214400
 		echo -n '.'
         done
 
-	echo " running"
+	echo " online"
 
 	scan_host_key $C
 	regenerate_known_hosts
@@ -3370,6 +3372,7 @@ message_size_limit=26214400
 
         while [  $n -lt $__llimit ] 
 	do
+		sleep 0.1
 		res=$(ssh $C exit 2> /dev/null)
 
 		if [ ! "$?" -gt 0 ]
@@ -3378,7 +3381,7 @@ message_size_limit=26214400
 		fi
 
 	 	let n=n+1 
-		echo -n ','
+		echo -n '.'
         done
 
 
