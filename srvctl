@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.17-16:09:15
-# version 1.33.0
+# Last update:2014.07.17-19:20:27
+# version 1.33.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -81,7 +81,8 @@ dns_share=/root/dns.tar.gz
 ## for php.ini in containers
 php_timezone=Europe/Budapest
 
-
+## turn off debug messages
+debug=false
 
 ##########################################################
 ## These where the sourceable variables - used in update-install too!
@@ -187,6 +188,15 @@ function log {
     ## create a log entry
     echo -e ${yellow}$1${NC}
     echo $NOW': '$1 >> $LOG
+}
+
+function dbg {
+    ## create a log entry
+	if $debug
+	then
+	    echo -e ${yellow}'#'$BASH_LINENO': '$1${NC}
+	    echo $NOW': '$1 >> $LOG
+	fi
 }
 
 function err {
@@ -580,6 +590,7 @@ then
     msg_yum_version_installed Pound
     msg_yum_version_installed postfix
     msg_yum_version_installed perdition
+    msg_yum_version_installed fail2ban
     msg_yum_version_installed bind
     msg_yum_version_installed clamav
   fi
@@ -597,6 +608,7 @@ then
 
 	if $onVE
 	then 
+		## TODO check this
 		echo "This is the mailing system at $CDN, your account has been created." | mail -s "Welcome" $U
 	fi
 ok
@@ -3309,14 +3321,21 @@ message_size_limit=26214400
 	## system user apache 48
 	chown -R 48:48  $rootfs/var/www/html
 
-	## we regenerate re-link all log files.
-	regenerate_logfiles
+	## we regenerate re-link all log files. like in regenerate_logfiles
+	mkdir -p /var/log/httpd
+	ln -s $SRV/$C/rootfs/var/log/httpd/access_log /var/log/httpd/$C-access_log
+	ln -s $SRV/$C/rootfs/var/log/httpd/error_log /var/log/httpd/$C-error_log
 
 ## Pound
 
 
 	create_certificate
 	
+	cat $ssl_key > /etc/pki/tls/private/localhost.key
+	cat $ssl_crt > /etc/pki/tls/certs/localhost.crt
+	dev fixing keys
+	echo $dev
+
 	regenerate_pound_files
 	
 
