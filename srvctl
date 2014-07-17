@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.17-19:25:12
-# version 1.33.1
+# Last update:2014.07.17-19:50:59
+# version 1.33.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -194,7 +194,7 @@ function dbg {
     ## create a log entry
 	if $debug
 	then
-	    echo -e ${yellow}'#'$BASH_LINENO': '$1${NC}
+	    echo -e ${yellow}'#'$BASH_LINENO' '${FUNCNAME[1]}': '$1${NC}
 	    echo $NOW': '$1 >> $LOG
 	fi
 }
@@ -3326,18 +3326,15 @@ message_size_limit=26214400
 
 	## we regenerate re-link all log files. like in regenerate_logfiles
 	mkdir -p /var/log/httpd
-	ln -s $SRV/$C/rootfs/var/log/httpd/access_log /var/log/httpd/$C-access_log
-	ln -s $SRV/$C/rootfs/var/log/httpd/error_log /var/log/httpd/$C-error_log
+	ln -s $rootfs/var/log/httpd/access_log /var/log/httpd/$C-access_log
+	ln -s $rootfs/var/log/httpd/error_log /var/log/httpd/$C-error_log
 
 ## Pound
-
-
+	## create self-signed certificate
 	create_certificate
-	
-	cat $ssl_key > /etc/pki/tls/private/localhost.key
-	cat $ssl_crt > /etc/pki/tls/certs/localhost.crt
-	dev fixing keys
-	echo $dev
+	## add to container - for https reverse proxying
+	cat $ssl_key > $rootfs/etc/pki/tls/private/localhost.key
+	cat $ssl_crt > $rootfs/etc/pki/tls/certs/localhost.crt
 
 	regenerate_pound_files
 	
