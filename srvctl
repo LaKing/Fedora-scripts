@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.17-19:20:27
+# Last update:2014.07.17-19:25:12
 # version 1.33.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3140,21 +3140,24 @@ then
 
 	## remove from known_hosts ... regenerate?
 
+	$RMD=$TMP/$C-$NOW
+	mkdir -p $RMD
+
 	if [ -d "$SRV/$C" ]; then
-	  msg "Removing container - $TMP"
-	  ## trash it! .. to TMP
+		log "Removing container to $RMD"
 
-	  rsync -a $SRV/$C $TMP
-	  rm -fr $SRV/$C
+		rsync -a $SRV/$C $RMD
+		rm -fr $SRV/$C
 
+		## TODO regenerate everything
+		regenerate_etc_hosts
+		regenerate_known_hosts
+		regenerate_pound_files
+		regenerate_dns
+		regenerate_logfiles
+	else
+		msg "Could not remove $C - not found."
 	fi
-
-	## TODO regenerate everything
-	regenerate_etc_hosts
-	regenerate_known_hosts
-	regenerate_pound_files
-	regenerate_dns
-	regenerate_logfiles
 
 ok
 fi ## reMOVE
