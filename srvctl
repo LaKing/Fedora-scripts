@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.17-15:48:25
-# version 1.32.9
+# Last update:2014.07.17-15:50:46
+# version 1.33.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3360,6 +3360,8 @@ message_size_limit=26214400
 	 	let n=n+1 
 		echo -n '.'
         done
+
+	echo " running"
 
 	scan_host_key $C
 	regenerate_known_hosts
