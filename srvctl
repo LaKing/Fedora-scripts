@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.17-20:05:35
-# version 1.33.3
+# Last update:2014.07.18-02:13:00
+# version 1.33.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4010,13 +4010,13 @@ then
 		echo "define('WP_DEBUG', false);" >> $f
 		echo "" >> $f
 
+		echo "define('FORCE_SSL_ADMIN', true);" >> $f
+		echo "" >> $f
+
 		echo "if ( !defined('ABSPATH') ) define('ABSPATH', dirname(__FILE__) . '/');" >> $f
 		echo "require_once(ABSPATH . 'wp-settings.php');" >> $f
 		echo "" >> $f
 		
-
-		echo "define('FORCE_SSL_ADMIN', true);" >> $f
-		echo "" >> $f
 
 		## create an installer to install without web dialog
 		f=$dir/wp-install.php
@@ -4034,13 +4034,13 @@ then
 		
 		php -f $f
 
-		cf=/etc/httpd/conf.d/wp-prettyurl.conf
+		cf=/etc/httpd/conf.d/wp-permalink.conf
 
 		echo '## srvctl generated' >> $cf
-		echo '<Directory /var/www/html>' >> $cf
+		echo '<Directory /var/www/html/'$URI'>' >> $cf
 		echo ' <IfModule mod_rewrite.c>' >> $cf
 		echo '  RewriteEngine On' >> $cf
-		echo '  RewriteBase /'$URI'/' >> $cf
+		echo '  RewriteBase /'$URI >> $cf
 		echo '  RewriteCond %{REQUEST_FILENAME} !-f' >> $cf
 		echo '  RewriteCond %{REQUEST_FILENAME} !-d' >> $cf
 		echo '  RewriteRule . /index.php [L]' >> $cf
@@ -4051,6 +4051,7 @@ then
 		systemctl restart httpd.service
 
 		echo $password > $dir/.admin
+		chmod 000:000 $dir/.admin
 
 		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
 		
@@ -4166,6 +4167,7 @@ then
 		echo "	public \$tmp_path = '/var/www/html/tmp';" >> $f
 		echo "	public \$lifetime = '15';" >> $f
 		echo "	public \$session_handler = 'database';" >> $f
+		echo "  public \$force_ssl = '1';" >> $f
 		echo "}" >> $f
 
 		dbf=$dir/installation/sql/mysql/joomla.sql
@@ -4185,6 +4187,7 @@ then
 		rm -rf $dir/installation
 		
 		echo $password > $dir/.admin
+		chmod 000:000 $dir/.admin
 
 		systemctl restart httpd.service
 		
