@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.18-02:13:00
-# version 1.33.4
+# Last update:2014.07.18-02:16:37
+# version 1.33.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4051,7 +4051,7 @@ then
 		systemctl restart httpd.service
 
 		echo $password > $dir/.admin
-		chmod 000:000 $dir/.admin
+		chmod 000 $dir/.admin
 
 		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
 		
@@ -4187,7 +4187,7 @@ then
 		rm -rf $dir/installation
 		
 		echo $password > $dir/.admin
-		chmod 000:000 $dir/.admin
+		chmod 000 $dir/.admin
 
 		systemctl restart httpd.service
 		
