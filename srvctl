@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.18-02:20:57
-# version 1.33.5
+# Last update:2014.07.18-02:22:27
+# version 1.33.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3148,7 +3148,7 @@ dbg $RMD
 
 		rsync -a $SRV/$C $RMD
 		rm -fr $SRV/$C
-
+dbg $RMD
 		## TODO regenerate everything
 		regenerate_etc_hosts
 		regenerate_known_hosts
