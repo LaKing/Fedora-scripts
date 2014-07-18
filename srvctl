@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.18-02:16:37
+# Last update:2014.07.18-02:20:57
 # version 1.33.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -3133,7 +3133,7 @@ if [ "$CMD" == "remove" ]
 then
 
 	argument C 
-
+dbg $C
 	nfs_unmount
 
 	lxc-stop -k -n $ARG
@@ -3142,7 +3142,7 @@ then
 
 	$RMD=$TMP/$C-$NOW
 	mkdir -p $RMD
-
+dbg $RMD
 	if [ -d "$SRV/$C" ]; then
 		log "Removing container to $RMD"
 
