@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.23-01:19:50
-# version 1.33.6
+# Last update:2014.07.23-01:24:12
+# version 1.33.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2183,8 +2183,8 @@ function nfs_share {
 }
 
 function nfs_unmount {
-	## or user $U on container $C
-	##umount $C:/var/www/htm
+	## of user $U on container $C
+	## umount $C:/var/www/htm
 
 	if [ -f $SRV/$C/users ]
 	then
@@ -2194,7 +2194,12 @@ function nfs_unmount {
 			then
 				msg "Unmount $U $C html"
 				umount /home/$U/$C/html
-				rm -rf /home/$U/$C/html
+				if [ "$?" == "0" ]
+				then
+					rm -rf /home/$U/$C/html
+				else
+					err "Unmount failed for /home/$U/$C/html"
+				fi
 			fi 
 		done
 	fi
