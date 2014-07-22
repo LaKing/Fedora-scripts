@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.18-02:52:52
+# Last update:2014.07.23-01:19:50
 # version 1.33.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -1345,6 +1345,7 @@ action = %(action_)s
 '
 
 fi ## install fail2ban
+
 	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
 	## My attempts to do so, did not work, therefore I kept this concept of the containers sitting together on srv-net with static IP's
 
@@ -2163,6 +2164,7 @@ function nfs_share_html {
 		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] && [ -z "$(mount | grep /home/$U/$C/html )" ]
 		then			
 			mkdir -p /home/$U/$C/html 
+			chown 48:48 /home/$U/$C/html 
 			msg "Mounting NFS share at /home/$U/$C/html"
 			mount -t nfs $C:/var/www/html /home/$U/$C/html 
 		fi 
