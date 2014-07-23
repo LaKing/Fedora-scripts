@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.23-02:48:09
-# version 1.34.1
+# Last update:2014.07.23-19:03:35
+# version 1.34.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -180,9 +180,15 @@ function add_conf {
 }
 
 function msg {
-    ## create a log entry
+    ## message for the user
     echo -e ${green}$1${NC}
 }
+
+function ntc {
+    ## notice for the user
+    echo -e ${yellow}$1${NC}
+}
+
 
 function log {
     ## create a log entry
@@ -191,7 +197,7 @@ function log {
 }
 
 function dbg {
-    ## create a log entry
+    ## debug message
 	if $debug
 	then
 	    echo -e ${yellow}'#'$BASH_LINENO' '${FUNCNAME[1]}': '$1${NC}
@@ -200,7 +206,7 @@ function dbg {
 }
 
 function err {
-    ## create a log entry
+    ## error message
     echo -e ${red}$1${NC}
     echo $NOW': '$1 >> $LOG
     SUCC=$SUCC" "$1
@@ -656,7 +662,7 @@ then
 	if $onVE
 	then 
 		## TODO check this
-		echo "This is the mailing system at $CDN, your account has been created." | mail -s "Welcome" $U
+		echo "This is the mailing system at "$(hostname)", your account has been created." | mail -s "Welcome" $U
 	fi
 ok
 fi ## adduser
@@ -1207,16 +1213,16 @@ The service is not available. Please try again later.
 </font><p></body>'
 
 
-	if [ ! -f /var/www/html/favicon.ico ] || $all_arg_set
+	if [ ! -f /var/www/html/favicon.ico ]
 	then
 	   msg "Downloading favicon.ico from $CDN"
-	   #wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
+	   wget -O /var/www/html/favicon.ico http://$CDN/favicon.ico
 	fi
 
-	if [ ! -f /var/www/html/logo.png ] || $all_arg_set
+	if [ ! -f /var/www/html/logo.png ]
 	then
 	   msg "Downloading logo.png from $CDN" 
-	   #wget -O /var/www/html/logo.png http://$CDN/logo.png
+	   wget -O /var/www/html/logo.png http://$CDN/logo.png
 	fi
 
 	if [ ! -f /var/www/html/favicon.ico ]
@@ -2624,29 +2630,43 @@ function regenerate_etc_hosts {
 	do
 
 		ip=$(cat $SRV/$_C/config.ipv4)
+		
 
 		if [ -z $ip ] 
 		then
-			err "ERROR tmp: hosts - MISSING IP ADDRESS: "$_C
-		else
+			counter=$(cat $SRV/$_C/config.counter)
+			if [ -z $counter ] 
+			then	
+				err "No counter, no IPv4 for "$_C
+			else
+				ip="10.10."$(to_ip $counter)
+			fi	
+		fi
 
-	 	  echo $ip'		'$_C >>  $TMP/hosts
-		  echo $ip'		mail.'$_C >>  $TMP/hosts
-		  echo $_C' #' >>  $TMP/relaydomains
+		if [ ! -z $ip ]
+		then
+ 
+		 	echo $ip'		'$_C >>  $TMP/hosts
+			echo $ip'		mail.'$_C >>  $TMP/hosts
+			echo $_C' #' >>  $TMP/relaydomains
 
-			if [ -f /$SRV/$_C/aliases ]
-			then
-				for A in $(cat /$SRV/$_C/aliases)
-				do
-					#msg "$A is an alias of $_C"
-	 	  			echo $ip'		'$A >>  $TMP/hosts
-		  			echo $ip'		mail.'$A >>  $TMP/hosts
-					echo $A' #' >>  $TMP/relaydomains
-				
-				done
-			fi
+				if [ -f /$SRV/$_C/aliases ]
+				then
+					for A in $(cat /$SRV/$_C/aliases)
+					do
+						if [ "$A" == "$(hostname)" ]
+						then
+							msg "$A is the host itself!"
+						else
+							ntc "$A is an alias of $_C"
+			 	  			echo $ip'		'$A >>  $TMP/hosts
+				  			echo $ip'		mail.'$A >>  $TMP/hosts
+							echo $A' #' >>  $TMP/relaydomains
+						fi
+					done
+				fi
 
-		  echo ''  >>  $TMP/hosts
+			echo ''  >>  $TMP/hosts
 
 
 		fi
@@ -3093,7 +3113,7 @@ function generate_user_configs {
 		then
 			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
 		else
-			msg "No authorized ssh-rsa key in /root/srvctl-users/authorized_keys/$U"
+			ntc "No authorized ssh-rsa key in /root/srvctl-users/authorized_keys/$U"
 		fi		
 		chown $U:$U /home/$U/.ssh/authorized_keys
 	fi
@@ -3439,6 +3459,9 @@ home_mailbox = Maildir/
 
 ## Max 25MB mail size
 message_size_limit=26214400
+
+## set localhost.localdomain in mydestination to enable local mail delivery
+mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 
 	' >> $rootfs/etc/postfix/main.cf
