@@ -15,33 +15,30 @@
 U=$(whoami)
 H="r2.d250.hu" ## customize here if you wish
 
+
 if [ -f srvctl-user ]
 then
 	source srvctl-user
 else
 	## TODO add line-break for windos
 	echo 'U='$U >> srvctl-user
-	echo 'H="r2.d250.hu"' >> srvctl-user
+	echo 'H=r2.d250.hu' >> srvctl-user
 fi
 
 ## check for update of this script
 
-if false
+if [ "$1" == "update" ]
 then
 	curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
 
-	if diff srvctl-client.tmp $0 
-	then
-		echo "This script seems to be up to date."
-	else
-		cat srvctl-client.tmp > srvctl-client.sh 
-		chmod +x srvctl-client.sh
-		rm -f srvctl-client.tmp
+	cat srvctl-client.tmp > srvctl-client.sh 
+	chmod +x srvctl-client.sh
+	rm -f srvctl-client.tmp
 
-		echo "Script updated. Please restart this script."
-		exit
-	fi
+	echo "Script updated. Please restart this script."
+	exit
 fi
+
 echo "STARTED"
 
 

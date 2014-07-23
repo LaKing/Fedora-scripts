@@ -29,6 +29,7 @@ fi
 
 if [ "$1" == "update" ]
 then
+	echo "Downloading latest version, ..."
 	curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
 
 	cat srvctl-client.tmp > srvctl-client.sh 
@@ -39,7 +40,7 @@ then
 	exit
 fi
 
-echo "STARTED"
+echo "OK - STARTED"
 
 
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
@@ -47,7 +48,7 @@ NOW=$(date +%Y.%m.%d-%H:%M:%S)
 ## create keypair if necessery
 if [ -f ~/.ssh/id_rsa ] 
 then
-	echo "RSA ID - IS OK, .."
+	echo "OK - ID rsa exists."
 else
 	echo  "NO ID rsa, create key as $USER@$HOSTNAME ..."
 	mkdir -p ~/.ssh
@@ -57,9 +58,9 @@ fi
 ## check for existence of id_rsa
 if [ -f ~/.ssh/id_rsa.pub ]
 then
-	echo ".. public key ok."
+	echo "OK - public key exists."
 else
-	echo "ERR. No public key!"
+	echo "ERR. No public key! Exiting."
 	exit
 fi
 
@@ -69,7 +70,7 @@ touch ~/.ssh/known_hosts
 
 if grep -q "${hosthash:68}" ~/.ssh/known_hosts
 then
-	echo "Host is known."
+	echo "OK - Host $H is known."
 else
 	echo "Saving host-key."
 	echo $hosthash >> ~/.ssh/known_hosts
@@ -85,13 +86,13 @@ then
 	cat ~/.ssh/id_rsa.pub
 	exit
 else
-	echo "SSH connection OK."
+	echo "OK - SSH connected."
 fi
 
 ## Create client local folder 
 if [ -d ~/$H ]
 then
-	echo "Local $H folder exists."
+	echo "OK - Local $H folder exists."
 else
 	echo "Createing local ~/$H folder."
 	mkdir -p ~/$H
@@ -108,7 +109,7 @@ then
 	test_server=$(ssh $U@$H "rsync --version 2> /dev/null | grep version")
 	if [ ! -z "$test_server" ]
 	then
-		echo "Method rsync available."
+		echo "OK - Method rsync available."
 		rsync_avail=true
 	fi
 fi
@@ -122,9 +123,15 @@ then
 	test_server=$(ssh $U@$H "git --version 2> /dev/null | grep version")
 	if [ ! -z "$test_server" ]
 	then
-		echo "Method git available."
+		echo "OK - Method git available."
 		rsync_avail=true
 	fi
+fi
+
+
+if ! rsync_avail || ! git_avail
+then
+	echo "STOP - no syncronisation methods."
 fi
 
 ## here @ dev
