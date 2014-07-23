@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.23-02:15:28
-# version 1.34.0
+# Last update:2014.07.23-02:47:26
+# version 1.34.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2337,19 +2337,18 @@ then
 	
 	if [ ! -f $SRV/$C/disabled ] && ! $is_running
 	then
-			lxc-start -n $C -d
-			printf ${yellow}"%-10s"${NC} "STARTED"	
-			#wait_for_ve_online $C
-			get_info
-			wait_for_ve_connection $C	
+		lxc-start -n $C -d
+		printf ${yellow}"%-10s"${NC} "STARTED"	
+		get_info
+		wait_for_ve_connection $C
+		nfs_share
 	else
-	  get_state
-	  get_info	
+		get_state
+		get_info
+		echo ''
 	fi	
 	
-	nfs_share
 
-	echo ''
 ok
 fi
 
@@ -2370,20 +2369,16 @@ then
 		then
 			lxc-start -n $C -d
 			printf ${yellow}"%-10s"${NC} "STARTED"	
-			#wait_for_ve_online $C
 			get_info
 			wait_for_ve_connection $C
+			nfs_share
 		else
 		  	get_state
 			get_info
+			echo ''
 		fi	
 
-		
 
-		## TODO here at dev
-		nfs_share
-
-		echo ''
 	
 
 	done
@@ -2405,17 +2400,15 @@ then
 
 	if $is_running
 	then
-	  printf ${yellow}"%-10s"${NC} "SHUTDOWN"	
+		printf ${yellow}"%-10s"${NC} "SHUTDOWN"
+		get_info
+		nfs_unmount
+		ssh $C shutdown -P now
 	else 
-	get_state
+		get_state
+		get_info
 	fi
 
-	get_info
-
-	if $is_running
-	then
-	  ssh $C shutdown -P now
-	fi
 	
 	if [ "$CMD" == "disable" ]
 	then
@@ -2439,16 +2432,20 @@ then
 
 		if $is_running
 		then
-		  printf ${yellow}"%-10s"${NC} "SHUTDOWN"	
+			printf ${yellow}"%-10s"${NC} "SHUTDOWN"
+			get_info
+			nfs_unmount
+			ssh $C shutdown -P now
 		else 
-		get_state
+			get_state
+			get_info
 		fi
 
-		get_info
+
 
 		if $is_running
 		then
-		  ssh $C shutdown -P now
+
 		fi
 
 		echo ''	
@@ -2464,25 +2461,20 @@ if [ "$CMD" == "kill" ]
 then
 	argument C
 
-	nfs_unmount
-
 	set_is_running
 
 	if $is_running
 	then
-	  printf ${yellow}"%-10s"${NC} "KILLING"		
+	  	printf ${yellow}"%-10s"${NC} "KILLING"
+		get_info
+		nfs_unmount
+		lxc-stop -k -n $C
+			
 	else
-	get_state
+		get_state
+		get_info
+		echo ''	
 	fi
-
-	get_info
-
-	if $is_running
-	then
-	  lxc-stop -k -n $C
-	fi
-
-	echo ''	
 ok
 fi
 
@@ -2493,26 +2485,20 @@ then
 
 	for C in $(lxc-ls)
 	do
-		nfs_unmount
-
 		set_is_running
 
 		if $is_running
 		then
-		  printf ${yellow}"%-10s"${NC} "KILLING"		
+		  	printf ${yellow}"%-10s"${NC} "KILLING"
+			get_info
+			nfs_unmount
+			lxc-stop -k -n $C
+			
 		else
-		get_state
+			get_state
+			get_info
+			echo ''	
 		fi
-
-		get_info
-
-		if $is_running
-		then
-		  lxc-stop -k -n $C
-		fi
-
-		echo ''	
-	
 
 	done
 
@@ -2524,28 +2510,24 @@ hint "reboot VE	" "Restart a container."
 if [ "$CMD" == "reboot" ]
 then
 	argument C
-	
-	nfs_unmount
 
 	set_is_running
 
 	if $is_running
 	then
-	  printf ${yellow}"%-10s"${NC} "REBOOT!"	
+		printf ${yellow}"%-10s"${NC} "REBOOT!"
+		get_info
+
+		nfs_unmount
+	  	ssh $C reboot	
+		wait_for_ve_connection $C
+	  	nfs_share
 	else 
-	get_state
+		get_state
+		get_info	
+		echo ''
 	fi
-
-	get_info
-
-	if $is_running
-	then
-	  ssh $C reboot
-	fi
-
-	nfs_share
-
-	echo ''	
+	
 ok
 fi
 
@@ -2554,35 +2536,27 @@ hint "reboot-all	" "Restart all containers."
 if [ "$CMD" == "reboot-all" ]
 then
 
- for C in $(lxc-ls)
- do
+	for C in $(lxc-ls)
+	do
 
-	nfs_unmonut
+		set_is_running
 
-	set_is_running
+		if $is_running
+		then
+			printf ${yellow}"%-10s"${NC} "REBOOT!"
+			get_info
 
-	if $is_running
-	then
-	  printf ${yellow}"%-10s"${NC} "REBOOT!"	
-	else 
-	get_state
-	fi
+			nfs_unmonut
+			ssh $C reboot	
+			wait_for_ve_connection $C
+			nfs_share
+		else 
+		get_info
+		get_state
+		fi
 
-	get_info
-
-	if $is_running
-	then
-	  ssh $C reboot
-	fi
-
-
-	
-	sleep 6
-
-	nfs_share
-
-	echo ''	
- done
+		echo ''	
+	done
 
 ok
 fi
