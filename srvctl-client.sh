@@ -25,21 +25,23 @@ else
 fi
 
 ## check for update of this script
-curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
 
-if diff srvctl-client.tmp $0 
+if false
 then
-	echo "This script seems to be up to date."
-else
-	cat srvctl-client.tmp > srvctl-client.sh 
-	chmod +x srvctl-client.sh
-	rm -f srvctl-client.tmp
+	curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
 
-	echo "Script updated. Please restart this script."
-	exit
+	if diff srvctl-client.tmp $0 
+	then
+		echo "This script seems to be up to date."
+	else
+		cat srvctl-client.tmp > srvctl-client.sh 
+		chmod +x srvctl-client.sh
+		rm -f srvctl-client.tmp
+
+		echo "Script updated. Please restart this script."
+		exit
+	fi
 fi
-
-
 echo "STARTED"
 
 
