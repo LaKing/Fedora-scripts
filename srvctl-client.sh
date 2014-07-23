@@ -42,6 +42,7 @@ fi
 
 echo "STARTED"
 
+
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 ## create keypair if necessery
@@ -110,8 +111,6 @@ then
 	then
 		echo "Method rsync available."
 		rsync_avail=true
-	else
-		echo "Method rsync not available."
 	fi
 fi
 
@@ -126,8 +125,6 @@ then
 	then
 		echo "Method git available."
 		rsync_avail=true
-	else
-		echo "Method git not available."
 	fi
 fi
 
