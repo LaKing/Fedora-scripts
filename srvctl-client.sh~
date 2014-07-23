@@ -130,6 +130,7 @@ then
 	fi
 fi
 
+## here @ dev
 exit
 
 if [ -z "$1" ]

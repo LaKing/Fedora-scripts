@@ -31,7 +31,8 @@ if diff srvctl-client.tmp $0
 then
 	echo "This script seems to be up to date."
 else
-	cat srvctl-client.tmp > srvctl-client.sh && chmod +x srvctl-client.sh
+	cat srvctl-client.tmp > srvctl-client.sh 
+	chmod +x srvctl-client.sh
 	rm -f srvctl-client.tmp
 
 	echo "Script updated. Please restart this script."
