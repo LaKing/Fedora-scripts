@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.23-19:03:35
+# Last update:2014.07.23-20:27:11
 # version 1.34.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -585,10 +585,12 @@ function wait_for_ve_online {
 		if [ "${res:0:3}" == '|1|' ]
 		then
 			__n=$__llimit 
+		else
+			echo -n '.'
 		fi
 
 	 	let __n=__n+1 
-		echo -n '.'
+
         done
 
 	echo " online"
@@ -609,11 +611,13 @@ function wait_for_ve_connection {
 
 		if [ ! "$?" -gt 0 ]
 		then
-			__n=$__llimit 
+			__n=$__llimit
+		else
+			echo -n '.'
 		fi
 
 	 	let __n=__n+1 
-		echo -n '.'
+
         done
 
 

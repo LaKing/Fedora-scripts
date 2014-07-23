@@ -19,23 +19,23 @@ curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-clien
 
 if diff srvctl-client.tmp $0 
 then
-	echo "Friss verzió."
+	echo "This script seems to be up to date."
 else
 	cat srvctl-client.tmp > srvctl-client.sh && chmod +x srvctl-client.sh
-	echo "A szkript frissítésére került sor, kérlek indítsd el ujra."
+	echo "Script updated. Please restart this script."
 	exit
 fi
 
 
-echo "A szinkronizáció-varázsló elindult."
+echo "STARTED"
 
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
 
 if [ -f ~/.ssh/id_rsa ] 
 then
-    echo "RSA ID - rendben, .."
+    echo "RSA ID - IS OK, .."
     else
-    echo  "Nincs rsa ID, kulcspár-generálás $USER@$HOSTNAME számára. ...pill."
+    echo  "NO ID rsa, create key as $USER@$HOSTNAME ..."
 
     mkdir -p ~/.ssh
     ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N '' -C "$USER@$HOSTNAME $NOW"
@@ -43,9 +43,9 @@ fi
 
 if [ -f ~/.ssh/id_rsa.pub ]
 then
-    echo ".. publikus kulcs van."
+    echo ".. public key ok."
 else
-    echo "ERR. Nincs publikus kulcs!"
+    echo "ERR. No public key!"
     exit
 fi
 
@@ -55,42 +55,44 @@ touch ~/.ssh/known_hosts
 
 if grep -q "${hosthash:68}" ~/.ssh/known_hosts
 then
-    echo "Ismert Host"
+    echo "Host is known."
 else
-    echo "Host hashelés."
+    echo "Saving host-key."
     echo $hosthash >> ~/.ssh/known_hosts
 fi
 
 ssh -q $U@$H exit
 if [ "$?" == 255 ] 
 then
-    echo "ERR. Kapcsolódás sikertelen. $U@$H"
-    echo "A publikus kulcs hozzáadása szükséges a $H kiszolgálón. A kulcs:"
+    echo "ERR. failed to connect. $U@$H"
+    echo "A public key is needed for $H. Your public key is:"
     echo ""
     cat ~/.ssh/id_rsa.pub
     exit
 else
-    echo "SSH Kapcsolódás rendben."
+    echo "SSH connection OK."
 fi
 
 if [ -d ~/$H ]
 then
-    echo "A helyi $H mappa létezik."
+    echo "Local $H folder exists."
 else
-    echo "Helyi ~/$H mappa létrehozása"
+    echo "Createing local ~/$H folder."
     mkdir -p ~/$H
 fi
 
+## from here, use git or rsync
+
 if [ -z "$1" ]
 then
-    echo "Feltöltés, vagy letöltés? .."
-    read -s -r -p "[Fel/Le] " -n 1 key
+    echo "Upload, or Download? .."
+    read -s -r -p "[Up/Down] " -n 1 key
     if [[ $key == f* ]]; then
-	key="U"
-	echo "!!  FELTÖLTÉS !!"
+	key="rsync-upload"
+	echo "!!  UPLOAD !!"
     else
-        key="D";
-        echo "!!  LETÖLTÉS !!"
+        key="rsync-download";
+        echo "!!  DOWNLOAD !!"
     fi
 else
     key=$1
@@ -98,16 +100,14 @@ fi
 
 echo ""
 
-if [ $key == "D" ]
+if [ $key == "rsync-upload" ]
 then
 
     # sync down
     for D in $(ssh -q $U@$H ls)
     do
     echo "==== $D ===="
-    ssh $U@$H "rsync -chavP root@$D:/var/www/html ~/$D"
     rsync -chavzP --stats $U@$H:$D ~/$H
-    ssh $U@$H "rm -rf ~/$D/html"
     done
 
 else
@@ -116,11 +116,11 @@ else
     for D in ~/$H/*
     do
     echo "==== $D ===="
-    ssh $U@$H "rsync -chavP root@$D:/var/www/html ~/$D"
+
     rsync -chavzP --stats $D $U@$H:~
-    ssh $U@$H "ssh root@$D 'chown apache:apache ~/$D/html'"
-    ssh $U@$H "rsync -chavP ~/$D/html root@$D:/var/www"
-    ssh $U@$H "rm -rf ~/$D/html"
+
+    #ssh $U@$H "ssh root@$D 'chown apache:apache ~/$D/html'"
+
     done
 
 fi
