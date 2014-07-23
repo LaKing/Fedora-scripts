@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.23-01:24:12
-# version 1.33.7
+# Last update:2014.07.23-02:00:19
+# version 1.33.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -565,7 +565,54 @@ echo "10.10."$_ip4 > $SRV/$C/config.ipv4
 }
 
 
+function wait_for_ve_online {
 
+	## wait for the container to get up check via keyscan
+	__llimit=300
+	
+	__n=0
+        while [  $__n -lt $__llimit ] 
+	do
+		sleep 0.1
+		res=$(ssh-keyscan -t rsa -H $1 2> /dev/null)
+
+		if [ "${res:0:3}" == '|1|' ]
+		then
+			__n=$__llimit 
+		fi
+
+	 	let __n=__n+1 
+		echo -n '.'
+        done
+
+	echo " online"
+}
+
+
+function wait_for_ve_connection {
+
+	## wait for the container to get up check via ssh connect
+	__llimit=300
+
+	__n=0
+
+        while [  $__n -lt $__llimit ] 
+	do
+		sleep 0.1
+		res=$(ssh $1 exit 2> /dev/null)
+
+		if [ ! "$?" -gt 0 ]
+		then
+			__n=$__llimit 
+		fi
+
+	 	let __n=__n+1 
+		echo -n '.'
+        done
+
+
+	echo " connected."
+}
 
 
 ## srvctl functions end here.
@@ -2154,7 +2201,7 @@ function get_http_response {
 }
 
 function nfs_share_html {
-	## or user $U on container $C
+	## for user $U on container $C
 		
 	set_is_running
 	if $is_running
@@ -2172,6 +2219,7 @@ function nfs_share_html {
 }
 
 function nfs_share {
+	## container $C
 
 	if [ -f $SRV/$C/users ]
 	then
@@ -2289,17 +2337,16 @@ then
 	
 	if [ ! -f $SRV/$C/disabled ] && ! $is_running
 	then
-	  printf ${yellow}"%-10s"${NC} "STARTED"	
+			lxc-start -n $C -d
+			printf ${yellow}"%-10s"${NC} "STARTED"	
+			wait_for_ve_online $C
+			wait_for_ve_connection $C	
 	else
 	  get_state
 	fi	
 
 	get_info
 
-	if [ ! -f $SRV/$C/disabled ] && ! $is_running
-	then
-	  lxc-start -n $C -d
-	fi
 	
 	nfs_share
 
@@ -2322,21 +2369,17 @@ then
 	
 		if [ ! -f $SRV/$C/disabled ] && ! $is_running
 		then
-		  printf ${yellow}"%-10s"${NC} "STARTED"	
+			lxc-start -n $C -d
+			printf ${yellow}"%-10s"${NC} "STARTED"	
+			wait_for_ve_online $C
+			wait_for_ve_connection $C
 		else
-		  get_state
+		  	get_state
 		fi	
 
 		get_info
 
-		if [ ! -f $SRV/$C/disabled ] && ! $is_running
-		then
-		  lxc-start -n $C -d
-		fi
-	
-		sleep 3
-
-		## TODO fix this
+		## TODO here at dev
 		nfs_share
 
 		echo ''
@@ -3520,49 +3563,15 @@ message_size_limit=26214400
 	lxc-start -o $SRV/$C/lxc.log -n $C -d 
 
 
-	## wait for the container to get up
-	__llimit=300
-	
-	n=0
-        while [  $n -lt $__llimit ] 
-	do
-		sleep 0.1
-		res=$(ssh-keyscan -t rsa -H $IPv4 2> /dev/null)
+	## wait for the container to get up 
+	## was based on $IPv4
 
-		if [ "${res:0:3}" == '|1|' ]
-		then
-			n=$__llimit 
-		fi
-
-	 	let n=n+1 
-		echo -n '.'
-        done
-
-	echo " online"
+	wait_for_ve_online $C
 
 	scan_host_key $C
 	regenerate_known_hosts
 
-	n=0
-
-        while [  $n -lt $__llimit ] 
-	do
-		sleep 0.1
-		res=$(ssh $C exit 2> /dev/null)
-
-		if [ ! "$?" -gt 0 ]
-		then
-			n=$__llimit 
-		fi
-
-	 	let n=n+1 
-		echo -n '.'
-        done
-
-
-	echo " connected."
-
-
+	wait_for_ve_connection $C
 
 	echo "Post installation, ..."
 
