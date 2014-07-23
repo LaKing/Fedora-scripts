@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.23-02:47:26
+# Last update:2014.07.23-02:48:09
 # version 1.34.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2439,13 +2439,6 @@ then
 		else 
 			get_state
 			get_info
-		fi
-
-
-
-		if $is_running
-		then
-
 		fi
 
 		echo ''	
