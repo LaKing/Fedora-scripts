@@ -65,7 +65,7 @@ else
 fi
 
 ## add host-key to known_hosts
-hosthash=$(ssh-keyscan -t rsa -H $H )
+hosthash=$(ssh-keyscan -t rsa -H $H 2> /dev/null)
 touch ~/.ssh/known_hosts
 
 if grep -q "${hosthash:68}" ~/.ssh/known_hosts
@@ -129,10 +129,35 @@ then
 fi
 
 
-if ! rsync_avail || ! git_avail
+if ! $rsync_avail || ! $git_avail
 then
-	echo "STOP - no syncronisation methods."
+	echo "STOP - no syncronisation methods. Install git and/or rsync"
+	exit
 fi
+
+echo "Processing container-shares."
+
+
+function process_folder {
+	echo " --- "$F
+}
+
+## list domains on server
+for D in $(ssh -q $U@$H ls) 
+do
+	## if the directory contains a dot, then its most likely a container
+	if [[ $D == *.* ]]
+	then
+	  echo " - "$D
+	  mkdir -p ~/$H/$D
+	  for F in $(ssh -q $U@$H ls $D)
+	  do
+		process_folder
+	  done
+	fi
+done
+
+
 
 ## here @ dev
 exit
