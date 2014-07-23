@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.23-20:27:11
+# Last update:2014.07.23-23:28:42
 # version 1.34.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -3723,12 +3723,12 @@ function add_mariadb_db {
 	db_pwd=$password
 
 	SQL="CREATE DATABASE IF NOT EXISTS $db_name;"
+	ntc $SQL
 	mysql $MDA -e "$SQL"
-	echo $SQL
 
 	SQL="GRANT ALL ON $db_name.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
+	ntc $SQL
 	mysql $MDA -e "$SQL"
-	echo $SQL
 
 	## save these params to etc
 	f=/etc/mysqluser.conf
@@ -3736,7 +3736,7 @@ function add_mariadb_db {
 	echo "usr:"$db_usr >> $f
 	echo "pwd:"$db_pwd >> $f
 	
-	echo "Added MariaDB database $db_name  $db_usr:$db_pwd"
+	msg "Added MariaDB database $db_name  $db_usr:$db_pwd"
 }
 
 
@@ -3789,12 +3789,12 @@ then
 		db_pwd=$password
 
 		SQL="CREATE DATABASE IF NOT EXISTS $db_name"
-		echo $SQL
+		ntc $SQL
 		mysql $MDA -e "$SQL"
 
 
 		SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-		echo $SQL
+		ntc $SQL
 		mysql $MDA -e "$SQL"
 
 		## save these params
@@ -3850,7 +3850,7 @@ then
 		echo 'user=root' >> $MDF
 		echo 'password='$password >> $MDF
 
-		echo "Rebooting the container."
+		msg "Rebooting the container."
 		reboot
 
 	ok
@@ -3878,18 +3878,17 @@ then
 		    mysqldump $MDA --databases $i > $BACKUP_POINT/$i.sql
 		    if [ "$?" -eq 0 ]
 		     then
-			 echo "OK:   "$i
+				msg "OK:   "$i
 			else
-			 echo "ERROR "$i
-			 echo $err
-			 succ=0
+			 	err "ERROR "$i
+			 	succ=0
 			fi
 		    fi
 		done
 
 		if [ $succ -gt 0 ]
 		then
-		    echo 'All databases have a backup in '$BACKUP_POINT
+		    msg 'All databases have a backup in '$BACKUP_POINT
 
 		    if [ "$2" == "clean" ]
 		    then
@@ -3984,11 +3983,11 @@ then
 		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
 		sed_file /home/codepad-user/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
 
-
+		project_path=/home/codepad-user/dev-data 
 
 		#su codepad-user -c "mkdir /home/codepad-user/dev-data"
 
-		ln -s /var/www/html /home/codepad-user/dev-data 
+		ln -s /var/www/html $project_path
 
 		## for sessionkey
 		get_randomstr
@@ -4008,7 +4007,7 @@ then
 set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
   "ep_codepad": { 
-    "project_path": "/home/codepad-user/dev-data",
+    "project_path": "'$project_path'",
     "play_url": "http://'$C'"
   },
   "title": "'$C'",
@@ -4069,8 +4068,22 @@ WantedBy=multi-user.target
 
 	systemctl enable codepad.service
 	systemctl start codepad.service
-		 
-	echo "admin pass is $adminpass @ https://$C/admin"	
+	
+	ntc "Project path is: $project_path"
+	cd $project_path
+
+	git config --global user.name "codepad-user"
+	git config --global user.email codepad-user@$(hostname)
+
+	git init
+	git add .
+	git commit -m Inital_commit
+
+	chown -R codepad-user:codepad-user $project_path/*
+
+	sed_file /home/codepad-user/etherpad-lite/bin/run.sh "node $SCRIPTPATH/node_modules/ep_etherpad-lite/node/server.js $*" "node $SCRIPTPATH/node_modules/ep_etherpad-lite/node/server.js $* > /home/codepad-user/etherpad.log &"
+	 
+	msg "admin pass is $adminpass @ https://$C/admin"	
 
 	ok
 	fi ## codepad
