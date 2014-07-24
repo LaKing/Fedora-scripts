@@ -129,19 +129,10 @@ then
 	fi
 fi
 
-
-if $rsync_avail || $git_avail
-then
 	if [ -z "$1" ]
 	then
 	    echo "OK -  interactive mode!" 
 	fi
-	
-else
-	echo "STOP - no syncronisation methods. Install git and/or rsync"
-	exit
-fi
-
 
 
 
@@ -193,99 +184,126 @@ function process_folder {
 	#echo -e " --- "$F
 
 	has_git=false
-	options='Skip'
+	options='Skip | Download/Upload'
+
+	if $rsync_avail
+	then
+		options=$options" | rsync: Remote-to-local/Local-to-remote"
+	fi
 
 	if $git_avail
-	then
+	then 
+		options=$options" | git: "
 		# check for remote repository
 		#git_status=$(ssh $U@$H 'cd /home/'$U'/'$D'/'$F' && git status 2&>1 1> /dev/null && echo $?')
-		git_status=$(ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/.git 2> /dev/null && echo $?')
+		git_status=$(ssh $U@$H 'cat /home/'$U'/'$D'/'$F'/description 2> /dev/null') # && echo $?')
 		#echo " --- "$F" git: "$git_status
-		if [ "$git_status" == "0" ]
+		if [ ! -z "$git_status" ]
 		then
 			echo "HAS GIT repo"
 			has_git=true
 
-			options=$options"/Clone"
-
-			if [ -d ~/$H/$D/$F/.git ]
+			if [ ! -d ~/$H/$D/$F/.git ]
 			then
-				options=$options"-pull/Push"
+				options=$options"Clone"			
+			else
+				options=$options"Pull/Commit+push"
 			fi
 
 		else
-			options=$options"/Init"
+			options=$options"Init"
 		fi
 		
 
 	fi
 
 
-	if $rsync_avail
-	then
-		options=$options"/Download/Upload"
-	fi
+
 
 	read -s -r -p " --- $F [$options] " -n 1 key
 	echo '... '$key	
 
 	if [ ! -z "$key" ]
 	then
+		## ssh/scp download
+		## should be available
 
-	if $git_avail && ! $has_git
-	then
-		if [ "$key" == i ] || [ "$key" == I ]
-		then
-			ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init && git add . && git commit -m '$U@$(hostname)
-
-			## and then clone
-			key=c
-		fi		
-	fi
-
-	if $git_avail && $has_git
-	then
-		if [ "$key" == c ] || [ "$key" == C ]
-		then
-			if [ -d ~/$H/$D/$F/.git ]
+			if [ "$key" == d ] || [ "$key" == D ]
 			then
-				ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git commit -a -m '$U@$(hostname)
-				cd ~/$H/$D/$F			
-				git pull  
-			else
+				echo 'Downloading '$F
+				scp -r -C $U@$H:$D/$F ~/$H/$D
+				echo '... ready'
+			fi
+
+			if [ "$key" == u ] || [ "$key" == U ]
+			then
+				echo 'Uploading '$F
+				scp -r -C ~/$H/$D/$F $U@$H:~/$D
+				echo '... ready'
+			fi
+
+		## scp end
+
+
+		if $rsync_avail
+		then
+			if [ "$key" == r ] || [ "$key" == R ]
+			then
+				echo 'rsync download - Remote to local '$F
+	    			rsync --delete -chavzP --stats $U@$H:$D/$F ~/$H/$D
+				echo '... ready'
+			fi
+
+			if [ "$key" == l ] || [ "$key" == L ]
+			then
+				echo 'rsync upload - Local to remote '$F
+	    			rsync --delete -chavzP --stats ~/$H/$D/$F $U@$H:~/$D
+				echo '... ready'
+			fi
+		fi
+
+
+		if $git_avail && ! $has_git
+		then
+			if [ "$key" == i ] || [ "$key" == I ]
+			then
+				## Init
+				ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init --bare' 
 				mkdir -p ~/$H/$D/$F
 				git clone $U@$H:$D/$F ~/$H/$D/$F
-			fi
+			fi		
 		fi
 
-		if [ "$key" == p ] || [ "$key" == P ]
+		if $git_avail && $has_git
 		then
-			if [ -d ~/$H/$D/$F/.git ]
+			if [ "$key" == c ] || [ "$key" == C ]
 			then
-				cd  ~/$H/$D/$F 
-				git commit -a -m $U@$(hostname)
-				#git remote add origin $U@$H:$D/$F
-				git push
+				if [ -d ~/$H/$D/$F/.git ]
+				then
+					## Commit & push
+					cd  ~/$H/$D/$F
+					git add .
+					git commit -a -m $U@$H
+					git push
+  
+				else
+					## Clone
+					mkdir -p ~/$H/$D/$F
+					git clone $U@$H:$D/$F ~/$H/$D/$F
+				fi
 			fi
-		fi	
-	fi
-
-	if $rsync_avail
-	then
-		if [ "$key" == d ] || [ "$key" == D ]
-		then
-			echo 'Downloading '$F
-    			rsync -chavzP --stats $U@$H:$D/$F ~/$H/$D
-			echo '... ready'
+	
+			if [ "$key" == p ] || [ "$key" == P ]
+			then
+				if [ -d ~/$H/$D/$F/.git ]
+				then
+					## Pull
+					cd ~/$H/$D/$F			
+					git pull
+				fi
+			fi
+	
 		fi
-
-		if [ "$key" == u ] || [ "$key" == U ]
-		then
-			echo 'Uploading '$F
-    			rsync -chavzP --stats ~/$D/$F $U@$H:~/$D
-			echo '... ready'
-		fi
-	fi
 
 	fi
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.24-05:04:54
-# version 1.35.6
+# Last update:2014.07.25-00:38:21
+# version 1.35.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2870,8 +2870,9 @@ function regenerate_pound_files {
 		fi
 
 
-
-		for A in $(echo $_C && cat /$SRV/$_C/aliases 2> /dev/null)
+		if [ ! -f $SRV/$_C/disabed ]
+		then
+		for A in $(echo $_C && cat $SRV/$_C/aliases 2> /dev/null)
 		do
 
 			set_file $cfg_dir/$A-http-service '## srvctl '$_C' '$_ip'
@@ -2961,7 +2962,7 @@ function regenerate_pound_files {
 			echo 'Include "'$cfg_dir/$https'"' >> /var/pound/https-$dnl-domains.cfg
 
 		done ## for C and aliases
-
+		fi
 
 		## if there is some problem, start an automatic debug process, that skips broken configs
 		if [ "$1" == "debug" ]
