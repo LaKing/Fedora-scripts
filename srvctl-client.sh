@@ -130,17 +130,20 @@ then
 fi
 
 
-if ! $rsync_avail && ! $git_avail
+if $rsync_avail || $git_avail
 then
+	if [ -z "$1" ]
+	then
+	    echo "OK -  interactive mode!" 
+	fi
+	
+else
 	echo "STOP - no syncronisation methods. Install git and/or rsync"
 	exit
 fi
 
 
-if [ -z "$1" ]
-then
-    echo "No argument given, interactive mode!" 
-fi
+
 
 function comment {
 
