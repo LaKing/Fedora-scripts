@@ -130,7 +130,7 @@ then
 fi
 
 
-if ! $rsync_avail || ! $git_avail
+if ! $rsync_avail && ! $git_avail
 then
 	echo "STOP - no syncronisation methods. Install git and/or rsync"
 	exit
