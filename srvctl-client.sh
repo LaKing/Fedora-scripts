@@ -10,6 +10,7 @@
 ## - running on windows git bash - http://msysgit.github.io/ 
 
 ## lets start ... 
+CWD=$(pwd)
 
 ## source or set here as default
 U=$(whoami)
@@ -135,14 +136,155 @@ then
 	exit
 fi
 
+
+if [ -z "$1" ]
+then
+    echo "No argument given, interactive mode!" 
+fi
+
+function comment {
+
+upload=false
+## ask user what to do or go with the arguments
+if [ -z "$1" ]
+then
+
+    echo "Upload, or Download? .."
+    read -s -r -p "[Up/Down] " -n 1 key
+    if [[ $key == u ]]; then
+	echo "!!  UPLOAD !!"
+	upload=true
+    else
+        echo "!!  DOWNLOAD !!"
+    fi
+else
+    key=$1
+fi
+
+
+use_git=false
+## ask user what to do or go with the arguments
+if [ -z "$1" ] && $git_avail
+then
+    echo "Use git or rsync: .."
+    read -s -r -p "[Git/Rsync] " -n 1 key
+    if [[ $key == g ]]; then
+	echo "!!  USE GIT !!"
+	use_git=true
+    else
+        echo "!!  RSYNC !!"
+    fi
+else
+    key=$1
+fi
+
+}
+
+
+
+
 echo "Processing container-shares."
 
 
 function process_folder {
-	echo " --- "$F
+	#echo -e " --- "$F
 
-	
+	has_git=false
+	options='Skip'
 
+	if $git_avail
+	then
+		# check for remote repository
+		#git_status=$(ssh $U@$H 'cd /home/'$U'/'$D'/'$F' && git status 2&>1 1> /dev/null && echo $?')
+		git_status=$(ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/.git 2> /dev/null && echo $?')
+		#echo " --- "$F" git: "$git_status
+		if [ "$git_status" == "0" ]
+		then
+			echo "HAS GIT repo"
+			has_git=true
+
+			options=$options"/Clone"
+
+			if [ -d ~/$H/$D/$F/.git ]
+			then
+				options=$options"-pull/Push"
+			fi
+
+		else
+			options=$options"/Init"
+		fi
+		
+
+	fi
+
+
+	if $rsync_avail
+	then
+		options=$options"/Download/Upload"
+	fi
+
+	read -s -r -p " --- $F [$options] " -n 1 key
+	echo '... '$key	
+
+	if [ ! -z "$key" ]
+	then
+
+	if $git_avail && ! $has_git
+	then
+		if [ "$key" == i ] || [ "$key" == I ]
+		then
+			ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init && git add . && git commit -m '$U@$(hostname)
+
+			## and then clone
+			key=c
+		fi		
+	fi
+
+	if $git_avail && $has_git
+	then
+		if [ "$key" == c ] || [ "$key" == C ]
+		then
+			if [ -d ~/$H/$D/$F/.git ]
+			then
+				ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git commit -a -m '$U@$(hostname)
+				cd ~/$H/$D/$F			
+				git pull  
+			else
+				mkdir -p ~/$H/$D/$F
+				git clone $U@$H:$D/$F ~/$H/$D/$F
+			fi
+		fi
+
+		if [ "$key" == p ] || [ "$key" == P ]
+		then
+			if [ -d ~/$H/$D/$F/.git ]
+			then
+				cd  ~/$H/$D/$F 
+				git commit -a -m $U@$(hostname)
+				#git remote add origin $U@$H:$D/$F
+				git push master
+			fi
+		fi	
+	fi
+
+	if $rsync_avail
+	then
+		if [ "$key" == d ] || [ "$key" == D ]
+		then
+			echo 'Downloading '$F
+    			rsync -chavzP --stats $U@$H:$D/$F ~/$H/$D
+			echo '... ready'
+		fi
+
+		if [ "$key" == u ] || [ "$key" == U ]
+		then
+			echo 'Uploading '$F
+    			rsync -chavzP --stats ~/$D/$F $U@$H:~/$D
+			echo '... ready'
+		fi
+	fi
+
+	fi
 }
 
 ## list domains on server
@@ -165,20 +307,7 @@ done
 ## here @ dev
 exit
 
-if [ -z "$1" ]
-then
-    echo "Upload, or Download? .."
-    read -s -r -p "[Up/Down] " -n 1 key
-    if [[ $key == f* ]]; then
-	key="rsync-upload"
-	echo "!!  UPLOAD !!"
-    else
-        key="rsync-download";
-        echo "!!  DOWNLOAD !!"
-    fi
-else
-    key=$1
-fi
+
 
 echo ""
 
@@ -207,5 +336,6 @@ else
 
 fi
 
+cd $CWD
 echo "Done."
 exit

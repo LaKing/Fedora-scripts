@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.24-01:13:16
+# Last update:2014.07.24-04:36:13
 # version 1.35.0
 #
 # Server Controll script for Fedora with LXC containers
@@ -526,7 +526,7 @@ function generate_lxc_config {
 ## argument container name.
 _c=$1
 
-msg "Generating lxc configarion files for $_c"
+ntc "Generating lxc configarion files for $_c"
 
 _counter=$(cat $SRV/$_c/config.counter)
 
@@ -2688,7 +2688,7 @@ function regenerate_etc_hosts {
 function scan_host_key {
 
 	## argument: Container
-	msg "Scanning host key for "$1
+	ntc "Scanning host key for "$1
 
 	## TODO in the next line the container name may be better if not indicated.
 	echo "## srvctl host-key" > $SRV/$1/host-key
