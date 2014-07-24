@@ -265,7 +265,7 @@ function process_folder {
 				cd  ~/$H/$D/$F 
 				git commit -a -m $U@$(hostname)
 				#git remote add origin $U@$H:$D/$F
-				git push master
+				git push
 			fi
 		fi	
 	fi

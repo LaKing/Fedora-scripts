@@ -129,8 +129,6 @@ then
 	fi
 fi
 
-rsync_avail=false
-git_avail=true
 
 if $rsync_avail || $git_avail
 then
