@@ -116,7 +116,7 @@ then
 fi
 
 ## test if git is available
-rsync_avail=false
+git_avail=false
 test_client=$(git --version 2> /dev/null | grep version)
 if [ ! -z "$test_client" ]
 then
@@ -125,7 +125,7 @@ then
 	if [ ! -z "$test_server" ]
 	then
 		echo "OK - Method git available."
-		rsync_avail=true
+		git_avail=true
 	fi
 fi
 
