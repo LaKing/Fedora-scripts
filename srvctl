@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-01:27:45
-# version 1.36.1
+# Last update:2014.07.26-01:30:59
+# version 1.36.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2245,8 +2245,15 @@ function nfs_mount {
 			#done
 
 
-			while read line; do
+			while read line 
+			do
 			    dbg "$line"
+
+				if ! [ -z $line ] && ! [ ${line:0:1} == '#' ]
+				then
+					msg $line
+				fi
+
 			done < $SRV/$C/rootfs/etc/exports
 
 		fi 
