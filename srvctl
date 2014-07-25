@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.25-01:56:44
-# version 1.35.9
+# Last update:2014.07.26-00:38:22
+# version 1.36.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -212,6 +212,7 @@ function err {
     SUCC=$SUCC" "$1
 }
 
+dbg "Debug mode: on"
 
 ## Lablib functions end here.
 

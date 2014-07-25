@@ -156,7 +156,6 @@ function process_folder {
 
 		# check for remote bare repository
 		git_status=$(ssh $U@$H 'cat /home/'$U'/'$D'/'$F'/description 2> /dev/null') 
-		##echo " --- "$F" git: "$git_status
 		options=$options" | git: "
 
 		if [ ! -z "$git_status" ]
@@ -172,11 +171,12 @@ function process_folder {
 				options=$options"Pull/Commit+push"
 			fi
 
+			options=$options" "${git_status:0:20}
 		else
 			options=$options"Init"
 		fi
 		
-		options=$options" "${git_status:0:20}
+
 	fi
 
 

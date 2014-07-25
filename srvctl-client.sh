@@ -66,15 +66,20 @@ else
 fi
 
 ## add host-key to known_hosts
-hosthash=$(ssh-keyscan -t rsa -H $H 2> /dev/null)
+hostkey=$(ssh-keyscan -t rsa -H $H 2> /dev/null)
 touch ~/.ssh/known_hosts
 
-if grep -q "${hosthash:68}" ~/.ssh/known_hosts
+if [ -z "$hostkey" ]
+then
+	"ERR. Connection to $H failed."
+fi
+
+if grep -q "${hostkey:68}" ~/.ssh/known_hosts
 then
 	echo "OK - Host $H is known."
 else
 	echo "Saving host-key."
-	echo $hosthash >> ~/.ssh/known_hosts
+	echo $hostkey >> ~/.ssh/known_hosts
 fi
 
 ## test connectivity
