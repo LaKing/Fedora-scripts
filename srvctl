@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-01:30:59
+# Last update:2014.07.26-01:31:58
 # version 1.36.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -2249,7 +2249,7 @@ function nfs_mount {
 			do
 			    dbg "$line"
 
-				if ! [ -z $line ] && ! [ ${line:0:1} == '#' ]
+				if ! [ -z "$line" ] && ! [ ${line:0:1} == '#' ]
 				then
 					msg $line
 				fi
