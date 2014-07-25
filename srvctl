@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-01:20:42
+# Last update:2014.07.26-01:21:19
 # version 1.36.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2239,7 +2239,7 @@ function nfs_mount {
 
 		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] 
 		then			
-			for F in $(cat $SRV/$C/rootfs/exports)
+			for F in $(cat $SRV/$C/rootfs/etc/exports)
 			do
 				dbg "$U $C $F"
 			done
