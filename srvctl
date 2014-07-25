@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-00:38:22
-# version 1.36.0
+# Last update:2014.07.26-01:20:04
+# version 1.36.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1404,6 +1404,8 @@ action = %(action_)s
 
 fi ## install fail2ban
 
+## TODO: fail2ban seems to be resource hungry. :/
+
 	## Dev-note .. I was worried that unencrypted http between the host and a container can be sniffed from another container.
 	## My attempts to do so, did not work, therefore I kept this concept of the containers sitting together on srv-net with static IP's
 
@@ -2211,7 +2213,23 @@ function get_http_response {
 	fi
 }
 
-function nfs_share_html {
+function nfs_mount_folder {
+	## folder $F user $U on container $C
+
+		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
+		then
+			mkdir -p /home/$U/$C/$F
+			chown 48:48 /home/$U/$C/$F 
+			msg "Mounting NFS share at /home/$U/$C/$F"
+			mount -t nfs $C:/var/www/html /home/$U/$C/$F
+		else
+			ntc "Already mounted: $U $C $F" 
+		fi
+}
+
+
+
+function nfs_mount {
 	## for user $U on container $C
 		
 	set_is_running
@@ -2219,12 +2237,13 @@ function nfs_share_html {
 	then
 		## share via NFS
 
-		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] && [ -z "$(mount | grep /home/$U/$C/html )" ]
+		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] 
 		then			
-			mkdir -p /home/$U/$C/html 
-			chown 48:48 /home/$U/$C/html 
-			msg "Mounting NFS share at /home/$U/$C/html"
-			mount -t nfs $C:/var/www/html /home/$U/$C/html 
+			for F in $(cat $SRV/$C/rootfs/exports)
+			do
+				dbg "$U $C $F"
+			fi
+
 		fi 
 	fi
 }
@@ -2236,7 +2255,7 @@ function nfs_share {
 	then
 		for U in $(cat $SRV/$C/users)
 		do
-			nfs_share_html
+			nfs_mount
 		done
 	fi
 }
@@ -2661,7 +2680,7 @@ function regenerate_etc_hosts {
 					do
 						if [ "$A" == "$(hostname)" ]
 						then
-							msg "$A is the host itself!"
+							ntc "$_C alias: $A - is the host itself!"
 						else
 							ntc "$A is an alias of $_C"
 			 	  			echo $ip'		'$A >>  $TMP/hosts
@@ -3177,7 +3196,7 @@ function regenerate_users_structure {
 		for U in $(cat $SRV/$C/users)
 		do
 			generate_user_structure
-			nfs_share_html
+			nfs_mount
 		done
  	done
 
@@ -3484,6 +3503,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	## We export /var/www/html - with apache user rights
 	set_file  $rootfs/etc/exports '## srvctl 
 /var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
+/root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
 '
 	## enable nfs
 	ln -s '/usr/lib/systemd/system/nfs.service' $rootfs'/etc/systemd/system/multi-user.target.wants/nfs.service'
@@ -3584,7 +3604,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	if [ ! -z "$U" ]
 	then
-		nfs_share_html
+		nfs_mount
 
 	fi
 
