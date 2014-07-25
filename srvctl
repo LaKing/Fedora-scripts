@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-01:20:04
+# Last update:2014.07.26-01:20:42
 # version 1.36.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2242,7 +2242,7 @@ function nfs_mount {
 			for F in $(cat $SRV/$C/rootfs/exports)
 			do
 				dbg "$U $C $F"
-			fi
+			done
 
 		fi 
 	fi
