@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-02:03:35
+# Last update:2014.07.26-02:35:55
 # version 1.36.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -2216,14 +2216,12 @@ function get_http_response {
 function nfs_mount_folder {
 	## $1 container-path (folder $F) user $U on container $C
 
-		
-
 		F=$(basename $1) 
 
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
 		then
 			mkdir -p /home/$U/$C/$F
-			chown 48:48 /home/$U/$C/$F 
+			#chown 48:48 /home/$U/$C/$F 
 			msg "Mounting NFS share at /home/$U/$C/$F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
 		else
@@ -2243,12 +2241,6 @@ function nfs_mount {
 
 		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] 
 		then			
-			#for F in $(cat $SRV/$C/rootfs/etc/exports)
-			#do
-			#	dbg "$U $C $F"
-			#done
-
-
 			while read line 
 			do
 				if ! [ -z "$(echo $line | grep 10.10.0.1 )" ] && [ ${line:0:1} == '/' ]
@@ -2282,17 +2274,20 @@ function nfs_unmount {
 	then
 		for U in $(ls /home)
 		do
-			if [ -d /home/$U/$C/html ] 
-			then
-				msg "Unmount $U $C html"
-				umount /home/$U/$C/html
-				if [ "$?" == "0" ]
+			for F in /home/$U/$C/* ]
+			do 
+				if ! [ -z "$(mount | grep /home/$U/$C/$F )" ] 
 				then
-					rm -rf /home/$U/$C/html
-				else
-					err "Unmount failed for /home/$U/$C/html"
-				fi
-			fi 
+					msg "Unmount $U $C $F"
+					umount /home/$U/$C/$F
+					if [ "$?" == "0" ]
+					then
+						rm -rf /home/$U/$C/$F
+					else
+						err "Unmount failed for /home/$U/$C/$F"
+					fi
+				fi 
+			do
 		done
 	fi
 }
@@ -3513,11 +3508,13 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
 
+
 ## NFS
 	## We export /var/www/html - with apache user rights
 	set_file  $rootfs/etc/exports '## srvctl 
 /var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
 /root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
+/srv 10.10.0.1(rw,all_squash,anonuid=1000,anongid=1000)
 '
 	## enable nfs
 	ln -s '/usr/lib/systemd/system/nfs.service' $rootfs'/etc/systemd/system/multi-user.target.wants/nfs.service'
@@ -4402,154 +4399,6 @@ then
 
 ok
 fi ## install-joomla
-
-
-
-####################################################
-## TODO: all these functions need a proper review!! 
-## For now, I just leave it as it is ...
-## this was used to migrate from ispconfig, but its rather dirty then proper.
-
-if [ "$CMD" == "config" ] && $MDB
-then
-
-echo config
-
-## chmod
-chown -R apache:apache /var/www/html/*
-
-if [ -f /var/www/html/wp-config.php ]; then
-    echo "wp-config.php detected!"
-
-rm -rf /var/www/stats
-
-sed -i 's/\r$//' /var/www/html/wp-config.php
-
-cat /var/www/html/wp-config.php | grep "DB_NAME"
-db_db=$(cat /var/www/html/wp-config.php | grep "DB_NAME")
-db_dbf=${db_db:19:-3}
-
-## Override
-#db_dbf="drdugo_sevsam"
-
-echo $db_dbf
-
-
-mysql < /var/srvctl/20140324010005/$db_dbf.sql
-
-mysql -u root -e "show databases;"
-
-owner=$(echo $db_dbf | cut -f1 -d"_" )
-
-echo $owner > /etc/owner
-
-cat /var/www/html/wp-config.php | grep "DB_USER"
-db_u=$(cat /var/www/html/wp-config.php | grep "DB_USER")
-db_usr=${db_u:19:-3}
-
-## Override
-#db_usr="drdugo_sevsam"
-
-echo $db_usr
-
-cat /var/www/html/wp-config.php | grep "DB_PASSWORD"
-db_p=$(cat /var/www/html/wp-config.php | grep "DB_PASSWORD")
-db_pwd=${db_p:23:-3}
-
-## Override
-#db_pwd="zt7Er34W"
-
-echo $db_pwd
-
-
-SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-
-echo "(WORDPRESS) $SQL"
-
-mysql -u root -e "$SQL"
-
-fi ## wordpress
-
-if [ -f /var/www/html/configuration.php ]; then
-    echo "Joomla configuration.php detected!"
-
-rm -rf /var/www/stats
-
-sed -i 's/\r$//' /var/www/html/configuration.php
-
-cat /var/www/html/configuration.php | grep "db "
-db_db=$(cat /var/www/html/configuration.php | grep "db ")
-db_dbf=${db_db:12:-2}
-
-## Override
-#db_dbf="drdugo_sevsam"
-
-echo $db_dbf
-
-
-mysql < /var/srvctl/20140324010005/$db_dbf.sql
-
-mysql -u root -e "show databases;"
-
-owner=$(echo $db_dbf | cut -f1 -d"_" )
-
-echo $owner > /etc/owner
-
-cat /var/www/html/configuration.php | grep '$user '
-db_u=$(cat /var/www/html/configuration.php | grep '$user ')
-db_usr=${db_u:14:-2}
-
-## Override
-#db_usr="drdugo_sevsam"
-
-echo $db_usr
-
-cat /var/www/html/configuration.php | grep "password "
-db_p=$(cat /var/www/html/configuration.php | grep "password ")
-db_pwd=${db_p:18:-2}
-
-## Override
-#db_pwd="zt7Er34W"
-
-echo $db_pwd
-
-#exit
-SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-
-echo "(JOOMLA) $SQL"
-
-mysql -u root -e "$SQL"
-
-mkdir /log
-
-sed_file /var/www/html/configuration.php "log_path = '" "log_path = '/log'; // '"
-sed_file /var/www/html/configuration.php "tmp_path = '" "tmp_path = '/tmp'; // '"
-chmod 644 /var/www/html/configuration.php
-
-fi ## joomla
-
-
-## save these params
-conf=/etc/mysqluser.conf
-echo 'dbf:'$db_dbf > $conf
-echo 'usr:'$db_usr >> $conf
-echo 'pwd:'$db_pwd >> $conf
-
-
-cf=/etc/httpd/conf.d/$(hostname).conf
-
-echo '## srvctl generated' >> $cf
-echo '<Directory /var/www/html>' >> $cf
-
-cat /var/www/html/.htaccess >> $cf
-
-echo '' >> $cf
-echo '</Directory>' >> $cf
-echo '' >> $cf
-
-systemctl restart httpd.service
-
-fi ## config-
 
 
 
