@@ -149,14 +149,46 @@ function process_folder {
 	#echo -e " --- "$F
 
 	has_git=false
-	options='Skip | Download/Upload'
+	options='Skip'
 
-	if $rsync_avail
+	## is remote dir empty?
+	has_remote_files=false
+	if ! [ -z "$(ssh $U@$H 'ls /home/'$U'/'$D'/'$F' 2> /dev/null')" ]
 	then
-		options=$options" | rsync: Remote-to-local/Local-to-remote"
+		has_remote_files=true
+		options=$options" Download"
+	#else
+	#	echo 'Empty remote directory.'
 	fi
 
-	if $git_avail && ! [ "$F" == "html" ]
+	## has non-empty local folder?
+	has_local_files=false
+
+	if ! [ -z "$(ls ~/$H/$D/$F 2> /dev/null)" ]
+	then
+		has_local_files=true	
+		options=$options" Upload"
+	#else 
+	#	echo 'Empty local directory.'
+	fi
+
+
+
+	if $rsync_avail && $has_remote_files || $has_local_files
+	then
+		options=$options" | rsync:"
+
+		if $has_remote_files 
+		then
+			options=$options" Remote-to-local"
+		fi
+		if $has_local_files
+		then
+			options=$options" Local-to-remote"
+		fi
+	fi
+
+	if $git_avail && ! [ "$F" == "html" ] && ! [ "$F" == "root" ]
 	then 
 
 		# check for remote bare repository
@@ -187,7 +219,7 @@ function process_folder {
 
 
 
-	read -s -r -p " --- $F [$options] " -n 1 key
+	read -s -r -p " - $D/$F [$options] " -n 1 key
 	echo '... '$key	
 
 	if [ ! -z "$key" ]
@@ -198,7 +230,7 @@ function process_folder {
 		## should be available everywhere, so if not a git repo ...
 		if ! $has_git
 		then
-			if [ "$key" == d ] || [ "$key" == D ]
+			if [ "$key" == d ] || [ "$key" == D ] && $has_remote_files
 			then
 
 				echo "##  scp -r -C $U@$H:$D/$F ~/$H/$D"
@@ -206,7 +238,7 @@ function process_folder {
 				echo '... ready'
 			fi
 
-			if [ "$key" == u ] || [ "$key" == U ]
+			if [ "$key" == u ] || [ "$key" == U ] && $has_local_files
 			then
 				echo "##  scp -r -C ~/$H/$D/$F $U@$H:~/$D"
 				scp -r -C ~/$H/$D/$F $U@$H:~/$D
@@ -217,14 +249,14 @@ function process_folder {
 
 		if $rsync_avail && ! $has_git
 		then
-			if [ "$key" == r ] || [ "$key" == R ]
+			if [ "$key" == r ] || [ "$key" == R ] && $has_remote_files
 			then
 				echo "## rsync --delete -chavzP --stats $U@$H:$D/$F ~/$H/$D"
 	    			rsync --delete -chavzP --stats $U@$H:$D/$F ~/$H/$D
 				echo '... ready'
 			fi
 
-			if [ "$key" == l ] || [ "$key" == L ]
+			if [ "$key" == l ] || [ "$key" == L ] && $has_local_files
 			then
 				echo "## rsync --delete -chavzP --stats ~/$H/$D/$F $U@$H:~/$D"
 	    			rsync --delete -chavzP --stats ~/$H/$D/$F $U@$H:~/$D
@@ -310,7 +342,7 @@ do
 	## if the directory contains a dot, then its most likely a container
 	if [[ $D == *.* ]]
 	then
-	  echo " - "$D
+	  echo "-- "$D
 	  mkdir -p ~/$H/$D
 	  for F in $(ssh -q $U@$H ls $D)
 	  do

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-02:36:57
-# version 1.36.2
+# Last update:2014.07.26-16:53:25
+# version 1.36.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2651,6 +2651,7 @@ function regenerate_config_files {
 
 
 function regenerate_etc_hosts {
+	## and relaydomains
 
 	msg "regenerate etc_hosts" ## fist in $TMP
 	echo '# srvctl generated' > $TMP/hosts
@@ -3224,6 +3225,49 @@ function regenerate_users_structure {
 
 }
 
+function set_system_users {
+
+	ssh root@$C '
+	groupadd -r -g 100 srv 2> /dev/null \
+	useradd -r -u 100 -g 100 -s /bin/false srv 2> /dev/null \
+	groupadd -r -g 101 git 2> /dev/null \
+	useradd -r -u 101 -g 101 -s /bin/false git 2> /dev/null \
+	'
+}
+
+function generate_exports {
+	## argument container $C
+
+	set_system_users
+
+	mkdir -p $SRV/$C/rootfs/var/git
+	chown 101:101 $SRV/$C/rootfs/var/git
+
+	## We export everything with the userIDs in mind, eg: /var/www/html - with apache user rights
+	set_file  $SRV/$C/rootfs/etc/exports '## srvctl generated
+/root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
+/srv 10.10.0.1(rw,all_squash,anonuid=100,anongid=100)
+/var/git 10.10.0.1(rw,all_squash,anonuid=101,anongid=101)
+/var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
+'
+
+}
+
+function regenerate_exports {
+
+	if $all_arg_set
+	then
+		
+		for C in $(lxc-ls)
+		do	
+			generate_exports $C
+		done
+
+	fi
+
+}
+
+
 function regenerate_dns {
 	
 	msg "Regenerate DNS - named/bind configs"
@@ -3510,12 +3554,8 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 
 ## NFS
-	## We export /var/www/html - with apache user rights
-	set_file  $rootfs/etc/exports '## srvctl 
-/var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
-/root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
-/srv 10.10.0.1(rw,all_squash,anonuid=1000,anongid=1000)
-'
+	generate_exports $C	
+
 	## enable nfs
 	ln -s '/usr/lib/systemd/system/nfs.service' $rootfs'/etc/systemd/system/multi-user.target.wants/nfs.service'
 
