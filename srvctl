@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-23:02:48
-# version 1.36.8
+# Last update:2014.07.26-23:24:50
+# version 1.36.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3676,8 +3676,6 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 ## add system users 
 
-	ssh $C "$set_system_users"
-
 	ssh $C "groupadd -r -g 101 srv"
 	ssh $C "useradd -r -u 101 -g 101 -s /bin/false srv"
 
@@ -3690,7 +3688,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	ssh $C "groupadd -r -g 104 codepad"
 	ssh $C "useradd -r -u 104 -g 104 -s /bin/false codepad"
 
-	ssh $C 'chown srv:srv srv'
+	ssh $C 'chown srv:srv /srv'
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
