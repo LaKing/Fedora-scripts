@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-20:37:18
+# Last update:2014.07.26-20:39:43
 # version 1.36.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -3374,9 +3374,9 @@ __c=0
 	done
 	
 	counter=$(cat /etc/srvctl/counter)
-	if ! [ "$counter" -eq "$__n" ]
+	if ! [ "$counter" -eq "$__c" ]
 	then
-		msg "Counter: $counter vs $__n"
+		msg "Counter: $counter vs $__c"
 	fi
 	
 }
