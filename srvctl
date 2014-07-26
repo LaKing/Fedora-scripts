@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-23:24:50
-# version 1.36.9
+# Last update:2014.07.27-00:02:37
+# version 1.37.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3247,7 +3247,7 @@ function generate_exports {
 	## argument container $C
 
 	mkdir -p $SRV/$C/rootfs/var/git
-	chown 101:101 $SRV/$C/rootfs/var/git
+	chown 102:102 $SRV/$C/rootfs/var/git
 
 	## keep exports consistent with srvctl system_users !!
 
@@ -3410,6 +3410,8 @@ then
 	regenerate_users_configs
 
 	regenerate_users_structure
+
+	regenerate_exports
 
 	regenerate_dns
 
