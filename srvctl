@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-01:42:34
+# Last update:2014.07.26-02:01:21
 # version 1.36.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -2214,16 +2214,18 @@ function get_http_response {
 }
 
 function nfs_mount_folder {
-	## folder $F user $U on container $C
+	## $CP container-path (folder $F) user $U on container $C
+
+		F=$(basename $CP) 
 
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
 		then
 			mkdir -p /home/$U/$C/$F
 			chown 48:48 /home/$U/$C/$F 
 			msg "Mounting NFS share at /home/$U/$C/$F"
-			mount -t nfs $C:/var/www/html /home/$U/$C/$F
+			mount -t nfs $C:$CP /home/$U/$C/$F
 		else
-			ntc "Already mounted: $U $C $F" 
+			ntc "Already mounted or exists: $U $C $F" 
 		fi
 }
 
@@ -2249,7 +2251,7 @@ function nfs_mount {
 			do
 				if ! [ -z "$(echo $line | grep 10.10.0.1 )" ] && [ ${line:0:1} == '/' ]
 				then
-					msg "$(echo $line | cut -d ' ' -f 1)"
+					CP=$(echo $line | cut -d ' ' -f 1)
 				fi
 
 			done < $SRV/$C/rootfs/etc/exports
