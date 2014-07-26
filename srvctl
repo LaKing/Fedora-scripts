@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-22:36:00
-# version 1.36.5
+# Last update:2014.07.26-22:51:21
+# version 1.36.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3675,7 +3675,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
-	ssh $C $set_system_users
+	ssh $C "$set_system_users"
 	ssh $C 'chown srv:srv srv'
 
 	ssh $C "yum -y install dovecot"
