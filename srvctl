@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.27-00:37:33
+# Last update:2014.07.27-00:53:00
 # version 1.37.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4128,7 +4128,7 @@ then
 		develpass=$password
 
 
-set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
+set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
   "ep_codepad": { 
     "project_path": "'$project_path'",
@@ -4169,11 +4169,12 @@ set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel set
       ]
     }
 }'
-	chown codepad:codepad /srv/etherpad-lite/settings.json
+
+chown -R codepad:codepad /srv/etherpad-lite
 
 
 ## prepare the enviroment
-su codepad -c "/srv/etherpad-lite/bin/installDeps.sh"
+su -s /bin/bash -c "/srv/etherpad-lite/bin/installDeps.sh" codepad 
 
 
 ## proper way is to create a service to run codepad
@@ -4212,12 +4213,12 @@ WantedBy=multi-user.target
 	
 	cd $procect_path
 
-	git clone /var/git
+	git clone /var/git 2> /dev/null
 
 	#git add .
 	#git commit -m Inital_commit
 
-	chown -R codepad:codepad $project_path/*
+	#chown -R codepad:codepad $project_path
 	## chmod?
 	 
 	msg "admin pass is $adminpass @ https://$C/admin"	
