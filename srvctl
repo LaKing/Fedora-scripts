@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-20:06:28
-# version 1.36.3
+# Last update:2014.07.26-20:22:29
+# version 1.36.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3360,6 +3360,26 @@ function regenerate_logfiles {
 
 }
 
+function regenerate_counter {
+
+__c=0
+	for _C in $(lxc-ls)
+	do
+		__n=$(cat $SRV/$_C/config.counter)
+
+		if [ "$__n" -gt "$__c" ]
+		then
+			__c=__n
+		fi
+	done
+	
+	counter=$(cat /etc/srvctl/counter)
+	if ! [ "$counter" == "$__n" ]
+	then
+		msg "Counter: $counter vs $__n"
+	fi
+	
+}
 
 ## regenerate configs 
 hint "regenerate [all]	" "Regenerate configuration files, and restart affected services."
@@ -3370,6 +3390,8 @@ then
 	then
 	   all_arg_set=true
 	fi
+
+	regenerate_counter
 
 	regenerate_config_files
 
@@ -3390,6 +3412,7 @@ then
 	regenerate_dns
 
 	regenerate_logfiles
+	
 	
 ok
 fi ## regenerate
