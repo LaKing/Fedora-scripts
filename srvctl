@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-16:53:25
+# Last update:2014.07.26-20:06:28
 # version 1.36.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -212,7 +212,7 @@ function err {
     SUCC=$SUCC" "$1
 }
 
-dbg "Debug mode: on"
+
 
 ## Lablib functions end here.
 
@@ -244,6 +244,21 @@ HINT=$HINT"
 function ok {
 SUCC=" "
 }
+
+
+## note if debug is on or off
+dbg "Debug mode: on"
+
+set_system_users='
+groupadd -r -g 101 srv 2> /dev/null \
+useradd -r -u 101 -g 101 -s /bin/false srv 2> /dev/null \
+groupadd -r -g 102 git 2> /dev/null \
+useradd -r -u 102 -g 102 -s /bin/false git 2> /dev/null \
+groupadd -r -g 103 node 2> /dev/null \
+useradd -r -u 103 -g 103 -s /bin/false node 2> /dev/null \
+groupadd -r -g 104 codepad 2> /dev/null \
+useradd -r -u 104 -g 104 -s /bin/false codepad 2> /dev/null \
+'
 
 ## srvctl functions
 
@@ -3225,29 +3240,21 @@ function regenerate_users_structure {
 
 }
 
-function set_system_users {
 
-	ssh root@$C '
-	groupadd -r -g 100 srv 2> /dev/null \
-	useradd -r -u 100 -g 100 -s /bin/false srv 2> /dev/null \
-	groupadd -r -g 101 git 2> /dev/null \
-	useradd -r -u 101 -g 101 -s /bin/false git 2> /dev/null \
-	'
-}
 
 function generate_exports {
 	## argument container $C
 
-	set_system_users
-
 	mkdir -p $SRV/$C/rootfs/var/git
 	chown 101:101 $SRV/$C/rootfs/var/git
+
+	## keep exports consistent with srvctl system_users !!
 
 	## We export everything with the userIDs in mind, eg: /var/www/html - with apache user rights
 	set_file  $SRV/$C/rootfs/etc/exports '## srvctl generated
 /root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
-/srv 10.10.0.1(rw,all_squash,anonuid=100,anongid=100)
-/var/git 10.10.0.1(rw,all_squash,anonuid=101,anongid=101)
+/srv 10.10.0.1(rw,all_squash,anonuid=101,anongid=101)
+/var/git 10.10.0.1(rw,all_squash,anonuid=102,anongid=102)
 /var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
 '
 
@@ -3509,9 +3516,6 @@ HOSTIPv4="'$HOSTIPv4'"
 	## Or, in the containers mask / unmask journald.service - reboot container to apply.
 	ln -s '/dev/null' "$rootfs/etc/systemd/system/systemd-journald.service"
 
-	## create shortcut's in root's folder, so user dont get lost in the filesystem.
-	ln -s /var/www/html $rootfs/root
-
 ## Sendmail
 
 	## set containers sendmail que directory in order to allow apache to use php's mail function. (Didnt find a better way yet.) 
@@ -3647,7 +3651,8 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
-	
+	ssh $C $set_system_users
+	ssh $C 'chown srv:srv srv'
 
 	ssh $C "yum -y install dovecot"
 	ssh $C "systemctl enable dovecot.service"
@@ -4040,27 +4045,27 @@ then
 		yum -y install postgresql-devel
 		yum -y install mariadb mariadb-server
 
-		if [ ! -d "/home/codepad-user" ]; then
-			adduser codepad-user
-		fi
+		#if [ ! -d "/home/codepad-user" ]; then
+		#	adduser codepad-user
+		#fi
 		## folder to run etherpad from
 	
 		## get the latest version
-		su codepad-user -c "cd /home/codepad-user && git clone git://github.com/ether/etherpad-lite.git"	
-		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_codepad"
-		su codepad-user -c "cd /home/codepad-user/etherpad-lite && npm install ep_cursortrace"
+		su codepad -c "cd /srv && git clone git://github.com/ether/etherpad-lite.git"	
+		su codepad -c "cd /srv/etherpad-lite && npm install ep_codepad"
+		su codepad -c "cd /srv/etherpad-lite && npm install ep_cursortrace"
 		
 		## increase import filesize limitation
-		sed_file /home/codepad-user/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
+		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
 		
 		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
-		sed_file /home/codepad-user/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
+		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
 
-		project_path=/home/codepad-user/dev-data 
+		project_path=/srv/dev-data 
 
-		#su codepad-user -c "mkdir /home/codepad-user/dev-data"
+		su srv -c "mkdir $project_path"
 
-		ln -s /var/www/html $project_path
+		##ln -s /var/www/html $project_path
 
 		## for sessionkey
 		get_randomstr
@@ -4096,7 +4101,7 @@ set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel set
     "password": "'$db_pwd'",
     "database": "'$db_name'"
 },
-  "defaultPadText" : "Welcome to Etherpad-codepad @ '$C'...",
+  "defaultPadText" : "// D250 Laboratories - '$C'...",
   "requireSession" : false,
   "editOnly" : false,
   "minify" : true,
@@ -4118,12 +4123,14 @@ set_file /home/codepad-user/etherpad-lite/settings.json '/* ep_codepad-devel set
       ]
     }
 }'
-	chown codepad-user:codepad-user /home/codepad-user/etherpad-lite/settings.json
+	chown codepad:codepad /srv/etherpad-lite/settings.json
 
-## We copuld run this, but that bahaves strange
-#su codepad-user -c "/home/codepad-user/etherpad-lite/bin/run.sh &"
 
-## proper was is to create a service
+## prepare the enviroment
+su codepad -c "/srv/etherpad-lite/bin/installDeps.sh"
+
+
+## proper way is to create a service to run codepad
 set_file /lib/systemd/system/codepad.service '
 [Unit]
 Description=Run Codepad, the collaborative code editor.
@@ -4131,7 +4138,7 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/home/codepad-user/etherpad-lite/bin/run.sh
+ExecStart=node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js >> /srv/etherpad-lite/codepad.log
 
 [Install]
 WantedBy=multi-user.target
@@ -4143,18 +4150,29 @@ WantedBy=multi-user.target
 	systemctl start codepad.service
 	
 	ntc "Project path is: $project_path"
-	cd $project_path
+	cd /var/git
 
-	git config --global user.name "codepad-user"
-	git config --global user.email codepad-user@$(hostname)
+	git config --global user.name "codepad"
+	git config --global user.email codepad@$(hostname)
 
-	git init
+	if [ -z "$(ls /var/git)" ]
+	then
+		ntc 'Nem bare git repository in /var/git'
+		git init --bare
+		echo $(hostname) > description
+	else
+		ntc "Git repo not empty."
+	fi
+	
+	cd $procect_path
+
+	git clone /var/git
+
 	git add .
 	git commit -m Inital_commit
 
-	chown -R codepad-user:codepad-user $project_path/*
-
-	sed_file /home/codepad-user/etherpad-lite/bin/run.sh "node $SCRIPTPATH/node_modules/ep_etherpad-lite/node/server.js $*" "node $SCRIPTPATH/node_modules/ep_etherpad-lite/node/server.js $* > /home/codepad-user/etherpad.log &"
+	chown -R codepad:codepad $project_path/*
+	## chmod?
 	 
 	msg "admin pass is $adminpass @ https://$C/admin"	
 
