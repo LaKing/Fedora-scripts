@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-00:02:37
-# version 1.37.0
+# Last update:2014.07.27-00:37:33
+# version 1.37.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -579,9 +579,11 @@ echo "10.10."$_ip4 > $SRV/$C/config.ipv4
 function wait_for_ve_online {
 
 	## wait for the container to get up check via keyscan
-	__llimit=300
-	
+	__llimit=300	
 	__n=0
+
+	echo -n '..'
+
         while [  $__n -lt $__llimit ] 
 	do
 		sleep 0.1
@@ -606,8 +608,9 @@ function wait_for_ve_connection {
 
 	## wait for the container to get up check via ssh connect
 	__llimit=300
-
 	__n=0
+
+	echo -n '..'
 
         while [  $__n -lt $__llimit ] 
 	do
@@ -2761,7 +2764,7 @@ function regenerate_known_hosts {
 
 				scan_host_key $_C
 			else
-		 		err "VE is STOPPED, No host-key for: "$_C
+		 		ntc "VE is stopped, could not scan host-key for: "$_C
 				## host	key is needed for .ssh/known-hosts
 			fi
 			
@@ -4091,9 +4094,12 @@ then
 		## folder to run etherpad from
 	
 		## get the latest version
-		su codepad -c "cd /srv && git clone git://github.com/ether/etherpad-lite.git"	
-		su codepad -c "cd /srv/etherpad-lite && npm install ep_codepad"
-		su codepad -c "cd /srv/etherpad-lite && npm install ep_cursortrace"
+		cd /srv
+		git clone git://github.com/ether/etherpad-lite.git
+		
+		cd /srv/etherpad-lite 
+		npm install ep_codepad
+		npm install ep_cursortrace
 		
 		## increase import filesize limitation
 		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
@@ -4101,9 +4107,9 @@ then
 		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
 		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
 
-		project_path=/srv/dev-data 
+		project_path=/srv/project 
 
-		su srv -c "mkdir $project_path"
+		mkdir -p $project_path
 
 		##ln -s /var/www/html $project_path
 
@@ -4197,7 +4203,7 @@ WantedBy=multi-user.target
 
 	if [ -z "$(ls /var/git)" ]
 	then
-		ntc 'Nem bare git repository in /var/git'
+		ntc 'Init bare git repository in /var/git'
 		git init --bare
 		echo $(hostname) > description
 	else
@@ -4208,8 +4214,8 @@ WantedBy=multi-user.target
 
 	git clone /var/git
 
-	git add .
-	git commit -m Inital_commit
+	#git add .
+	#git commit -m Inital_commit
 
 	chown -R codepad:codepad $project_path/*
 	## chmod?
