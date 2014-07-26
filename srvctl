@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-02:35:55
+# Last update:2014.07.26-02:36:57
 # version 1.36.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -2287,7 +2287,7 @@ function nfs_unmount {
 						err "Unmount failed for /home/$U/$C/$F"
 					fi
 				fi 
-			do
+			done
 		done
 	fi
 }
