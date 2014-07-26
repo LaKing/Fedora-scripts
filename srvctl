@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-22:24:02
+# Last update:2014.07.26-22:36:00
 # version 1.36.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -2285,16 +2285,12 @@ function nfs_unmount {
 	## of user $U on container $C
 	## umount $C:/var/www/htm
 
-dbg "$C"
-
 	if [ -f $SRV/$C/users ]
 	then
 		for U in $(ls /home)
 		do
-dbg $U
 			for F in $(ls /home/$U/$C 2> /dev/null)
 			do 
-dbg $F
 				if ! [ -z "$(mount | grep /home/$U/$C/$F )" ] 
 				then
 					msg "Unmount $U $C $F"
@@ -3381,6 +3377,7 @@ __c=0
 	if ! [ "$counter" -eq "$__c" ]
 	then
 		msg "Counter: $counter vs $__c"
+		## todo, .. should the counter set __c ?
 	fi
 	
 }
