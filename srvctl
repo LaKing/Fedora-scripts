@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.26-22:51:31
-# version 1.36.7
+# Last update:2014.07.26-23:02:48
+# version 1.36.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -248,17 +248,6 @@ SUCC=" "
 
 ## note if debug is on or off
 dbg "Debug mode: on"
-
-set_system_users='
-groupadd -r -g 101 srv 2> /dev/null \
-useradd -r -u 101 -g 101 -s /bin/false srv 2> /dev/null \
-groupadd -r -g 102 git 2> /dev/null \
-useradd -r -u 102 -g 102 -s /bin/false git 2> /dev/null \
-groupadd -r -g 103 node 2> /dev/null \
-useradd -r -u 103 -g 103 -s /bin/false node 2> /dev/null \
-groupadd -r -g 104 codepad 2> /dev/null \
-useradd -r -u 104 -g 104 -s /bin/false codepad 2> /dev/null \
-'
 
 ## srvctl functions
 
@@ -1960,6 +1949,18 @@ fi ## install named
   #  mode = 0666
   #}
 
+
+groupadd -r -g 101 srv 2> /dev/null
+useradd -r -u 101 -g 101 -s /bin/false srv 2> /dev/null
+
+groupadd -r -g 102 git 2> /dev/null \
+useradd -r -u 102 -g 102 -s /bin/false git 2> /dev/null
+
+groupadd -r -g 103 node 2> /dev/null \
+useradd -r -u 103 -g 103 -s /bin/false node 2> /dev/null
+
+groupadd -r -g 104 codepad 2> /dev/null
+useradd -r -u 104 -g 104 -s /bin/false codepad 2> /dev/null
 
 
 ## User tools
@@ -3673,10 +3674,25 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	echo "Post installation, ..."
 
-## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
+## add system users 
 
 	ssh $C "$set_system_users"
+
+	ssh $C "groupadd -r -g 101 srv"
+	ssh $C "useradd -r -u 101 -g 101 -s /bin/false srv"
+
+	ssh $C "groupadd -r -g 102 git"
+	ssh $C "useradd -r -u 102 -g 102 -s /bin/false git"
+
+	ssh $C "groupadd -r -g 103 node"
+	ssh $C "useradd -r -u 103 -g 103 -s /bin/false node"
+
+	ssh $C "groupadd -r -g 104 codepad"
+	ssh $C "useradd -r -u 104 -g 104 -s /bin/false codepad"
+
 	ssh $C 'chown srv:srv srv'
+
+## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
 	ssh $C "yum -y install dovecot"
 	ssh $C "systemctl enable dovecot.service"
