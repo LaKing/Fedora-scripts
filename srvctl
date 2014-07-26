@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.26-21:58:33
+# Last update:2014.07.26-22:02:36
 # version 1.36.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -2292,7 +2292,7 @@ dbg "$C"
 		for U in $(ls /home)
 		do
 dbg $U
-			for F in /home/$U/$C/* ]
+			for F in $(ls /home/$U/$C)
 			do 
 dbg $F
 				if ! [ -z "$(mount | grep /home/$U/$C/$F )" ] 
