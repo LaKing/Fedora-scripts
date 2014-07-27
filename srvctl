@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.28-00:11:39
+# Last update:2014.07.28-00:15:22
 # version 1.37.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -2251,7 +2251,7 @@ function nfs_mount_folder {
 			ntc "Already mounted or exists: $U $C $F" 
 		fi
 
-		dbg $(ls -l /home/$U/$C/)
+		dbg "$(ls -l /home/$U/$C/)"
 }
 
 
