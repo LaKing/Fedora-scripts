@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-00:53:00
-# version 1.37.1
+# Last update:2014.07.27-05:23:30
+# version 1.37.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3693,7 +3693,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	ssh $C "groupadd -r -g 104 codepad"
 	ssh $C "useradd -r -u 104 -g 104 -s /bin/false codepad"
 
-	ssh $C 'chown srv:srv /srv'
+	ssh $C 'chown root:srv /srv'
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
@@ -4079,6 +4079,16 @@ then
 	if [ "$CMD" == "add-codepad" ]
 	then
 
+		argument project_type
+
+		## set default project type, if not given in an argument
+		if [ -z "$project_type" ]
+		then
+			project_type="node"
+		fi 
+
+dbg $project_type
+
 		setup_mariadb
 
 		## install packages
@@ -4088,7 +4098,7 @@ then
 		yum -y install postgresql-devel
 		yum -y install mariadb mariadb-server
 
-		#if [ ! -d "/home/codepad-user" ]; then
+		#if [ ! -d "//codepad-user" ]; then
 		#	adduser codepad-user
 		#fi
 		## folder to run etherpad from
@@ -4107,11 +4117,18 @@ then
 		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
 		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
 
-		project_path=/srv/project 
+		project_path=/srv/$project_type-project 
 
-		mkdir -p $project_path
 
-		##ln -s /var/www/html $project_path
+
+		if [ "$project_type" == "apache" ]
+		then
+			ln -s /var/www/html $project_path
+		else
+			mkdir -p $project_path
+			chown srv:codepad $project_path
+			chmod 775 $project_path
+		fi
 
 		## for sessionkey
 		get_randomstr
@@ -4170,31 +4187,90 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
     }
 }'
 
-chown -R codepad:codepad /srv/etherpad-lite
-
-
 ## prepare the enviroment
-su -s /bin/bash -c "/srv/etherpad-lite/bin/installDeps.sh" codepad 
+cd /srv/etherpad-lite
+bin/installDeps.sh
 
 
-## proper way is to create a service to run codepad
-set_file /lib/systemd/system/codepad.service '
-[Unit]
-Description=Run Codepad, the collaborative code editor.
-After=syslog.target network.target
+set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
 
-[Service]
-Type=simple
-ExecStart=node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js >> /srv/etherpad-lite/codepad.log
+mkdir -p /var/log/codepad
+chown codepad:srv /var/log/codepad
+chmod 750 /var/log/codepad
 
-[Install]
-WantedBy=multi-user.target
+cd /srv/etherpad-lite
 
+node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
 '
+
+chown -R codepad:srv /srv/etherpad-lite
+
 	systemctl daemon-reload
 
 	systemctl enable codepad.service
 	systemctl start codepad.service
+
+
+## proper way is to create a service to run codepad
+set_file /lib/systemd/system/codepad.service '## srvctl generated
+[Unit]
+Description=Codepad, the etherpad-lite based collaborative code editor.
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/srv/etherpad-lite/bin/codepad.sh
+User=codepad
+Group=codepad
+
+[Install]
+WantedBy=multi-user.target
+'
+
+
+
+if [ "$project_type" == "node" ]
+then
+
+set_file /srv/node-project/run.sh '#!/bin/bash
+
+mkdir -p /var/log/node-project
+chown node:srv /var/log/node-project
+chmod 750 /var/log/node-project
+
+cd /srv/node-project
+
+node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
+'
+
+set_file /lib/systemd/system/node-project.service '## srvctl generated
+[Unit]
+Description=Development node-project.
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/srv/node-project/run.sh
+User=node
+Group=node
+
+# Restart=always
+# SyslogIdentifier=node-project
+# Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+'	
+systemctl daemon-reload
+
+	systemctl enable node-project.service
+	systemctl start node-project.service
+
+fi ## if node-project
+
+
+
+
 	
 	ntc "Project path is: $project_path"
 	cd /var/git
@@ -4206,12 +4282,12 @@ WantedBy=multi-user.target
 	then
 		ntc 'Init bare git repository in /var/git'
 		git init --bare
-		echo $(hostname) > description
+		echo $project_type-project > description
 	else
 		ntc "Git repo not empty."
 	fi
 	
-	cd $procect_path
+	cd $project_path
 
 	git clone /var/git 2> /dev/null
 
