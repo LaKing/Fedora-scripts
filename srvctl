@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-05:34:44
-# version 1.37.4
+# Last update:2014.07.27-23:03:04
+# version 1.37.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2240,7 +2240,7 @@ function nfs_mount_folder {
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
 		then
 			mkdir -p /home/$U/$C/$F
-			#chown 48:48 /home/$U/$C/$F 
+			chown $U:$U /home/$U/$C/$F 
 			msg "Mounting NFS share at /home/$U/$C/$F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
 		else
@@ -2260,7 +2260,7 @@ function nfs_mount {
 
 		if [ ! -z "$(rpcinfo -p $C 2> /dev/null | grep nfs)" ] 
 		then			
-			while read line 
+			while read line ## of exports file
 			do
 				if ! [ -z "$(echo $line | grep 10.10.0.1 )" ] && [ ${line:0:1} == '/' ]
 				then
@@ -3225,6 +3225,12 @@ function regenerate_users_structure {
 		for U in $(cat $SRV/$C/users)
 		do
 			generate_user_structure
+
+			if $all_arg_set
+			then
+				nfs_unmount
+			fi
+
 			nfs_mount
 		done
  	done
@@ -4075,7 +4081,7 @@ hint ##-----------------
 if [ ${C:0:4} == "dev." ] 
 then
 
-	hint "add-codepad	" "Install ep_codepad, an Etherpad based collaborative code editor."
+	hint "add-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
 	if [ "$CMD" == "add-codepad" ]
 	then
 
@@ -4087,7 +4093,7 @@ then
 			project_type="node"
 		fi 
 
-		msg $project_type
+		msg $project_type-project
 
 		setup_mariadb
 
@@ -4203,6 +4209,8 @@ cd /srv/etherpad-lite
 node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
 '
 
+chmod +x /srv/etherpad-lite/bin/codepad.sh
+
 chown -R codepad:srv /srv/etherpad-lite
 
 	systemctl daemon-reload
@@ -4284,6 +4292,10 @@ Group=node
 [Install]
 WantedBy=multi-user.target
 '	
+
+chown -R node:codepad /srv/node-project
+chmod -R 664 /srv/node-project
+chmod 774 /srv/node-project/run.sh
 systemctl daemon-reload
 
 	systemctl enable node-project.service
