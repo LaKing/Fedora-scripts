@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.27-05:33:49
+# Last update:2014.07.27-05:34:44
 # version 1.37.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -4079,7 +4079,7 @@ then
 	if [ "$CMD" == "add-codepad" ]
 	then
 
-		project_type=$1
+		project_type=$2
 
 		## set default project type, if not given in an argument
 		if [ -z "$project_type" ]
