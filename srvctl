@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-23:03:04
-# version 1.37.5
+# Last update:2014.07.27-23:11:08
+# version 1.37.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2286,29 +2286,30 @@ function nfs_share {
 }
 
 function nfs_unmount {
-	## of user $U on container $C
+	## container $C
 	## umount $C:/var/www/htm
 
-	if [ -f $SRV/$C/users ]
-	then
-		for U in $(ls /home)
+	#if [ -f $SRV/$C/users ]
+	#then
+	_C=$C
+		for _U in $(ls /home)
 		do
-			for F in $(ls /home/$U/$C 2> /dev/null)
+			for _F in $(ls /home/$_U/$_C 2> /dev/null)
 			do 
-				if ! [ -z "$(mount | grep /home/$U/$C/$F )" ] 
+				if ! [ -z "$(mount | grep /home/$_U/$_C/$_F )" ] 
 				then
-					msg "Unmount $U $C $F"
-					umount /home/$U/$C/$F
+					msg "Unmount $_U $_C $_F"
+					umount /home/$_U/$_C/$_F
 					if [ "$?" == "0" ]
 					then
-						rm -rf /home/$U/$C/$F
+						rm -rf /home/$_U/$_C/$_F
 					else
-						err "Unmount failed for /home/$U/$C/$F"
+						err "Unmount failed for /home/$_U/$_C/$_F"
 					fi
 				fi 
 			done
 		done
-	fi
+	#fi
 }
 
 ## report status
