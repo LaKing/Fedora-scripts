@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-05:23:30
-# version 1.37.2
+# Last update:2014.07.27-05:26:17
+# version 1.37.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -629,7 +629,7 @@ function wait_for_ve_connection {
         done
 
 
-	echo " connected."
+	echo " connected"
 }
 
 
@@ -4079,7 +4079,7 @@ then
 	if [ "$CMD" == "add-codepad" ]
 	then
 
-		argument project_type
+		project_type=$1
 
 		## set default project type, if not given in an argument
 		if [ -z "$project_type" ]
