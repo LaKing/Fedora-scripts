@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.27-05:26:17
-# version 1.37.3
+# Last update:2014.07.27-05:33:49
+# version 1.37.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4087,7 +4087,7 @@ then
 			project_type="node"
 		fi 
 
-dbg $project_type
+		msg $project_type
 
 		setup_mariadb
 
@@ -4232,6 +4232,29 @@ WantedBy=multi-user.target
 if [ "$project_type" == "node" ]
 then
 
+## sample js file
+
+set_file /srv/node-project/server.js '/* srvctl generated node sample file */
+
+console.log("START");
+
+function sleep(callback) {
+  var now = new Date().getTime();
+  while(new Date().getTime() < now + 1000) {
+   // do nothing
+  }
+  callback();
+}
+ 
+console.log("Sleep");
+for(var i = 0; i < 50; i++) {
+  sleep(function() {console.log(i)});
+}
+
+console.log("END");
+'
+
+
 set_file /srv/node-project/run.sh '#!/bin/bash
 
 mkdir -p /var/log/node-project
@@ -4280,7 +4303,6 @@ fi ## if node-project
 
 	if [ -z "$(ls /var/git)" ]
 	then
-		ntc 'Init bare git repository in /var/git'
 		git init --bare
 		echo $project_type-project > description
 	else
