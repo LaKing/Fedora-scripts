@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.27-23:11:08
+# Last update:2014.07.28-00:11:39
 # version 1.37.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -1952,14 +1952,18 @@ fi ## install named
   #  mode = 0666
   #}
 
+## Add system users, so they have a name. Ignore errr messages.
+
+groupadd -r -g 48 apache 2> /dev/null
+useradd -r -u 48 -g 48 -s /bin/false apache 2> /dev/null
 
 groupadd -r -g 101 srv 2> /dev/null
 useradd -r -u 101 -g 101 -s /bin/false srv 2> /dev/null
 
-groupadd -r -g 102 git 2> /dev/null \
+groupadd -r -g 102 git 2> /dev/null
 useradd -r -u 102 -g 102 -s /bin/false git 2> /dev/null
 
-groupadd -r -g 103 node 2> /dev/null \
+groupadd -r -g 103 node 2> /dev/null
 useradd -r -u 103 -g 103 -s /bin/false node 2> /dev/null
 
 groupadd -r -g 104 codepad 2> /dev/null
@@ -2241,11 +2245,13 @@ function nfs_mount_folder {
 		then
 			mkdir -p /home/$U/$C/$F
 			chown $U:$U /home/$U/$C/$F 
-			msg "Mounting NFS share at /home/$U/$C/$F"
+			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
 		else
 			ntc "Already mounted or exists: $U $C $F" 
 		fi
+
+		dbg $(ls -l /home/$U/$C/)
 }
 
 
@@ -2287,10 +2293,6 @@ function nfs_share {
 
 function nfs_unmount {
 	## container $C
-	## umount $C:/var/www/htm
-
-	#if [ -f $SRV/$C/users ]
-	#then
 	_C=$C
 		for _U in $(ls /home)
 		do
@@ -2298,7 +2300,7 @@ function nfs_unmount {
 			do 
 				if ! [ -z "$(mount | grep /home/$_U/$_C/$_F )" ] 
 				then
-					msg "Unmount $_U $_C $_F"
+					msg "NFS unmount $_U $_C $_F"
 					umount /home/$_U/$_C/$_F
 					if [ "$?" == "0" ]
 					then
@@ -2309,7 +2311,6 @@ function nfs_unmount {
 				fi 
 			done
 		done
-	#fi
 }
 
 ## report status
