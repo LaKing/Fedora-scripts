@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.28-00:15:22
+# Last update:2014.07.28-17:21:14
 # version 1.37.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -297,18 +297,30 @@ function to_mac {
 function create_certificate { ## for container $C
 
 	## Prepare self-signed Certificate creation
-	msg "Create certificate for $C."
 
-	mkdir $SRV/$C/cert
+	cert_path=$SRV/$C/cert
+
+
+
+	if ! [ -z "$1" ]
+	then
+		cert_path=$1
+		C=$(hostname)
+	fi
 
 	ssl_days=1085
-	ssl_random=$SRV/$C/cert/random.txt
-	ssl_config=$SRV/$C/cert/$C.txt
-	ssl_key=$SRV/$C/cert/$C.key
-	ssl_org=$SRV/$C/cert/$C.key.org
-	ssl_crt=$SRV/$C/cert/$C.crt
-	ssl_csr=$SRV/$C/cert/$C.csr
-	ssl_pem=$SRV/$C/cert/$C.pem
+	ssl_random=$cert_path/random.txt
+	ssl_config=$cert_path/$C.txt
+	ssl_key=$cert_path/$C.key
+	ssl_org=$cert_path/$C.key.org
+	ssl_crt=$cert_path/$C.crt
+	ssl_csr=$cert_path/$C.csr
+	ssl_pem=$cert_path/$C.pem
+
+	msg "Create certificate for $C."
+
+	mkdir -p $cert_path
+
 
 	set_file $ssl_config "       RANDFILE               = $ssl_random
 
@@ -354,6 +366,12 @@ function create_certificate { ## for container $C
 	cat $ssl_key >  $ssl_pem
 	cat $ssl_crt >> $ssl_pem
 
+
+	if [ "$1" == "/root" ]
+	then
+		cat $ssl_key >  /root/key.pem
+		cat $ssl_crt >  /root/crt.pem
+	fi
 }
 
 
@@ -842,14 +860,12 @@ ssl_password=ssl_pass_$password
 ## certificate
 		if [ ! -f /root/crt.pem ]
 		then
-			err "Requirement-check, error: certificate check failed on /root/crt.pem - file not found. Exiting."
-			exit
+			create_certificate /root
 		fi
 
 		if [ ! -f /root/key.pem ]
 		then
-			err "Requirement-check, error: certificate check failed on /root/key.pem - file not found. Exiting."
-			exit
+			create_certificate /root
 		fi
 
 		if [ -f /root/ca-bundle.pem ]
@@ -2236,6 +2252,27 @@ function get_http_response {
 	fi
 }
 
+function generate_exports {
+	## argument container $C
+
+	mkdir -p $SRV/$C/rootfs/var/git
+	chown git:git $SRV/$C/rootfs/var/git
+	chown apache:apache $SRV/$C/rootfs/var/www/html
+	chown srv:srv $SRV/$C/rootfs/srv
+
+	## keep exports consistent with srvctl system_users !!
+
+	## We export everything with the userIDs in mind, eg: /var/www/html - with apache user rights
+	set_file  $SRV/$C/rootfs/etc/exports '## srvctl generated
+/root 10.10.0.1(ro)
+/srv 10.10.0.1(rw,all_squash,anonuid=101,anongid=101)
+/var/git 10.10.0.1(rw,all_squash,anonuid=102,anongid=102)
+/var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
+'
+
+}
+
+
 function nfs_mount_folder {
 	## $1 container-path (folder $F) user $U on container $C
 
@@ -2244,7 +2281,9 @@ function nfs_mount_folder {
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
 		then
 			mkdir -p /home/$U/$C/$F
-			chown $U:$U /home/$U/$C/$F 
+			#chown $U:$U /home/$U/$C/$F
+			
+ 
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
 		else
@@ -2296,9 +2335,12 @@ function nfs_unmount {
 	_C=$C
 		for _U in $(ls /home)
 		do
+dbg "unmount _U _C"
+## lsof /home/$_U/$_C/* >2 /dev/null
+
 			for _F in $(ls /home/$_U/$_C 2> /dev/null)
 			do 
-				if ! [ -z "$(mount | grep /home/$_U/$_C/$_F )" ] 
+				if ! [ -z "$(mount | grep /home/$_U/$_C/$_F )" ] && ! [ "$_C" == "mnt" ]
 				then
 					msg "NFS unmount $_U $_C $_F"
 					umount /home/$_U/$_C/$_F
@@ -3227,12 +3269,18 @@ function regenerate_users_structure {
 		for U in $(cat $SRV/$C/users)
 		do
 			generate_user_structure
+		done
 
-			if $all_arg_set
-			then
-				nfs_unmount
-			fi
+		if $all_arg_set
+		then
 
+			nfs_unmount
+
+			generate_exports $C
+		fi		
+
+		for U in $(cat $SRV/$C/users)
+		do
 			nfs_mount
 		done
  	done
@@ -3249,40 +3297,6 @@ function regenerate_users_structure {
 			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
 		fi
 	done
-
-}
-
-
-
-function generate_exports {
-	## argument container $C
-
-	mkdir -p $SRV/$C/rootfs/var/git
-	chown 102:102 $SRV/$C/rootfs/var/git
-
-	## keep exports consistent with srvctl system_users !!
-
-	## We export everything with the userIDs in mind, eg: /var/www/html - with apache user rights
-	set_file  $SRV/$C/rootfs/etc/exports '## srvctl generated
-/root 10.10.0.1(rw,all_squash,anonuid=0,anongid=0)
-/srv 10.10.0.1(rw,all_squash,anonuid=101,anongid=101)
-/var/git 10.10.0.1(rw,all_squash,anonuid=102,anongid=102)
-/var/www/html 10.10.0.1(rw,all_squash,anonuid=48,anongid=48)
-'
-
-}
-
-function regenerate_exports {
-
-	if $all_arg_set
-	then
-		
-		for C in $(lxc-ls)
-		do	
-			generate_exports $C
-		done
-
-	fi
 
 }
 
@@ -3421,8 +3435,6 @@ then
 	regenerate_users_configs
 
 	regenerate_users_structure
-
-	regenerate_exports
 
 	regenerate_dns
 
@@ -3628,8 +3640,10 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
-	## system user apache 48
-	chown -R 48:48  $rootfs/var/www/html
+
+	## system users
+	chown -R apache:apache  $rootfs/var/www/html
+	chown -R srv:srv  $rootfs/srv
 
 	## we regenerate re-link all log files. like in regenerate_logfiles
 	mkdir -p /var/log/httpd
@@ -3700,8 +3714,6 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	ssh $C "groupadd -r -g 104 codepad"
 	ssh $C "useradd -r -u 104 -g 104 -s /bin/false codepad"
-
-	ssh $C 'chown root:srv /srv'
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
