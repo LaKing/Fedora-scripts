@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.28-17:21:14
-# version 1.37.6
+# Last update:2014.07.29-05:02:52
+# version 1.37.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1019,7 +1019,7 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 	#### RESTART REQUIRED HERE, if libvirt networks got modified.
 	if ! $all_arg_set
 	then
-		log "LXC Installed. Restart required. Please run this command again after a reboot to continiue. Exiting."
+		log "LXC Installed. Please reboot, and run this command again to continiue. Exiting."
 		exit
 	fi
 
@@ -1971,19 +1971,19 @@ fi ## install named
 ## Add system users, so they have a name. Ignore errr messages.
 
 groupadd -r -g 48 apache 2> /dev/null
-useradd -r -u 48 -g 48 -s /bin/false apache 2> /dev/null
+useradd -r -u 48 -g 48 -s /sbin/nologin -d /usr/share/httpd apache 2> /dev/null
 
 groupadd -r -g 101 srv 2> /dev/null
-useradd -r -u 101 -g 101 -s /bin/false srv 2> /dev/null
+useradd -r -u 101 -g 101 -s /sbin/nologin -d /tmp srv 2> /dev/null
 
 groupadd -r -g 102 git 2> /dev/null
-useradd -r -u 102 -g 102 -s /bin/false git 2> /dev/null
+useradd -r -u 102 -g 102 -s /sbin/nologin -d /tmp git 2> /dev/null
 
 groupadd -r -g 103 node 2> /dev/null
-useradd -r -u 103 -g 103 -s /bin/false node 2> /dev/null
+useradd -r -u 103 -g 103 -s /sbin/nologin -d /tmp node 2> /dev/null
 
 groupadd -r -g 104 codepad 2> /dev/null
-useradd -r -u 104 -g 104 -s /bin/false codepad 2> /dev/null
+useradd -r -u 104 -g 104 -s /sbin/nologin -d /tmp codepad 2> /dev/null
 
 
 ## User tools
@@ -2335,15 +2335,18 @@ function nfs_unmount {
 	_C=$C
 		for _U in $(ls /home)
 		do
-dbg "unmount _U _C"
-## lsof /home/$_U/$_C/* >2 /dev/null
-
 			for _F in $(ls /home/$_U/$_C 2> /dev/null)
 			do 
 				if ! [ -z "$(mount | grep /home/$_U/$_C/$_F )" ] && ! [ "$_C" == "mnt" ]
 				then
 					msg "NFS unmount $_U $_C $_F"
+					
+					## log out user from ssh
+					pkill -u $_U
+
+					## unmount folder
 					umount /home/$_U/$_C/$_F
+					
 					if [ "$?" == "0" ]
 					then
 						rm -rf /home/$_U/$_C/$_F
@@ -3381,7 +3384,8 @@ function regenerate_logfiles {
 		fi
 	done
 
-	systemctl restart fail2ban.service
+	## TODO fix /check fail2ban
+	#systemctl restart fail2ban.service
 	
 
 }
@@ -3469,6 +3473,19 @@ then
 		rsync -a $SRV/$C $RMD
 		rm -fr $SRV/$C
 
+		## delete each users share.
+		for _U in $(ls /home)
+		do
+
+			if [ -z $(ls /home/$_U/$C/mnt ) ]
+				rm -rf /home/$_U/$C/mnt
+			fi
+
+			if [ -z $(ls /home/$_U/$C ) ]
+				rm -rf /home/$_U/$C
+			fi
+		fi
+
 		## TODO regenerate everything
 		regenerate_etc_hosts
 		regenerate_known_hosts
@@ -3476,7 +3493,7 @@ then
 		regenerate_dns
 		regenerate_logfiles
 	else
-		msg "Could not remove $C - not found."
+		msg "Could not remove $C - no such VE."
 	fi
 
 ok
@@ -3704,16 +3721,16 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 ## add system users 
 
 	ssh $C "groupadd -r -g 101 srv"
-	ssh $C "useradd -r -u 101 -g 101 -s /bin/false srv"
+	ssh $C "useradd -r -u 101 -g 101 -s /sbin/nologin -d /srv srv"
 
 	ssh $C "groupadd -r -g 102 git"
-	ssh $C "useradd -r -u 102 -g 102 -s /bin/false git"
+	ssh $C "useradd -r -u 102 -g 102 -s /sbin/nologin -d /var/git git"
 
 	ssh $C "groupadd -r -g 103 node"
-	ssh $C "useradd -r -u 103 -g 103 -s /bin/false node"
+	ssh $C "useradd -r -u 103 -g 103 -s /sbin/nologin -d /srv node"
 
 	ssh $C "groupadd -r -g 104 codepad"
-	ssh $C "useradd -r -u 104 -g 104 -s /bin/false codepad"
+	ssh $C "useradd -r -u 104 -g 104 -s /sbin/nologin -d /srv/etherpad-lite codepad"
 
 ## Dovecot - due to an error in yum, it has to be installed in the container after it has started.
 
@@ -3864,11 +3881,11 @@ function add_mariadb_db {
 	db_pwd=$password
 
 	SQL="CREATE DATABASE IF NOT EXISTS $db_name;"
-	ntc $SQL
+	ntc "$SQL"
 	mysql $MDA -e "$SQL"
 
 	SQL="GRANT ALL ON $db_name.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-	ntc $SQL
+	ntc "$SQL"
 	mysql $MDA -e "$SQL"
 
 	## save these params to etc
@@ -4212,15 +4229,20 @@ cd /srv/etherpad-lite
 bin/installDeps.sh
 
 
+mkdir -p /var/log/codepad
+chown codepad:codepad /var/log/codepad
+chmod 750 /var/log/codepad
+
 set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
 
 mkdir -p /var/log/codepad
 chown codepad:srv /var/log/codepad
 chmod 750 /var/log/codepad
+rm -rf  /var/log/codepad/*
 
 cd /srv/etherpad-lite
 
-node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
+/bin/node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
 '
 
 chmod +x /srv/etherpad-lite/bin/codepad.sh
@@ -4241,7 +4263,7 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/srv/etherpad-lite/bin/codepad.sh
+ExecStart=/bin/node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js  2> /var/log/codepad/err 1> /var/log/codepad/log
 User=codepad
 Group=codepad
 
@@ -4256,7 +4278,7 @@ then
 
 ## sample js file
 
-set_file /srv/node-project/server.js '/* srvctl generated node sample file */
+set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
 
 console.log("START");
 
@@ -4268,14 +4290,17 @@ function sleep(callback) {
   callback();
 }
  
-console.log("Sleep");
-for(var i = 0; i < 50; i++) {
+console.log("Counting sheeps, .. ");
+for(var i = 1; i < 50; i++) {
   sleep(function() {console.log(i)});
 }
 
 console.log("END");
 '
 
+	mkdir -p /var/log/node-project
+	chown node:srv /var/log/node-project
+	chmod 750 /var/log/node-project
 
 set_file /srv/node-project/run.sh '#!/bin/bash
 
@@ -4285,7 +4310,7 @@ chmod 750 /var/log/node-project
 
 cd /srv/node-project
 
-node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
+/bin/node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
 '
 
 set_file /lib/systemd/system/node-project.service '## srvctl generated
@@ -4295,7 +4320,7 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/srv/node-project/run.sh
+ExecStart=/bin/node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
 User=node
 Group=node
 
@@ -4307,10 +4332,11 @@ Group=node
 WantedBy=multi-user.target
 '	
 
-chown -R node:codepad /srv/node-project
-chmod -R 664 /srv/node-project
-chmod 774 /srv/node-project/run.sh
-systemctl daemon-reload
+	chown -R node:codepad /srv/node-project
+	chmod -R 664 /srv/node-project
+	chmod 774 /srv/node-project/run.sh
+
+	systemctl daemon-reload
 
 	systemctl enable node-project.service
 	systemctl start node-project.service

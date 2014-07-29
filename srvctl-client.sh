@@ -9,6 +9,13 @@
 ## - running on OsX
 ## - running on windows git bash - http://msysgit.github.io/ 
 
+## If user is root or runs on root privileges, continiue. (TODO: userspace implementation)
+if [ "$UID" == "0" ]
+then
+  echo "Running the client script as root is not recommended. exiting." 
+  exit
+fi
+
 ## lets start ... 
 CWD=$(pwd)
 

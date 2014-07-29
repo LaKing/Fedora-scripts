@@ -157,8 +157,8 @@ function process_folder {
 	then
 		has_remote_files=true
 		options=$options" Download"
-	else
-		echo 'Empty remote directory.'
+	#else
+	#	echo 'Empty remote directory.'
 	fi
 
 	## has non-empty local folder?
@@ -168,8 +168,8 @@ function process_folder {
 	then
 		has_local_files=true	
 		options=$options" Upload"
-	else 
-		echo 'Empty local directory.'
+	#else 
+	#	echo 'Empty local directory.'
 	fi
 
 
@@ -188,7 +188,7 @@ function process_folder {
 		fi
 	fi
 
-	if $git_avail && ! [ "$F" == "html" ]
+	if $git_avail && ! [ "$F" == "html" ] && ! [ "$F" == "root" ]
 	then 
 
 		# check for remote bare repository
@@ -230,7 +230,7 @@ function process_folder {
 		## should be available everywhere, so if not a git repo ...
 		if ! $has_git
 		then
-			if [ "$key" == d ] || [ "$key" == D ]
+			if [ "$key" == d ] || [ "$key" == D ] && $has_remote_files
 			then
 
 				echo "##  scp -r -C $U@$H:$D/$F ~/$H/$D"
@@ -238,7 +238,7 @@ function process_folder {
 				echo '... ready'
 			fi
 
-			if [ "$key" == u ] || [ "$key" == U ]
+			if [ "$key" == u ] || [ "$key" == U ] && $has_local_files
 			then
 				echo "##  scp -r -C ~/$H/$D/$F $U@$H:~/$D"
 				scp -r -C ~/$H/$D/$F $U@$H:~/$D
@@ -249,14 +249,14 @@ function process_folder {
 
 		if $rsync_avail && ! $has_git
 		then
-			if [ "$key" == r ] || [ "$key" == R ]
+			if [ "$key" == r ] || [ "$key" == R ] && $has_remote_files
 			then
 				echo "## rsync --delete -chavzP --stats $U@$H:$D/$F ~/$H/$D"
 	    			rsync --delete -chavzP --stats $U@$H:$D/$F ~/$H/$D
 				echo '... ready'
 			fi
 
-			if [ "$key" == l ] || [ "$key" == L ]
+			if [ "$key" == l ] || [ "$key" == L ] && $has_local_files
 			then
 				echo "## rsync --delete -chavzP --stats ~/$H/$D/$F $U@$H:~/$D"
 	    			rsync --delete -chavzP --stats ~/$H/$D/$F $U@$H:~/$D
