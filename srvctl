@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.29-05:02:52
+# Last update:2014.07.29-05:04:34
 # version 1.37.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -3477,14 +3477,14 @@ then
 		for _U in $(ls /home)
 		do
 
-			if [ -z $(ls /home/$_U/$C/mnt ) ]
+			if [ -z "$(ls /home/$_U/$C/mnt)" ]
 				rm -rf /home/$_U/$C/mnt
 			fi
 
-			if [ -z $(ls /home/$_U/$C ) ]
+			if [ -z "$(ls /home/$_U/$C )" ]
 				rm -rf /home/$_U/$C
 			fi
-		fi
+		done
 
 		## TODO regenerate everything
 		regenerate_etc_hosts
