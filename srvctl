@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.30-15:14:18
-# version 1.37.8
+# Last update:2014.07.30-16:07:41
+# version 1.37.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4337,6 +4337,7 @@ WantedBy=multi-user.target
 
 	chown -R node:codepad /srv/node-project
 	chmod -R 664 /srv/node-project
+	chmod 764 /srv/node-project
 	chmod 774 /srv/node-project/run.sh
 
 	systemctl daemon-reload
