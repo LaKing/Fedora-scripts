@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.30-16:08:02
-# version 1.37.9
+# Last update:2014.07.30-23:35:03
+# version 1.38.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3639,7 +3639,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	ln -s '/usr/lib/systemd/system/httpd.service' $rootfs'/etc/systemd/system/multi-user.target.wants/httpd.service'
 
 	## use this patch for better logging of IP addresses
-	set_file $SRV/$C/rootfs/etc/httpd/conf.d/pound.conf '## manually generated for srvctl
+	set_file $SRV/$C/rootfs/etc/httpd/conf.d/pound.conf '## srvctl
 	<IfModule log_config_module>
 
 	    ### Custom log redefinition
@@ -3647,8 +3647,12 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	    # LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %h %D \"%{Host}i\"" combined
 	    ## - As close as possible
 	    LogFormat "%{X-Forwarded-For}i %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
-	    
-	</IfModule>'
+
+	</IfModule>
+
+	Listen 8080
+	Listen 8443 
+'
 
 	## set default index page 
 	index=$rootfs/var/www/html/index.html
@@ -4165,6 +4169,9 @@ then
 		then
 			ln -s /var/www/html $project_path
 		else
+			systemctl stop httpd.service
+			systemctl disable httpd.service
+
 			mkdir -p $project_path
 			chown srv:codepad $project_path
 			chmod 775 $project_path
@@ -4237,14 +4244,14 @@ bin/installDeps.sh
 	chmod 750 /var/log/codepad
 
 set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
-echo "Starting, .."
+echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/codepad
 chown codepad:srv /var/log/codepad
 chmod 750 /var/log/codepad
 rm -rf  /var/log/codepad/*
 
-whoami /var/log/codepad/who
+whoami > /var/log/codepad/who
 
 cd /srv/etherpad-lite
 
@@ -4254,11 +4261,6 @@ cd /srv/etherpad-lite
 chmod +x /srv/etherpad-lite/bin/codepad.sh
 
 chown -R codepad:srv /srv/etherpad-lite
-
-	systemctl daemon-reload
-
-	systemctl enable codepad.service
-	systemctl start codepad.service
 
 
 ## proper way is to create a service to run codepad
@@ -4278,6 +4280,11 @@ WantedBy=multi-user.target
 '
 
 
+	systemctl daemon-reload
+
+	systemctl enable codepad.service
+	systemctl start codepad.service
+
 
 if [ "$project_type" == "node" ]
 then
@@ -4288,6 +4295,8 @@ set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file
 
 console.log("START");
 
+/*
+// Sheep-counting hello-world
 function sleep(callback) {
   var now = new Date().getTime();
   while(new Date().getTime() < now + 1000) {
@@ -4300,6 +4309,26 @@ console.log("Counting sheeps, .. ");
 for(var i = 1; i < 50; i++) {
   sleep(function() {console.log(i)});
 }
+*/
+
+// HTTP-hello-world
+// Load the http module to create an http server.
+var http = require("http");
+
+// Configure our HTTP server to respond with Hello World to all requests.
+var server = http.createServer(function (request, response) {
+  response.writeHead(200, {"Content-Type": "text/plain"});
+  response.end("Hello World\n");
+});
+
+// Listen on port 8000, IP defaults to 127.0.0.1
+server.listen(8000);
+
+// Put a friendly message on the terminal
+console.log("Server running at http://127.0.0.1:8000/");
+
+
+
 
 console.log("END");
 '
@@ -4309,7 +4338,7 @@ console.log("END");
 	chmod 750 /var/log/node-project
 
 set_file /srv/node-project/run.sh '#!/bin/bash
-echo "Starting, .."
+echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/node-project
 chown node:srv /var/log/node-project
@@ -4358,11 +4387,17 @@ fi ## if node-project
 
 	
 	ntc "Project path is: $project_path"
+
+	## this directory should be present, but we want to make sure.
+	mkdir -p /var/git
+	chown git:git /var/git
 	cd /var/git
 
 	git config --global user.name "codepad"
 	git config --global user.email codepad@$(hostname)
+	git config --global push.default simple
 
+	## init bare git repository
 	if [ -z "$(ls /var/git)" ]
 	then
 		git init --bare
@@ -4371,16 +4406,30 @@ fi ## if node-project
 		ntc "Git repo not empty."
 	fi
 	
-	cd $project_path
+	cd /srv
 
 	git clone /var/git 2> /dev/null
 
-	#git add .
-	#git commit -m Inital_commit
+	chown -R git:git /srv/git
+	mv /srv/git/.git $project_path
+	rm -rf /srv/git
 
-	#chown -R codepad:codepad $project_path
-	## chmod?
-	 
+	cd $project_path
+
+	git add .
+	git commit -m Inital_commit
+
+	git push
+
+
+	## iptables to forward port 8000 to port 80
+	#yum install iptables-services
+	#systemctl start iptables.service
+	#systemctl enable iptables.service
+
+	iptables -t nat -A PREROUTING -p udp --dport 80 -j REDIRECT --to-ports 8000
+ 	iptables -t nat -L
+
 	msg "admin pass is $adminpass @ https://$C/admin"	
 
 	ok
@@ -4422,9 +4471,9 @@ then
 		yum -y install unzip
 		yum -y install wordpress
 
-		## set containers timezone in php.ini, ...  	
+		## set params in php.ini, ...  	
 		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
-
+		sed_file $rootfs/etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
 
 		wd=/root
 		curl http://wordpress.org/latest.zip > $wd/latest.zip
@@ -4562,8 +4611,9 @@ then
 		## for dependencies.
 		yum -y install unzip php php-common php-gd php-mcrypt php-pear php-pecl-memcache php-mhash php-mysql php-xml php-mbstring
 
-		## set containers timezone in php.ini, ...  	
+		## set php.ini, ...  	
 		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+		sed_file $rootfs/etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
 
 		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
 		rm -rf $wd/latest.zip
