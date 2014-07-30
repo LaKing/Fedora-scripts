@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.29-05:05:14
-# version 1.37.7
+# Last update:2014.07.30-15:14:18
+# version 1.37.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2289,8 +2289,6 @@ function nfs_mount_folder {
 		else
 			ntc "Already mounted or exists: $U $C $F" 
 		fi
-
-		dbg "$(ls -l /home/$U/$C/)"
 }
 
 
@@ -3476,15 +3474,18 @@ then
 		## delete each users share.
 		for _U in $(ls /home)
 		do
-
-			if [ -z "$(ls /home/$_U/$C/mnt)" ]
+			if [ -d "/home/$_U/$C" ]
 			then
-				rm -rf /home/$_U/$C/mnt
-			fi
 
-			if [ -z "$(ls /home/$_U/$C )" ]
-			then
-				rm -rf /home/$_U/$C
+				if [ -z "$(ls /home/$_U/$C/mnt 2> /dev/null)" ]
+				then
+					rm -rf /home/$_U/$C/mnt
+				fi
+
+				if [ -z "$(ls /home/$_U/$C )" ]
+				then
+					rm -rf /home/$_U/$C
+				fi
 			fi
 		done
 
