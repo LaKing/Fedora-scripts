@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.30-16:07:41
+# Last update:2014.07.30-16:08:02
 # version 1.37.9
 #
 # Server Controll script for Fedora with LXC containers
@@ -4232,16 +4232,19 @@ cd /srv/etherpad-lite
 bin/installDeps.sh
 
 
-mkdir -p /var/log/codepad
-chown codepad:codepad /var/log/codepad
-chmod 750 /var/log/codepad
+	mkdir -p /var/log/codepad
+	chown codepad:codepad /var/log/codepad
+	chmod 750 /var/log/codepad
 
 set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
+echo "Starting, .."
 
 mkdir -p /var/log/codepad
 chown codepad:srv /var/log/codepad
 chmod 750 /var/log/codepad
 rm -rf  /var/log/codepad/*
+
+whoami /var/log/codepad/who
 
 cd /srv/etherpad-lite
 
@@ -4266,7 +4269,7 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js  2> /var/log/codepad/err 1> /var/log/codepad/log
+ExecStart=/srv/etherpad-lite/bin/codepad.sh
 User=codepad
 Group=codepad
 
@@ -4306,10 +4309,13 @@ console.log("END");
 	chmod 750 /var/log/node-project
 
 set_file /srv/node-project/run.sh '#!/bin/bash
+echo "Starting, .."
 
 mkdir -p /var/log/node-project
 chown node:srv /var/log/node-project
 chmod 750 /var/log/node-project
+
+whoami > /var/log/node-project/who
 
 cd /srv/node-project
 
@@ -4323,7 +4329,7 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-ExecStart=/bin/node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
+ExecStart=/srv/node-project/run.sh
 User=node
 Group=node
 
