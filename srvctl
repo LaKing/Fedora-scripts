@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.30-23:35:03
-# version 1.38.0
+# Last update:2014.07.31-00:09:05
+# version 1.38.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4423,12 +4423,18 @@ fi ## if node-project
 
 
 	## iptables to forward port 8000 to port 80
-	#yum install iptables-services
-	#systemctl start iptables.service
-	#systemctl enable iptables.service
+ 	#iptables -t nat -L
 
-	iptables -t nat -A PREROUTING -p udp --dport 80 -j REDIRECT --to-ports 8000
- 	iptables -t nat -L
+	yum install iptables-services
+
+	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8000
+
+	iptables-save > /etc/sysconfig/iptables
+
+	systemctl start iptables.service
+	systemctl enable iptables.service
+
+
 
 	msg "admin pass is $adminpass @ https://$C/admin"	
 
