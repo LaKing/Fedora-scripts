@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-00:09:05
-# version 1.38.1
+# Last update:2014.07.31-01:09:01
+# version 1.40.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4322,12 +4322,24 @@ var server = http.createServer(function (request, response) {
 });
 
 // Listen on port 8000, IP defaults to 127.0.0.1
-server.listen(8000);
+server.listen(8080);
+
 
 // Put a friendly message on the terminal
-console.log("Server running at http://127.0.0.1:8000/");
+console.log("Server running at http://127.0.0.1:8080/");
 
+var https = require("https");
+var fs = require("fs");
 
+var options = {
+  key: fs.readFileSync("/etc/pki/tls/private/localhost.key"),
+  cert: fs.readFileSync("/etc/pki/tls/certs/localhost.crt")
+};
+
+https.createServer(options, function (req, res) {
+  res.writeHead(200);
+  res.end("Hello secure world\n");
+}).listen(8433);
 
 
 console.log("END");
@@ -4427,12 +4439,79 @@ fi ## if node-project
 
 	yum install iptables-services
 
-	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8000
+	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
+	iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8443
+	iptables -t nat -A PREROUTING -p tcp --dport 250 -j REDIRECT --to-ports 9001
 
 	iptables-save > /etc/sysconfig/iptables
 
 	systemctl start iptables.service
 	systemctl enable iptables.service
+
+	## import source files.
+	APIKEY=$(cat /srv/etherpad-lite/APIKEY.txt)
+	createpad_url='http://127.0.0.1:9001/api/1/createPad'
+
+	function createpad {
+	f=$1
+		ntc ".. adding $f"
+		#filepath=$(echo ${f:2} | sed 's|/|___|g')
+		curl -d "apikey=$APIKEY" --data-urlencode "padID=${f:2}" --data-urlencode "text=$(cat $f)"  $createpad_url
+	}
+
+	## cd $project_path
+
+	    for f in $(find .)
+	    do
+	    # take action on each file. $f store current file name
+	     if [ -e $f ] 
+	     then
+
+	     ## Process file depending on extension
+
+
+		if [[ $f == *.json ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.md ]]
+		 then
+		    createpad $f
+		 fi
+
+
+		if [[ $f == *.txt ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.js ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.rb ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.html ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.css ]]
+		 then
+		    createpad $f
+		 fi
+
+		if [[ $f == *.php ]]
+		 then
+		    createpad $f
+		 fi
+	    fi
+	    done
 
 
 
