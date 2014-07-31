@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-06:29:31
+# Last update:2014.07.31-06:34:54
 # version 1.40.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -4231,6 +4231,7 @@ hint ##-----------------
 		if [ "$project_type" == "apache" ]
 		then
 			ln -s /var/www/html $project_path
+
 		else
 			systemctl stop httpd.service
 			systemctl disable httpd.service
@@ -4242,9 +4243,6 @@ hint ##-----------------
 
 		## for sessionkey
 		get_randomstr
-
-		## codepad/etherpad uses mysql
-		dbd=$(echo ${C:4} | tr "." "_")
 
 		add_mariadb_db
 
