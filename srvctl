@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-07:20:34
-# version 1.40.6
+# Last update:2014.07.31-23:08:27
+# version 1.40.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -109,7 +109,7 @@ fi
 CMD=$1
 ARG=$2
 ## Current start directory
-CSD=$(pwd)
+CWD=$(pwd)
 
 cd /root
 
@@ -236,7 +236,7 @@ fi
 function hint {
 
 HINT=$HINT" 
-  $1	$2"
+  $1		$2"
 
 } 
 
@@ -253,20 +253,27 @@ dbg "Debug mode: on"
 
 function argument {
 
-if [ -z "$ARG" ]
-then
-    if [ "$1" == "C" ]
+	if [ -z "$ARG" ]
 	then
-	  err "No container-name supplied .."
-	else
-          err "No $1 supplied .."
-	fi
-    exit
-fi
+	    	if [ "$1" == "C" ] || [ "$1" == "_C" ] || [ "$1" == "_c" ]
+		then
+		  err "No container-name supplied .."
+		  exit
+		fi
 
-## this might need further tests or investigation.
-## TODO check if this is waterproof
-eval $1=$ARG
+	    	if [ "$1" == "U" ] || [ "$1" == "_U" ] || [ "$1" == "_u" ]
+		then
+		  err "No username supplied .."
+		  exit
+		fi
+
+		err "No $1 supplied .."
+	    	exit
+	fi
+
+	## this might need further tests or investigation.
+	## TODO check if this is waterproof
+	eval $1=$ARG
 
 }
 
@@ -421,24 +428,46 @@ function get_password {
 
 }
 
-function add_user {
+function update_password {
+	## for local user
+	_u=$1
 
-_u=$1
+	## check if .password file exists and not empty
+	if ! [ -f "/home/$_u/.password" ] || [ -z "$(cat /home/$_u/.password 2> /dev/null)"]
+	then
+		## generate new password
+		get_password
+		echo $password > /home/$_u/.password
+	else
+		## use existing password
+		password=$(cat /home/$_u/.password)
+	fi
 
-  if [ ! -d "/home/$_u" ]; then
-	get_password
-
-	adduser $_u
+	## set password on the system
 	echo $password | passwd $_u --stdin
 
-	## Since this is a generated password, we add a note about it for the user?
+	## save
 	echo $password > /home/$_u/.password
 
-	log "User: $_u password: $password set on $(hostname)"
+	## create password hashes
+	echo -n $password | openssl dgst -sha512 | cut -d ' ' -f 2 > /home/$_u/.password.sha512
 
-	create_keypair
+	log "User: $_u password: $password set on "$(hostname)
+}
 
-  fi
+function add_user {
+
+	_u=$1
+
+	if [ ! -d "/home/$_u" ]; then
+
+		adduser $_u
+
+		update_password $_u
+
+		create_keypair
+
+	fi
 }
 
 function set_file_limits {
@@ -697,16 +726,64 @@ then
 ok
 fi ## adduser
 
+#hint "new-password [USERNAME]" "Set a new password for user."
+if [ "$CMD" == "new-password" ]
+then
+
+	_u=$(echo $CWD | cut -d '/' -f 3)
+	
+	if ! [ -d "/home/$_u" ] || [ -z "$_u" ] || ! [ -z "$2" ]
+	then
+		argument _u
+	fi
+
+	if [ -d "/home/$_u" ]
+	then
+		bak /home/$_u/.password
+	
+		get_password
+		echo $password > /home/$_u/.password
+
+		update_password $_u
+
+		if $onVE
+		then 
+			## TODO check this
+			echo "This is the mailing system at "$(hostname)", your password has been updated." | mail -s "Notice" $U
+		fi
+	fi
+ok
+fi ## adduser
+
+hint "update-password [USERNAME]" "Update password based on .password file"
+if [ "$CMD" == "update-password" ]
+then
+
+	_u=$(echo $CWD | cut -d '/' -f 3)
+	
+	if ! [ -d "/home/$_u" ] || [ -z "$_u" ] || ! [ -z "$2" ]
+	then
+		argument _u
+	fi
+
+	if [ -d "/home/$_u" ]
+	then
+		update_password $_u
+	fi
+ok
+fi ## adduser
+
+
+
 ## start or restart service
 hint "restart SERVICE" "You can use this command to restart a certain service via systemctl."
-if [ "$CMD" == "restart" ]
+if [ "$CMD" == "restart" ] 
 then
 	argument service
 
+	systemctl enable  $ARG.service
 	systemctl restart $ARG.service
 	systemctl status  $ARG.service
-	systemctl enable  $ARG.service
-
 ok
 fi ## start
 
@@ -2370,9 +2447,7 @@ then
 
 	echo ''
  done
-
 	echo ''
-
 ok	
 fi
 
@@ -2411,9 +2486,6 @@ then
 	get_pound_state
 	get_http_response
 
-
-
-
 	echo ''
  done
 
@@ -2436,7 +2508,7 @@ then
 	
 	if [ ! -f $SRV/$C/disabled ] && ! $is_running
 	then
-		lxc-start -n $C -d
+		lxc-start -o $SRV/$C/lxc.log -n $C -d
 		printf ${yellow}"%-10s"${NC} "STARTED"	
 		get_info
 		wait_for_ve_connection $C
@@ -2466,7 +2538,7 @@ then
 	
 		if [ ! -f $SRV/$C/disabled ] && ! $is_running
 		then
-			lxc-start -n $C -d
+			lxc-start -o $SRV/$C/lxc.log -n $C -d
 			printf ${yellow}"%-10s"${NC} "STARTED"	
 			get_info
 			wait_for_ve_connection $C
@@ -3312,6 +3384,13 @@ function generate_user_structure ## for user $U, Container $C
 		chown $U:$U /home/$U/$C
 		chown $U:$U /home/$U/$C/mnt
 
+		## make sure all the hashes are up to date
+		update_password $U
+
+		## take care of password hashes
+		ln /home/$U/.password.sha512 $SRV/$C/rootfs/mnt/$U/.password.sha512
+
+		## create directory we will bind to
 		mkdir -p $SRV/$C/rootfs/mnt/$U
 
 		## everything prepared, this is for container mount point.
@@ -3541,12 +3620,16 @@ then
 		do
 			if [ -d "/home/$_U/$C" ]
 			then
-
+				## take care of password hash
+				rm -rf /home/$_U/$C/mnt/.password.sha512
+				
+				## remove mnt folder - if empty
 				if [ -z "$(ls /home/$_U/$C/mnt 2> /dev/null)" ]
 				then
 					rm -rf /home/$_U/$C/mnt
 				fi
 
+				## remove user container folder
 				if [ -z "$(ls /home/$_U/$C )" ]
 				then
 					rm -rf /home/$_U/$C
@@ -4901,7 +4984,7 @@ else
 fi
 
 ## return to the directory we started from.
-cd $CSD >> /dev/null 2> /dev/null
+cd $CWD >> /dev/null 2> /dev/null
 
 exit
 
