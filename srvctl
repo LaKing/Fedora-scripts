@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-05:57:07
-# version 1.40.3
+# Last update:2014.07.31-05:59:12
+# version 1.40.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2282,11 +2282,8 @@ function nfs_mount_folder {
 			mkdir -p /home/$U/$C/$F
 			#chown $U:$U /home/$U/$C/$F
 			
- 
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
-		else
-			ntc "Already mounted or exists: $U $C $F" 
 		fi
 }
 
