@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-23:27:33
+# Last update:2014.07.31-23:28:51
 # version 1.40.9
 #
 # Server Controll script for Fedora with LXC containers
@@ -3387,7 +3387,10 @@ function generate_user_structure ## for user $U, Container $C
 		# update_password $U
 
 		## take care of password hashes
-		ln /home/$U/.password.sha512 /home/$U/$C/.password.sha512
+		if ! [ -f "/home/$U/$C/.password.sha512" ]
+		then
+			ln /home/$U/.password.sha512 /home/$U/$C/.password.sha512
+		fi
 
 		## create directory we will bind to
 		mkdir -p $SRV/$C/rootfs/mnt/$U
