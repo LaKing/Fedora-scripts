@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-23:41:36
+# Last update:2014.08.01-00:06:59
 # version 1.41.0
 #
 # Server Controll script for Fedora with LXC containers
@@ -4304,25 +4304,33 @@ hint ##-----------------
 		yum -y install npm
 		yum -y install gzip git-core curl python openssl-devel
 		yum -y install postgresql-devel
-
-		#if [ ! -d "//codepad-user" ]; then
-		#	adduser codepad-user
-		#fi
-		## folder to run etherpad from
 	
 		## get the latest version
-		cd /srv
-		git clone git://github.com/ether/etherpad-lite.git
+
+		if ! [ -d /srv/etherpad-lite ]
+		then
+			cd /srv/etherpad-lite
+			git pull
+
+			npm update ep_codepad
+			npm update ep_cursortrace
+
+		else	
+			cd /srv	
+			git clone git://github.com/ether/etherpad-lite.git
 		
-		cd /srv/etherpad-lite 
-		npm install ep_codepad
-		npm install ep_cursortrace
+			cd /srv/etherpad-lite 
+			npm install ep_codepad
+			npm install ep_cursortrace
+
+			## increase import filesize limitation
+			sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
 		
-		## increase import filesize limitation
-		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
-		
-		### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
-		sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
+			### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
+			sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
+
+		fi	
+
 
 		project_path=/srv/$project_type-project 
 
@@ -4330,7 +4338,13 @@ hint ##-----------------
 
 		if [ "$project_type" == "apache" ]
 		then
-			ln -s /var/www/html $project_path
+			if ! [ -d "$project_path" ]
+			then
+				ln -s /var/www/html $project_path
+			fi
+	
+			systemctl restart httpd.service
+			systemctl enable httpd.service
 
 		else
 			systemctl stop httpd.service
@@ -4341,11 +4355,10 @@ hint ##-----------------
 			chmod 775 $project_path
 		fi
 
-	if ! [ -f /srv/etherpad-lite/settings.json ]
-	then
 
 		## for sessionkey
 		get_randomstr
+
 
 		add_mariadb_db
 
@@ -4398,7 +4411,7 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
     }
 }'
 
-	fi
+	
 	
 ## prepare the enviroment
 cd /srv/etherpad-lite
