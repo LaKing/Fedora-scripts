@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-06:34:54
+# Last update:2014.07.31-07:20:34
 # version 1.40.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -4241,6 +4241,9 @@ hint ##-----------------
 			chmod 775 $project_path
 		fi
 
+	if ! [ -f /srv/etherpad-lite/settings.json ]
+	then
+
 		## for sessionkey
 		get_randomstr
 
@@ -4295,6 +4298,8 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
     }
 }'
 
+	fi
+	
 ## prepare the enviroment
 cd /srv/etherpad-lite
 bin/installDeps.sh
@@ -4363,7 +4368,7 @@ WantedBy=multi-user.target
 console.log("START");
 
 /*
-// Sheep-counting hello-world
+// CONSOLE-hello-world Sheep-counting 
 function sleep(callback) {
   var now = new Date().getTime();
   while(new Date().getTime() < now + 1000) {
@@ -4391,10 +4396,7 @@ var server = http.createServer(function (request, response) {
 // Listen on port 8000, IP defaults to 127.0.0.1
 server.listen(8080);
 
-
-// Put a friendly message on the terminal
-console.log("Server running at http://127.0.0.1:8080/");
-
+// HTTPS-hello-world
 var https = require("https");
 var fs = require("fs");
 
@@ -4406,7 +4408,10 @@ var options = {
 https.createServer(options, function (req, res) {
   res.writeHead(200);
   res.end("Hello secure world\n");
-}).listen(8433);
+}).listen(8443);
+
+// Put a friendly message on the terminal
+console.log("Server running at http://'$C'/ and at https://'$C'/");
 
 
 console.log("END");
@@ -4581,7 +4586,7 @@ WantedBy=multi-user.target
 
 
 
-	msg "admin pass is $adminpass @ https://$C/admin"	
+	msg "Codepad: https://dev.$C/admin admin:$adminpass"	
 
 ok
 fi ## codepad
