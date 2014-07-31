@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-23:08:27
-# version 1.40.7
+# Last update:2014.07.31-23:21:32
+# version 1.40.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -433,26 +433,25 @@ function update_password {
 	_u=$1
 
 	## check if .password file exists and not empty
-	if ! [ -f "/home/$_u/.password" ] || [ -z "$(cat /home/$_u/.password 2> /dev/null)"]
+	if ! [ -f "/home/$_u/.password" ] || [ -z "$(cat /home/$_u/.password 2> /dev/null)" ]
 	then
 		## generate new password
 		get_password
 		echo $password > /home/$_u/.password
+		log "User: $_u password: $password set on "$(hostname)
 	else
 		## use existing password
 		password=$(cat /home/$_u/.password)
 	fi
 
 	## set password on the system
-	echo $password | passwd $_u --stdin
+	echo $password | passwd $_u --stdin 2> /dev/null
 
 	## save
 	echo $password > /home/$_u/.password
 
 	## create password hashes
 	echo -n $password | openssl dgst -sha512 | cut -d ' ' -f 2 > /home/$_u/.password.sha512
-
-	log "User: $_u password: $password set on "$(hostname)
 }
 
 function add_user {
@@ -3388,7 +3387,7 @@ function generate_user_structure ## for user $U, Container $C
 		update_password $U
 
 		## take care of password hashes
-		ln /home/$U/.password.sha512 $SRV/$C/rootfs/mnt/$U/.password.sha512
+		ln /home/$U/.password.sha512 /home/$U/$C/.password.sha512
 
 		## create directory we will bind to
 		mkdir -p $SRV/$C/rootfs/mnt/$U
