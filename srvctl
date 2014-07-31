@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-05:59:12
-# version 1.40.4
+# Last update:2014.07.31-06:05:17
+# version 1.40.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2752,7 +2752,7 @@ function regenerate_etc_hosts {
 						then
 							ntc "$_C alias: $A - is the host itself!"
 						else
-							ntc "$A is an alias of $_C"
+							# ntc "$A is an alias of $_C"
 			 	  			echo $ip'		'$A >>  $TMP/hosts
 				  			echo $ip'		mail.'$A >>  $TMP/hosts
 							echo $A' #' >>  $TMP/relaydomains
