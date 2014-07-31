@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-06:16:20
+# Last update:2014.07.31-06:29:31
 # version 1.40.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -4352,7 +4352,13 @@ WantedBy=multi-user.target
 	if [ "$project_type" == "node" ]
 	then
 
-		## sample js file
+		## use the localhost certificate for node
+		mkdir /var/node
+		cat /etc/pki/tls/private/localhost.key > /var/node/key.pem 
+		cat /etc/pki/tls/certs/localhost.crt > /var/node/crt.pem
+		chown node:node /var/node
+
+		## create sample js file
 
 		set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
 
@@ -4395,8 +4401,8 @@ var https = require("https");
 var fs = require("fs");
 
 var options = {
-  key: fs.readFileSync("/etc/pki/tls/private/localhost.key"),
-  cert: fs.readFileSync("/etc/pki/tls/certs/localhost.crt")
+  key: fs.readFileSync("/var/node/key.pem"),
+  cert: fs.readFileSync("/var/node/crt.pem")
 };
 
 https.createServer(options, function (req, res) {
@@ -4407,7 +4413,7 @@ https.createServer(options, function (req, res) {
 
 console.log("END");
 '
-
+		## prepare logging capabilities
 		mkdir -p /var/log/node-project
 		chown node:srv /var/log/node-project
 		chmod 750 /var/log/node-project
@@ -4444,7 +4450,7 @@ Group=node
 [Install]
 WantedBy=multi-user.target
 '	
-
+		## prepare data dir
 		chown -R node:codepad /srv/node-project
 		chmod -R 664 /srv/node-project
 		chmod 764 /srv/node-project
@@ -4498,7 +4504,7 @@ WantedBy=multi-user.target
 	## iptables to forward port 8000 to port 80
  	#iptables -t nat -L
 
-	yum install iptables-services
+	yum -y install iptables-services
 
 	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
 	iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8443
@@ -4518,6 +4524,7 @@ WantedBy=multi-user.target
 		ntc ".. adding $f"
 		#filepath=$(echo ${f:2} | sed 's|/|___|g')
 		curl -d "apikey=$APIKEY" --data-urlencode "padID=${f:2}" --data-urlencode "text=$(cat $f)"  $createpad_url
+		echo ''
 	}
 
 	## cd $project_path
