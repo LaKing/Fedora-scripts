@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-01:09:01
-# version 1.40.1
+# Last update:2014.07.31-05:29:11
+# version 1.40.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1190,7 +1190,6 @@ ListenHTTPS
     Cert "/etc/pound/pound.pem"
 
     Include "/var/pound/https-includes.cfg"
-
 
 End
 
@@ -2851,6 +2850,7 @@ function regenerate_pound_files {
 	echo $MSG > /var/pound/https-includes.cfg
 	echo $MSG > /var/pound/https-certificates.cfg
 
+	echo $MSG > /var/pound/http-domains.cfg
 	echo $MSG > /var/pound/http-8-domains.cfg
 	echo $MSG > /var/pound/http-7-domains.cfg
 	echo $MSG > /var/pound/http-6-domains.cfg
@@ -2860,6 +2860,7 @@ function regenerate_pound_files {
 	echo $MSG > /var/pound/http-2-domains.cfg
 	echo $MSG > /var/pound/http-1-domains.cfg
 
+	echo $MSG > /var/pound/https-domains.cfg
 	echo $MSG > /var/pound/https-8-domains.cfg
 	echo $MSG > /var/pound/https-7-domains.cfg
 	echo $MSG > /var/pound/https-6-domains.cfg
@@ -2870,7 +2871,8 @@ function regenerate_pound_files {
 	echo $MSG > /var/pound/https-1-domains.cfg
 
 	echo 'Include "/var/pound/https-certificates.cfg"' >> /var/pound/https-includes.cfg
-	
+
+	echo 'Include "/var/pound/http-domains.cfg"' >> /var/pound/http-includes.cfg	
 	echo 'Include "/var/pound/http-8-domains.cfg"' >> /var/pound/http-includes.cfg
 	echo 'Include "/var/pound/http-7-domains.cfg"' >> /var/pound/http-includes.cfg
 	echo 'Include "/var/pound/http-6-domains.cfg"' >> /var/pound/http-includes.cfg
@@ -2880,6 +2882,7 @@ function regenerate_pound_files {
 	echo 'Include "/var/pound/http-2-domains.cfg"' >> /var/pound/http-includes.cfg
 	echo 'Include "/var/pound/http-1-domains.cfg"' >> /var/pound/http-includes.cfg
 
+	echo 'Include "/var/pound/https-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-8-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-7-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-6-domains.cfg"' >> /var/pound/https-includes.cfg
@@ -2951,6 +2954,16 @@ function regenerate_pound_files {
 		_ip=$(cat $SRV/$_C/config.ipv4)		
 		_http_port=80
 		_https_port=443
+		_host=$_C
+		## used in the second part on redirects
+		_http_mark='http'										
+		_https_mark='https'
+
+
+		if [ -f $SRV/$_C/pound-host ]
+		then
+			_host=$(cat $SRV/$_C/pound-host)
+		fi	
 
 		## custom directive for the backend port
 		if [ -f $SRV/$_C/pound-http-port ]
@@ -2963,77 +2976,15 @@ function regenerate_pound_files {
 			_https_port=$(cat $SRV/$_C/pound-https-port)
 		fi
 
-
 		if [ ! -f $SRV/$_C/disabed ]
 		then
-		for A in $(echo $_C && cat $SRV/$_C/aliases 2> /dev/null)
-		do
+			## Directly addressed pound domains
 
-			set_file $cfg_dir/$A-http-service '## srvctl '$_C' '$_ip'
-			Service
-				  HeadRequire "Host: .*'$A'.*"
-				  BackEnd
-				      Address '$_C'
-				      Port    '$_http_port'
-				  End
-			End'
-
-			set_file $cfg_dir/$A-https-service '## srvctl '$_C' '$_ip'
-			Service
-				  HeadRequire "Host: .*'$A'.*"
-				  BackEnd
-				      Address '$_C'
-				      Port    '$_https_port'
-				      HTTPS
-				  End
-			End'
-
-			http=$A-http-service
-			https=$A-https-service
-
-			if [ -f $SRV/$_C/pound-no-http ]
+			if ! [ -f $SRV/$_C/pound-no-dev ]
 			then
-	
-				set_file $cfg_dir/$A-no-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/dev-service '## srvctl '$_C' '$_ip'
 				Service
-					  HeadRequire "Host: .*'$A'.*"
-					  Redirect "https://'$A'"
-				End'
-				http=$A-no-http-service
-			fi
-
-			if [ -f $SRV/$_C/pound-no-https ]
-			then
-	
-				set_file $cfg_dir/$A-no-https-service '## srvctl '$_C' '$_ip'
-				Service
-					  HeadRequire "Host: .*'$A'.*"
-					  Redirect "http://'$A'"
-				End'
-				https=$A-no-https-service
-			fi
-
-			if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
-			then
-	
-				set_file $cfg_dir/$A-redirect-service '## srvctl '$_C' '$_ip'
-				Service
-					  HeadRequire "Host: .*'$A'.*"
-					  Redirect "https://'$(cat $SRV/$_C/pound-redirect)'"
-				End'
-				http=$A-redirect-service
-				https=$A-redirect-service
-			fi
-
-
-			if [ ${A:0:4} == "dev." ] 
-			then
-			  
-			 	## msg "Setting up as developer-domain. ( translating port 9001 to 443)."
-
-				set_file $cfg_dir/$A-service-dev '## srvctl '$_C'
-				Service
-					  HeadRequire "Host: .*'$A'.*"
+					  HeadRequire "Host: dev.'$_C'.*"
 					  BackEnd
 					      Address '$_C'
 					      Port    9001
@@ -3041,21 +2992,112 @@ function regenerate_pound_files {
 					  End
 				End'
 
-				https=$A-service-dev
+				echo 'Include "'$cfg_dir/dev-service'"' >> /var/pound/https-domains.cfg
 			fi
-		
-			##
-			## Other customizations might come here
-			##
 
-			## dnl will count the dots in the domain
-			dnl=$(echo $A | grep -o "\." | grep -c "\.")
+			if [ -f $SRV/$_C/pound-no-http ]
+			then
+				set_file $cfg_dir/http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_host'"
+					  Redirect "https://'$_host'"
+				End'
 
-			## finally inlcude the demanded service
-			echo 'Include "'$cfg_dir/$http'"' >> /var/pound/http-$dnl-domains.cfg
-			echo 'Include "'$cfg_dir/$https'"' >> /var/pound/https-$dnl-domains.cfg
+				_http_mark='https'
+			else
+				set_file $cfg_dir/http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_host'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_http_port'
+					  End
+				End'
+			fi
 
-		done ## for C and aliases
+			if [ -f $SRV/$_C/pound-no-https ]
+			then
+
+				set_file $cfg_dir/https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_host'"
+					  Redirect "http://'$_host'"
+				End'
+
+				_https_mark='http'
+			else
+				set_file $cfg_dir/https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_host'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_https_port'
+					      HTTPS
+					  End
+				End'
+			fi
+
+			if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
+			then
+	
+				set_file $cfg_dir/redirect-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_name'"
+					  Redirect "'$(cat $SRV/$_C/pound-redirect)'"
+				End'
+
+				echo 'Include "'$cfg_dir/redirect-service'"' >> /var/pound/http-domains.cfg
+				echo 'Include "'$cfg_dir/redirect-service'"' >> /var/pound/https-domains.cfg
+			else
+
+				## finally inlcude the demanded service
+				echo 'Include "'$cfg_dir/http-service'"' >> /var/pound/http-domains.cfg
+				echo 'Include "'$cfg_dir/https-service'"' >> /var/pound/https-domains.cfg
+
+			fi
+			
+			## aliased, or match based domains - redirect only
+
+			for A in $(echo $_C && cat $SRV/$_C/aliases 2> /dev/null)
+			do
+				## dnl will count the dots in the domain - for priorizing domains with more dots
+				dnl=$(echo $A | grep -o "\." | grep -c "\.")
+
+
+				if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
+				then
+	
+					set_file $cfg_dir/$A-redirect-service '## srvctl '$_C' '$_ip'
+					Service
+						  HeadRequire "Host: .*'$A'.*"
+						  Redirect "'$(cat $SRV/$_C/pound-redirect)'"
+					End'
+					## finally inlcude the demanded service
+					echo 'Include "'$cfg_dir/$A-redirect-service'"' >> /var/pound/http-$dnl-domains.cfg
+					echo 'Include "'$cfg_dir/$A-redirect-service'"' >> /var/pound/https-$dnl-domains.cfg
+
+				else
+
+
+					set_file $cfg_dir/$A-http-service '## srvctl '$_C' '$_ip'
+					Service
+						  HeadRequire "Host: .*'$A'.*"
+						  Redirect "'$_http_mark'://'$_host'"
+					End'
+
+					set_file $cfg_dir/$A-https-service '## srvctl '$_C' '$_ip'
+					Service
+						  HeadRequire "Host: .*'$A'.*"
+						  Redirect "'$_https_mark'://'$_host'"
+					End'
+
+					echo 'Include "'$cfg_dir/$A-http-service'"' >> /var/pound/http-$dnl-domains.cfg
+					echo 'Include "'$cfg_dir/$A-https-service'"' >> /var/pound/https-$dnl-domains.cfg
+
+
+				fi
+
+			done ## for C and aliases
 		fi
 
 		## if there is some problem, start an automatic debug process, that skips broken configs
@@ -3074,6 +3116,7 @@ function regenerate_pound_files {
 				cat /var/pound/https-includes.cfg > /var/pound/https-includes.lok
 				cat /var/pound/https-certificates.cfg > /var/pound/https-certificates.lok
 
+				cat /var/pound/http-domains.cfg > /var/pound/http-domains.lok
 				cat /var/pound/http-8-domains.cfg > /var/pound/http-8-domains.lok
 				cat /var/pound/http-7-domains.cfg > /var/pound/http-7-domains.lok
 				cat /var/pound/http-6-domains.cfg > /var/pound/http-6-domains.lok
@@ -3083,6 +3126,7 @@ function regenerate_pound_files {
 				cat /var/pound/http-2-domains.cfg > /var/pound/http-2-domains.lok
 				cat /var/pound/http-1-domains.cfg > /var/pound/http-1-domains.lok
 
+				cat /var/pound/https-domains.cfg > /var/pound/https-domains.lok
 				cat /var/pound/https-8-domains.cfg > /var/pound/https-8-domains.lok
 				cat /var/pound/https-7-domains.cfg > /var/pound/https-7-domains.lok
 				cat /var/pound/https-6-domains.cfg > /var/pound/https-6-domains.lok
@@ -3100,6 +3144,7 @@ function regenerate_pound_files {
 				cat /var/pound/https-includes.lok > /var/pound/https-includes.cfg
 				cat /var/pound/https-certificates.lok > /var/pound/https-certificates.cfg
 
+				cat /var/pound/http-domains.lok > /var/pound/http-domains.cfg
 				cat /var/pound/http-8-domains.lok > /var/pound/http-8-domains.cfg
 				cat /var/pound/http-7-domains.lok > /var/pound/http-7-domains.cfg
 				cat /var/pound/http-6-domains.lok > /var/pound/http-6-domains.cfg
@@ -3109,6 +3154,7 @@ function regenerate_pound_files {
 				cat /var/pound/http-2-domains.lok > /var/pound/http-2-domains.cfg
 				cat /var/pound/http-1-domains.lok > /var/pound/http-1-domains.cfg
 
+				cat /var/pound/https-domains.lok > /var/pound/https-domains.cfg
 				cat /var/pound/https-8-domains.lok > /var/pound/https-8-domains.cfg
 				cat /var/pound/https-7-domains.lok > /var/pound/https-7-domains.cfg
 				cat /var/pound/https-6-domains.lok > /var/pound/https-6-domains.cfg
@@ -4140,7 +4186,6 @@ then
 		yum -y install npm
 		yum -y install gzip git-core curl python openssl-devel
 		yum -y install postgresql-devel
-		yum -y install mariadb mariadb-server
 
 		#if [ ! -d "//codepad-user" ]; then
 		#	adduser codepad-user
@@ -4394,14 +4439,12 @@ WantedBy=multi-user.target
 
 fi ## if node-project
 
-
-
-
 	
 	ntc "Project path is: $project_path"
 
 	## this directory should be present, but we want to make sure.
 	mkdir -p /var/git
+
 	chown git:git /var/git
 	cd /var/git
 
