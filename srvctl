@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.07.31-05:50:16
+# Last update:2014.07.31-05:54:59
 # version 1.40.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -2990,7 +2990,7 @@ function regenerate_pound_files {
 					  End
 				End
 				Service
-					  HeadRequire "Host: '$_C'.'$CDN'"
+					  HeadRequire "Host: '$_C'.'$(dnsdomainname)'"
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_http_port'
