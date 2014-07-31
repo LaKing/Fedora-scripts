@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-06:05:17
-# version 1.40.5
+# Last update:2014.07.31-06:16:20
+# version 1.40.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4181,8 +4181,7 @@ fi ## MariaDB related fuctions
 
 hint ##-----------------
 
-if [ ${C:0:4} == "dev." ] 
-then
+
 
 	hint "add-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
 	if [ "$CMD" == "add-codepad" ]
@@ -4350,12 +4349,12 @@ WantedBy=multi-user.target
 	systemctl start codepad.service
 
 
-if [ "$project_type" == "node" ]
-then
+	if [ "$project_type" == "node" ]
+	then
 
-## sample js file
+		## sample js file
 
-set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
+		set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
 
 console.log("START");
 
@@ -4409,9 +4408,9 @@ https.createServer(options, function (req, res) {
 console.log("END");
 '
 
-	mkdir -p /var/log/node-project
-	chown node:srv /var/log/node-project
-	chmod 750 /var/log/node-project
+		mkdir -p /var/log/node-project
+		chown node:srv /var/log/node-project
+		chmod 750 /var/log/node-project
 
 set_file /srv/node-project/run.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
@@ -4446,17 +4445,17 @@ Group=node
 WantedBy=multi-user.target
 '	
 
-	chown -R node:codepad /srv/node-project
-	chmod -R 664 /srv/node-project
-	chmod 764 /srv/node-project
-	chmod 774 /srv/node-project/run.sh
+		chown -R node:codepad /srv/node-project
+		chmod -R 664 /srv/node-project
+		chmod 764 /srv/node-project
+		chmod 774 /srv/node-project/run.sh
 
-	systemctl daemon-reload
+		systemctl daemon-reload
 
-	systemctl enable node-project.service
-	systemctl start node-project.service
+		systemctl enable node-project.service
+		systemctl start node-project.service
 
-fi ## if node-project
+	fi ## if node-project
 
 	
 	ntc "Project path is: $project_path"
@@ -4579,10 +4578,10 @@ fi ## if node-project
 
 	msg "admin pass is $adminpass @ https://$C/admin"	
 
-	ok
-	fi ## codepad
+ok
+fi ## codepad
 
-fi ## if dev.
+
 
 
 hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
