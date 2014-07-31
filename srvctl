@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.31-23:28:51
-# version 1.40.9
+# Last update:2014.07.31-23:41:36
+# version 1.41.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -428,6 +428,21 @@ function get_password {
 
 }
 
+function update_password_hash {
+
+	_u=$1
+
+	if [ -f "/home/$_u/.password" ]
+	then
+		password=$(cat /home/$_u/.password)
+		## create password hashes
+		echo -n $password | openssl dgst -sha512 | cut -d ' ' -f 2 > /home/$_u/.password.sha512
+	else
+		err "/home/$_u/.password - not found"
+	fi
+
+}
+
 function update_password {
 	## for local user
 	_u=$1
@@ -450,8 +465,8 @@ function update_password {
 	## save
 	echo $password > /home/$_u/.password
 
-	## create password hashes
-	echo -n $password | openssl dgst -sha512 | cut -d ' ' -f 2 > /home/$_u/.password.sha512
+	update_password_hash $_u
+
 }
 
 function add_user {
@@ -1152,8 +1167,7 @@ fi ## Install LXC
 	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
 
 ## @update-install
-##if [ ! -f $fedora_template ] || $all_arg_set
-if true
+if [ ! -f $fedora_template ] || $all_arg_set
 then
 	log "Create Custom template"
 
@@ -3389,6 +3403,7 @@ function generate_user_structure ## for user $U, Container $C
 		## take care of password hashes
 		if ! [ -f "/home/$U/$C/.password.sha512" ]
 		then
+			update_password_hash $U
 			ln /home/$U/.password.sha512 /home/$U/$C/.password.sha512
 		fi
 
