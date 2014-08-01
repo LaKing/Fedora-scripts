@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.01-00:09:08
+# Last update:2014.08.01-18:51:08
 # version 1.41.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -141,6 +141,17 @@ then
     cat $1 >> $1.bak
     #echo $1" has a .bak file"
 fi
+}
+
+function new_file {
+    ## cerate a new file if it does not exists
+    ## filename=$1 content=$2
+
+    if ! [ -f $1 ];
+    then
+      #echo "creating "$1
+      echo "$2" > $1
+    fi
 }
 
 function set_file {
@@ -4359,15 +4370,11 @@ hint ##-----------------
 		## for sessionkey
 		get_randomstr
 
-
+		## this will create / update the mysql database
 		add_mariadb_db
 
 		get_password
 		adminpass=$password
-
-		get_password
-		develpass=$password
-
 
 set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
@@ -4380,15 +4387,14 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
   "ip": "0.0.0.0",
   "port" : 9001,
   "sessionKey" : "'$randomstr'",
-  "dbType" : "dirty",
-"dbType" : "mysql",
-"dbSettings" : {
+  "dbType" : "mysql",
+  "dbSettings" : {
     "user"    : "'$db_usr'",
     "host"    : "localhost",
     "password": "'$db_pwd'",
     "database": "'$db_name'"
 },
-  "defaultPadText" : "// D250 Laboratories - '$C'...",
+  "defaultPadText" : "// '$C'",
   "requireSession" : false,
   "editOnly" : false,
   "minify" : true,
@@ -4397,11 +4403,7 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
   "requireAuthentication": true,
   "requireAuthorization": false,
   "trustProxy": false,
-  "disableIPlogging": false,  
-  "users": {
-	"admin": {"password": "'$adminpass'","is_admin": true},
-	"user" : {"password": "'$develpass'","is_admin": false}
-  },
+  "disableIPlogging": true,  
   "socketTransportProtocols" : ["xhr-polling", "jsonp-polling", "htmlfile"],
   "loglevel": "INFO",
   "logconfig" :
@@ -4409,6 +4411,10 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
         { "type": "console"}
       ]
     }
+  "users": {
+	"admin": {"password": "'$adminpass'","is_admin": true},
+	"user" : {"password": "'$develpass'","is_admin": false}
+  },
 }'
 
 	
@@ -4469,7 +4475,7 @@ WantedBy=multi-user.target
 	then
 
 		## use the localhost certificate for node
-		mkdir /var/node
+		mkdir -p /var/node
 		cat /etc/pki/tls/private/localhost.key > /var/node/key.pem 
 		cat /etc/pki/tls/certs/localhost.crt > /var/node/crt.pem
 		chown node:node /var/node
