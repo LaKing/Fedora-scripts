@@ -374,7 +374,14 @@ do
 	## if the directory contains a dot, then its most likely a container
 	if [[ $D == *.* ]]
 	then
-	  echo "-- "$D
+		url_response=''
+		if $curl_avail
+		then
+			url_response=$(curl --write-out %{http_code} --silent)
+		fi
+
+
+	  echo "-- "$D" "$url_response
 	  mkdir -p ~/$H/$D
 	  for F in $(ssh -q $U@$H ls $D)
 	  do
