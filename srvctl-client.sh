@@ -24,28 +24,28 @@ U=$(whoami)
 H="r2.d250.hu" ## customize here if you wish
 A=true
 
-if [ -f srvctl-user ]
+if [ -f srvctl-user.conf ]
 then
-	source srvctl-user
+	source srvctl-user.conf
 else
 	## TODO add line-break for windos
-	echo '## U - user, H - host, A - auto-update ' >	 srvctl-user
-	echo 'U='$U >> srvctl-user
-	echo 'H=r2.d250.hu' >> srvctl-user
-	echo 'A=true' >> srvctl-user
+	echo '## U - user, H - host, A - auto-update ' > srvctl-user.conf
+	echo 'U='$U >> srvctl-user.conf
+	echo 'H=r2.d250.hu' >> srvctl-user.conf
+	echo 'A=true' >> srvctl-user.conf
 fi
 
 if $A 
 then ## auto-update
 
 	## Update this script if possible
-	url_response=$(curl --write-out %{http_code} --silent --output $TMP/srvctl-client-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh)
+	url_response=$(curl --write-out %{http_code} --silent --output srvctl-client-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh)
 	if [ "$url_response" -ne "200" ]
 	then
 		echo "Failed to download latest version of this script."
 	else
 
-		if  diff  $TMP/srvctl-client-latest.sh $0 2> /dev/null 1> /dev/null
+		if  diff  srvctl-client-latest.sh $0 2> /dev/null 1> /dev/null
 		then
 			echo "This is the latest release of the script"
 		else
@@ -62,8 +62,8 @@ then ## auto-update
 	    		if [[ $key == y* ]]
 			then
 	     			echo "Switching to latest version."
-	     			cd $TMP
-	     			bash $TMP/srvctl-client-latest.sh
+	     			cat srvctl-client-latest.sh > srvctl-client.sh
+				bash srvctl-client.sh
 	     			exit
 	    		fi
 	   	fi
