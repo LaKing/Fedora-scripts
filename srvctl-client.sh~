@@ -149,7 +149,7 @@ test_client=$(rsync --version 2> /dev/null)
 if [ ! -z "$test_client" ]
 then
 	## this is not really necessery, but we should do it right.
-	test_server=$(ssh -q $U@$H "rsync --version 2> /dev/null")
+	test_server=$(ssh $U@$H "rsync --version 2> /dev/null")
 	if [ ! -z "$test_server" ]
 	then
 		echo "OK - Method rsync available."
@@ -163,7 +163,7 @@ test_client=$(git --version 2> /dev/null)
 if [ ! -z "$test_client" ]
 then
 	## this is not really necessery, but we should do it right.
-	test_server=$(ssh -q $U@$H "git --version 2> /dev/null")
+	test_server=$(ssh $U@$H "git --version 2> /dev/null")
 	if [ ! -z "$test_server" ]
 	then
 		echo "OK - Method git available."
@@ -185,7 +185,7 @@ function process_folder {
 
 	## is remote dir empty?
 	has_remote_files=false
-	if ! [ -z "$(ssh -q $U@$H 'ls /home/'$U'/'$D'/'$F' 2> /dev/null')" ]
+	if ! [ -z "$(ssh $U@$H 'ls /home/'$U'/'$D'/'$F' 2> /dev/null')" ]
 	then
 		has_remote_files=true
 		options=$options" Download"
@@ -224,7 +224,7 @@ function process_folder {
 	then 
 
 		# check for remote bare repository
-		git_status=$(ssh -q $U@$H 'cat /home/'$U'/'$D'/'$F'/description 2> /dev/null') 
+		git_status=$(ssh $U@$H 'cat /home/'$U'/'$D'/'$F'/description 2> /dev/null') 
 		options=$options" | git: "
 
 		if [ ! -z "$git_status" ]
@@ -302,8 +302,8 @@ function process_folder {
 			if [ "$key" == i ] || [ "$key" == I ]
 			then
 				## Init
-				echo "## ssh -q $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init --bare && echo project-'$D' > description'"
-				ssh -q $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init --bare && echo project-'$D' > description' 
+				echo "## ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init --bare && echo project-'$D' > description'"
+				ssh $U@$H 'cd /home/'$U'/'$D'/'$F'/ && git init --bare && echo project-'$D' > description' 
 
 				echo "## mkdir -p ~/$H/$D/$F"
 				mkdir -p ~/$H/$D/$F
