@@ -1,7 +1,7 @@
 #!/bin/bash
 ## install as follows:
 
-## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.sh && chmod +x srvctl-client.sh
+## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/$CWF.sh > $CWF.sh && chmod +x $CWF.sh
 
 ## The version of this file should 
 ## - be consistent with srvctl
@@ -18,39 +18,41 @@ fi
 
 ## lets start ... 
 CWD=$(pwd)
+CWF="srvctl-client"
 
 ## source or set here as default
 U=$(whoami)
 H="r2.d250.hu" ## customize here if you wish
 A=true
 
-if [ -f srvctl-user.conf ]
+if [ -f $CWF.conf ]
 then
-	source srvctl-user.conf
+	source $CWF.conf
 else
 	## TODO add line-break for windos
-	echo '## U - user, H - host, A - auto-update ' > srvctl-user.conf
-	echo 'U='$U >> srvctl-user.conf
-	echo 'H=r2.d250.hu' >> srvctl-user.conf
-	echo 'A=true' >> srvctl-user.conf
+	echo '## U - user, H - host, A - auto-update ' > $CWF.conf
+	echo 'U='$U >> $CWF.conf
+	echo 'H=r2.d250.hu' >> $CWF.conf
+	echo 'A=true' >> $CWF.conf
 fi
 
-if $A 
-then ## auto-update
+## auto update or manually update
+if $A || [ "$1" == "update" ]
+then 
 
 	## Update this script if possible
-	url_response=$(curl --write-out %{http_code} --silent --output srvctl-client-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh)
+	url_response=$(curl --write-out %{http_code} --silent --output $CWF-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/$CWF.sh)
 	if [ "$url_response" -ne "200" ]
 	then
 		echo "Failed to download latest version of this script."
 	else
 
-		if  diff  srvctl-client-latest.sh $0 2> /dev/null 1> /dev/null
+		if  diff  $CWF-latest.sh $0 2> /dev/null 1> /dev/null
 		then
 			echo "This is the latest release of the script"
 		else
 	    		echo "Script has been modified, or is not the latest version."
-	    		echo -n "Do you wish to run the latest release of this script? "
+	    		echo -n "Do you wish to update and run the latest release of this script? "
 	    		read -s -r -p "[y/N] " -n 1 -i "y" key
 			if [[ $key == y ]]; then
 				key="yes"
@@ -62,25 +64,13 @@ then ## auto-update
 	    		if [[ $key == y* ]]
 			then
 	     			echo "Switching to latest version."
-	     			cat srvctl-client-latest.sh > srvctl-client.sh
-				bash srvctl-client.sh
+	     			cat $CWF-latest.sh > $CWF.sh
+				rm -rf $CWF-latest.sh
+				bash $CWF.sh
 	     			exit
 	    		fi
 	   	fi
 	fi
-fi
-
-if [ "$1" == "update" ]
-then
-	echo "Downloading latest version, ..."
-	curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.tmp
-
-	cat srvctl-client.tmp > srvctl-client.sh 
-	chmod +x srvctl-client.sh
-	rm -f srvctl-client.tmp
-
-	echo "Script updated. Please restart this script."
-	exit
 fi
 
 echo "OK - STARTED"
