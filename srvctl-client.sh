@@ -377,7 +377,7 @@ do
 		url_response=''
 		if $curl_avail
 		then
-			url_response=$(curl --write-out %{http_code} --silent)
+			url_response=$(curl --write-out %{http_code} --silent --output /dev/null http://$D )
 		fi
 
 	  echo "-- "$D" "$url_response
