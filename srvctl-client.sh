@@ -39,7 +39,7 @@ fi
 ## test if git is available
 curl_avail=false
 test_client=$(curl --version 2> /dev/null)
-if [ ! -z "$test_client" ]
+if ! [ -z "$test_client" ]
 then
 	curl_avail=true
 

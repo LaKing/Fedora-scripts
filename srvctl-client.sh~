@@ -38,7 +38,7 @@ fi
 
 ## test if git is available
 curl_avail=false
-test_client=$(curl --version 2> /dev/null | grep version)
+test_client=$(curl --version 2> /dev/null)
 if [ ! -z "$test_client" ]
 then
 	curl_avail=true
@@ -145,11 +145,11 @@ fi
 
 ## test if rsync is available
 rsync_avail=false
-test_client=$(rsync --version 2> /dev/null | grep version)
+test_client=$(rsync --version 2> /dev/null)
 if [ ! -z "$test_client" ]
 then
 	## this is not really necessery, but we should do it right.
-	test_server=$(ssh $U@$H "rsync --version 2> /dev/null | grep version")
+	test_server=$(ssh $U@$H "rsync --version 2> /dev/null")
 	if [ ! -z "$test_server" ]
 	then
 		echo "OK - Method rsync available."
@@ -159,11 +159,11 @@ fi
 
 ## test if git is available
 git_avail=false
-test_client=$(git --version 2> /dev/null | grep version)
+test_client=$(git --version 2> /dev/null)
 if [ ! -z "$test_client" ]
 then
 	## this is not really necessery, but we should do it right.
-	test_server=$(ssh $U@$H "git --version 2> /dev/null | grep version")
+	test_server=$(ssh $U@$H "git --version 2> /dev/null")
 	if [ ! -z "$test_server" ]
 	then
 		echo "OK - Method git available."
