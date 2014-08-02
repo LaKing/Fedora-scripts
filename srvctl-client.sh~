@@ -51,9 +51,9 @@ then
 		then
 			echo "This is the latest release of the script"
 		else
-	    		echo "Script has been modified, or is not the latest version."
-	    		echo -n "Do you wish to update and run the latest release of this script? "
-	    		read -s -r -p "[y/N] " -n 1 -i "y" key
+			echo "Script has been modified, or is not the latest version."
+			echo -n "Do you wish to update and run the latest release of this script? "
+			read -s -r -p "[y/N] " -n 1 -i "y" key
 			if [[ $key == y ]]; then
 				key="yes"
 			else
@@ -61,13 +61,13 @@ then
 			fi
 			echo $key
 
-	    		if [[ $key == y* ]]
+			if [[ $key == y* ]]
 			then
-	     			echo "Switching to latest version."
-	     			cat $CWF-latest.sh > $CWF.sh
+				echo "Switching to latest version."
+				cat $CWF-latest.sh > $CWF.sh
 				rm -rf $CWF-latest.sh
 				bash $CWF.sh
-	     			exit
+				exit
 	    		fi
 	   	fi
 	fi

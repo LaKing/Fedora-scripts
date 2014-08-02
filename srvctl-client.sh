@@ -46,30 +46,28 @@ then
 	then
 		echo "Failed to download latest version of this script."
 	else
-
 		if  diff  $CWF-latest.sh $0 2> /dev/null 1> /dev/null
 		then
 			echo "This is the latest release of the script"
 		else
-	    		echo "Script has been modified, or is not the latest version."
-	    		echo -n "Do you wish to update and run the latest release of this script? "
-	    		read -s -r -p "[y/N] " -n 1 -i "y" key
+			echo "Script has been modified, or is not the latest version."
+			echo -n "Do you wish to update and run the latest release of this script? "
+			read -s -r -p "[y/N] " -n 1 -i "y" key
 			if [[ $key == y ]]; then
 				key="yes"
 			else
 				key="no";
 			fi
 			echo $key
-
-	    		if [[ $key == y* ]]
+			if [[ $key == y* ]]
 			then
-	     			echo "Switching to latest version."
-	     			cat $CWF-latest.sh > $CWF.sh
+				echo "Switching to latest version."
+				cat $CWF-latest.sh > $CWF.sh
 				rm -rf $CWF-latest.sh
 				bash $CWF.sh
-	     			exit
+				exit
 	    		fi
-	   	fi
+		fi
 	fi
 fi
 
