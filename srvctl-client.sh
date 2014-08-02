@@ -22,18 +22,53 @@ CWD=$(pwd)
 ## source or set here as default
 U=$(whoami)
 H="r2.d250.hu" ## customize here if you wish
-
+A=true
 
 if [ -f srvctl-user ]
 then
 	source srvctl-user
 else
 	## TODO add line-break for windos
+	echo '## U - user, H - host, A - auto-update '
 	echo 'U='$U >> srvctl-user
 	echo 'H=r2.d250.hu' >> srvctl-user
+	echo 'A=true'
 fi
 
-## check for update of this script
+if $A 
+then ## auto-update
+
+	## Update this script if possible
+	url_response=$(curl --write-out %{http_code} --silent --output $TMP/srvctl-client-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh)
+	if [ "$url_response" -ne "200" ]
+	then
+		echo "Failed to download latest version of this script."
+	else
+
+		if  diff  $TMP/srvctl-client-latest.sh $0 2> /dev/null 1> /dev/null
+		then
+			echo "This is the latest release of the script"
+		else
+	    		echo "Script has been modified, or is not the latest version."
+	    		echo -n "Do you wish to run the latest release of this script? "
+	    		read -s -r -p "[y/N] " -n 1 -i "y" key
+			if [[ $key == y ]]; then
+				key="yes"
+			else
+				key="no";
+			fi
+			echo $key
+
+	    		if [[ $key == y* ]]
+			then
+	     			echo "Switching to latest version."
+	     			cd $TMP
+	     			bash $TMP/srvctl-client-latest.sh
+	     			exit
+	    		fi
+	   	fi
+	fi
+fi
 
 if [ "$1" == "update" ]
 then
