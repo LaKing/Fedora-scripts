@@ -36,41 +36,48 @@ else
 	echo 'A=true' >> $CWF.conf
 fi
 
-## auto update or manually update
-if $A || [ "$1" == "update" ]
-then 
+## test if git is available
+curl_avail=false
+test_client=$(curl --version 2> /dev/null | grep version)
+if [ ! -z "$test_client" ]
+then
+	curl_avail=true
 
-	## Update this script if possible
-	url_response=$(curl --write-out %{http_code} --silent --output $CWF-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/$CWF.sh)
-	if [ "$url_response" -ne "200" ]
-	then
-		echo "Failed to download latest version of this script."
-	else
-		if  diff  $CWF-latest.sh $0 2> /dev/null 1> /dev/null
+	## auto update or manually update
+	if $A || [ "$1" == "update" ]
+	then 
+
+		## Update this script if possible
+		url_response=$(curl --write-out %{http_code} --silent --output $CWF-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/$CWF.sh)
+		if ! [ "$url_response" == "200" ]
 		then
-			echo "This is the latest release of the script"
+			echo "Failed to download latest version of this script."
 		else
-			echo "Script has been modified, or is not the latest version."
-			echo -n "Do you wish to update and run the latest release of this script? "
-			read -s -r -p "[y/N] " -n 1 -i "y" key
-			if [[ $key == y ]]; then
-				key="yes"
-			else
-				key="no";
-			fi
-			echo $key
-			if [[ $key == y* ]]
+			if  diff  $CWF-latest.sh $0 2> /dev/null 1> /dev/null
 			then
-				echo "Switching to latest version."
-				cat $CWF-latest.sh > $CWF.sh
-				rm -rf $CWF-latest.sh
-				bash $CWF.sh
-				exit
-	    		fi
+				echo "This is the latest release of the script"
+			else
+				echo "Script has been modified, or is not the latest version."
+				echo -n "Do you wish to update and run the latest release of this script? "
+				read -s -r -p "[y/N] " -n 1 -i "y" key
+				if [[ $key == y ]]; then
+					key="yes"
+				else
+					key="no";
+				fi
+				echo $key
+				if [[ $key == y* ]]
+				then
+					echo "Switching to latest version."
+					cat $CWF-latest.sh > $CWF.sh
+					rm -rf $CWF-latest.sh
+					bash $CWF.sh
+					exit
+		    		fi
+			fi
 		fi
 	fi
 fi
-
 echo "OK - STARTED"
 
 
@@ -163,11 +170,6 @@ then
 		git_avail=true
 	fi
 fi
-
-	if [ -z "$1" ]
-	then
-	    echo "OK -  interactive mode!" 
-	fi
 
 
 
