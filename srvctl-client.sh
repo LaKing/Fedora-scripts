@@ -1,7 +1,7 @@
 #!/bin/bash
 ## install as follows:
 
-## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/$CWF.sh > $CWF.sh && chmod +x $CWF.sh
+## curl https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/srvctl-client.sh > srvctl-client.sh && chmod +x srvctl-client.sh && bash srvctl-client.sh
 
 ## The version of this file should 
 ## - be consistent with srvctl
@@ -220,7 +220,7 @@ function process_folder {
 		fi
 	fi
 
-	if $git_avail && ! [ "$F" == "html" ] && ! [ "$F" == "root" ]
+	if $git_avail && [ "$F" == "git" ]
 	then 
 
 		# check for remote bare repository
@@ -244,11 +244,9 @@ function process_folder {
 		else
 			options=$options"Init"
 		fi
-		
-
 	fi
 
-
+	
 
 
 	read -s -r -p " - $D/$F [$options] " -n 1 key
@@ -380,12 +378,27 @@ do
 			url_response=$(curl --write-out %{http_code} --silent --output /dev/null http://$D )
 		fi
 
-	  echo "-- "$D" "$url_response
-	  mkdir -p ~/$H/$D
-	  for F in $(ssh -q $U@$H ls $D)
-	  do
-		process_folder
-	  done
+		echo "-- "$D" "$url_response
+		mkdir -p ~/$H/$D
+
+		has_db=$(ssh -q $U@$H "ssh root@$D 'systemctl is-active mariadb.service'")
+		if [ "$has_db" == "active" ]
+		then
+			read -s -r -p " - $D [Backup database] " -n 1 key
+			echo '... '$key	
+
+			if [ "$key" == "b" ] || [ "$key" == "B" ]
+			then
+				ssh -q $U@$H "ssh root@$D 'srvctl backup-db'"
+			fi
+		fi
+
+
+
+		for F in $(ssh -q $U@$H ls $D)
+		do
+			process_folder
+		done
 	fi
 done
 

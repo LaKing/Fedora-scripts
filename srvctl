@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.02-19:36:05
-# version 1.43.0
+# Last update:2014.08.02-20:04:31
+# version 1.43.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4203,7 +4203,7 @@ then
 
 		log "Creating backup of Mysql/Mariadb databases."
 
-		old_backup=$(ls -d /root/backup/*)
+		old_backup=$(ls -d /root/backup/* 2> /dev/null)
 
 		BACKUP_POINT="/root/backup/"$(date +%Y_%m_%d__%H_%M_%S)
 		mkdir -p $BACKUP_POINT
