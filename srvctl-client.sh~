@@ -29,10 +29,10 @@ then
 	source srvctl-user
 else
 	## TODO add line-break for windos
-	echo '## U - user, H - host, A - auto-update '
+	echo '## U - user, H - host, A - auto-update ' > srvctl-user
 	echo 'U='$U >> srvctl-user
 	echo 'H=r2.d250.hu' >> srvctl-user
-	echo 'A=true'
+	echo 'A=true' >> srvctl-user
 fi
 
 if $A 
