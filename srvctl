@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.04-19:41:58
-# version 1.43.6
+# Last update:2014.08.04-19:45:16
+# version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4386,12 +4386,11 @@ hint ##-----------------
 		do
 			if [ -f "/mnt/$u/.password.sha512" ]
 			then
-				$hash=$(cat /mnt/$u/.password.sha512)
-				cus=$cus'	"'$u'": {"hash": "'$hash'","is_admin": true},
+				cus=$cus'	"'$u'": {"hash": "'$(cat /mnt/$u/.password.sha512)'","is_admin": true},
 '
 			fi
 		done
-		
+dbg $cus		
 
 set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
