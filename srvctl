@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.04-19:45:16
+# Last update:2014.08.04-19:48:14
 # version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -4390,7 +4390,7 @@ hint ##-----------------
 '
 			fi
 		done
-dbg $cus		
+ntc $cus		
 
 set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
