@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.02-20:04:39
-# version 1.43.2
+# Last update:2014.08.04-16:12:03
+# version 1.43.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -560,8 +560,8 @@ function create_named_zone {
 					1H	; retry
 					1W	; expire
 					3H )	; minimum
-	IN 	NS	ns1.'$CDN'
-	IN 	NS	ns2.'$CDN'
+	IN 	NS	ns1.'$CDN'.
+	IN 	NS	ns2.'$CDN'.
 *	IN 	A	'$HOSTIPv4'
 @	IN 	A	'$HOSTIPv4'
 @	IN	MX	10	mail
