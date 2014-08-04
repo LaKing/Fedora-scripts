@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.04-21:35:10
+# Last update:2014.08.04-21:50:09
 # version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -4628,7 +4628,7 @@ WantedBy=multi-user.target
 
 	cd $project_path
 
-	git add .
+	git add . -A
 	git commit -m Inital_commit
 
 	git push
