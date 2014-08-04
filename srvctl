@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.04-20:02:09
+# Last update:2014.08.04-21:20:08
 # version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -4380,19 +4380,7 @@ hint ##-----------------
 		get_password
 		adminpass=$password
 
-		# cus codepad_users_settings.json
-		cus=''
-		for u in $(ls /mnt)
-		do
-			if [ -f "/mnt/$u/.password.sha512" ]
-			then
-				cus=$cus'	"'$u'": {"hash": "'$(cat /mnt/$u/.password.sha512)'","is_admin": true},
-'
-			ntc "@ $u $cus"
-			
-			fi
-		done
-ntc $cus		
+	
 
 set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
@@ -4430,10 +4418,23 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
       ]
     }
   "users": {
-'$cus'
-	"admin": {"password": "'$adminpass'","is_admin": true}
-  },
-}'
+'
+
+		for u in $(ls /mnt)
+		do
+			if [ -f "/mnt/$u/.password.sha512" ]
+			then
+				echo '	"'$u'": {"hash": "'$(cat /mnt/$u/.password.sha512)'","is_admin": true},' >> /srv/etherpad-lite/settings.json
+			ntc "@ $u $cus"
+			
+			fi
+		done
+
+
+
+echo '	"admin": {"password": "'$adminpass'","is_admin": true}' >> /srv/etherpad-lite/settings.json
+echo '  },' >> /srv/etherpad-lite/settings.json
+echo '}' >> /srv/etherpad-lite/settings.json
 
 	
 	
