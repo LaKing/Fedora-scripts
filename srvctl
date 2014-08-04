@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.04-21:20:08
+# Last update:2014.08.04-21:35:10
 # version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -4298,9 +4298,9 @@ hint ##-----------------
 
 
 
-	hint "add-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
-	if [ "$CMD" == "add-codepad" ]
-	then
+hint "add-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
+if [ "$CMD" == "add-codepad" ]
+then
 
 		project_type=$2
 
@@ -4382,7 +4382,7 @@ hint ##-----------------
 
 	
 
-set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
+		set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
 {
   "ep_codepad": { 
     "project_path": "'$project_path'",
@@ -4399,7 +4399,7 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
     "host"    : "localhost",
     "password": "'$db_pwd'",
     "database": "'$db_name'"
-},
+  },
   "defaultPadText" : "// '$C'",
   "requireSession" : false,
   "editOnly" : false,
@@ -4416,38 +4416,30 @@ set_file /srv/etherpad-lite/settings.json '/* ep_codepad-devel settings*/
     { "appenders": [
         { "type": "console"}
       ]
-    }
+    },
   "users": {
 '
-
 		for u in $(ls /mnt)
 		do
 			if [ -f "/mnt/$u/.password.sha512" ]
 			then
-				echo '	"'$u'": {"hash": "'$(cat /mnt/$u/.password.sha512)'","is_admin": true},' >> /srv/etherpad-lite/settings.json
-			ntc "@ $u $cus"
-			
+				echo '      "'$u'": {"hash": "'$(cat /mnt/$u/.password.sha512)'","is_admin": true},' >> /srv/etherpad-lite/settings.json
 			fi
 		done
 
+	echo '	"admin": {"password": "'$adminpass'","is_admin": true}' >> /srv/etherpad-lite/settings.json
+	echo '  },' >> /srv/etherpad-lite/settings.json
+	echo '}' >> /srv/etherpad-lite/settings.json
 
+		## prepare the enviroment
+		cd /srv/etherpad-lite
+		bin/installDeps.sh
 
-echo '	"admin": {"password": "'$adminpass'","is_admin": true}' >> /srv/etherpad-lite/settings.json
-echo '  },' >> /srv/etherpad-lite/settings.json
-echo '}' >> /srv/etherpad-lite/settings.json
+		mkdir -p /var/log/codepad
+		chown codepad:codepad /var/log/codepad
+		chmod 750 /var/log/codepad
 
-	
-	
-## prepare the enviroment
-cd /srv/etherpad-lite
-bin/installDeps.sh
-
-
-	mkdir -p /var/log/codepad
-	chown codepad:codepad /var/log/codepad
-	chmod 750 /var/log/codepad
-
-set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
+		set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/codepad
@@ -4462,13 +4454,13 @@ cd /srv/etherpad-lite
 /bin/node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
 '
 
-chmod +x /srv/etherpad-lite/bin/codepad.sh
+		chmod +x /srv/etherpad-lite/bin/codepad.sh
 
-chown -R codepad:srv /srv/etherpad-lite
+		chown -R codepad:srv /srv/etherpad-lite
 
 
-## proper way is to create a service to run codepad
-set_file /lib/systemd/system/codepad.service '## srvctl generated
+		## proper way is to create a service to run codepad
+		set_file /lib/systemd/system/codepad.service '## srvctl generated
 [Unit]
 Description=Codepad, the etherpad-lite based collaborative code editor.
 After=syslog.target network.target
@@ -4484,24 +4476,24 @@ WantedBy=multi-user.target
 '
 
 
-	systemctl daemon-reload
+		systemctl daemon-reload
 
-	systemctl enable codepad.service
-	systemctl start codepad.service
+		systemctl enable codepad.service
+		systemctl start codepad.service
 
 
-	if [ "$project_type" == "node" ]
-	then
+		if [ "$project_type" == "node" ]
+		then
 
-		## use the localhost certificate for node
-		mkdir -p /var/node
-		cat /etc/pki/tls/private/localhost.key > /var/node/key.pem 
-		cat /etc/pki/tls/certs/localhost.crt > /var/node/crt.pem
-		chown node:node /var/node
+			## use the localhost certificate for node
+			mkdir -p /var/node
+			cat /etc/pki/tls/private/localhost.key > /var/node/key.pem 
+			cat /etc/pki/tls/certs/localhost.crt > /var/node/crt.pem
+			chown node:node /var/node
 
-		## create sample js file
+			## create sample js file
 
-		set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
+			set_file /srv/node-project/server.js '/* srvctl generated hello-node sample file */
 
 console.log("START");
 
@@ -4554,12 +4546,12 @@ console.log("Server running at http://'$C'/ and at https://'$C'/");
 
 console.log("END");
 '
-		## prepare logging capabilities
-		mkdir -p /var/log/node-project
-		chown node:srv /var/log/node-project
-		chmod 750 /var/log/node-project
+			## prepare logging capabilities
+			mkdir -p /var/log/node-project
+			chown node:srv /var/log/node-project
+			chmod 750 /var/log/node-project
 
-set_file /srv/node-project/run.sh '#!/bin/bash
+			set_file /srv/node-project/run.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/node-project
@@ -4573,7 +4565,7 @@ cd /srv/node-project
 /bin/node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
 '
 
-set_file /lib/systemd/system/node-project.service '## srvctl generated
+			set_file /lib/systemd/system/node-project.service '## srvctl generated
 [Unit]
 Description=Development node-project.
 After=syslog.target network.target
@@ -4591,18 +4583,18 @@ Group=node
 [Install]
 WantedBy=multi-user.target
 '	
-		## prepare data dir
-		chown -R node:codepad /srv/node-project
-		chmod -R 664 /srv/node-project
-		chmod 774 /srv/node-project
-		chmod 774 /srv/node-project/run.sh
+				## prepare data dir
+				chown -R node:codepad /srv/node-project
+				chmod -R 664 /srv/node-project
+				chmod 774 /srv/node-project
+				chmod 774 /srv/node-project/run.sh
 
-		systemctl daemon-reload
+				systemctl daemon-reload
 
-		systemctl enable node-project.service
-		systemctl start node-project.service
+				systemctl enable node-project.service
+				systemctl start node-project.service
 
-	fi ## if node-project
+			fi ## if node-project
 
 	
 	ntc "Project path is: $project_path"
