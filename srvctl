@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.04-21:50:09
+# Last update:2014.08.06-02:26:37
 # version 1.43.7
 #
 # Server Controll script for Fedora with LXC containers
@@ -1263,6 +1263,8 @@ Control "/var/lib/pound/pound.cfg"
 ## Default loglevel is 1
 LogFacility local0
 LogLevel    2
+
+Alive 1
 
 ListenHTTP
 
@@ -3795,7 +3797,7 @@ message_size_limit=26214400
 ## set localhost.localdomain in mydestination to enable local mail delivery
 mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
-
+## also, add aliases there
 	' >> $rootfs/etc/postfix/main.cf
 
 	echo "@$C root" > $rootfs/etc/postfix/catchall
@@ -4320,6 +4322,8 @@ then
 		yum -y install gzip git-core curl python openssl-devel
 		yum -y install postgresql-devel
 	
+		npm -g install nodemon
+		
 		## get the latest version
 
 		if [ -d /srv/etherpad-lite ]
@@ -4458,6 +4462,7 @@ cd /srv/etherpad-lite
 
 		chown -R codepad:srv /srv/etherpad-lite
 
+## // TODO: After mysql
 
 		## proper way is to create a service to run codepad
 		set_file /lib/systemd/system/codepad.service '## srvctl generated
@@ -4562,7 +4567,7 @@ whoami > /var/log/node-project/who
 
 cd /srv/node-project
 
-/bin/node /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
+nodemon /srv/node-project/server.js 1> /var/log/node-project/log 2> /var/log/node-project/err
 '
 
 			set_file /lib/systemd/system/node-project.service '## srvctl generated
@@ -4589,6 +4594,9 @@ WantedBy=multi-user.target
 				chmod 774 /srv/node-project
 				chmod 774 /srv/node-project/run.sh
 
+				## this is needed for nodemon
+				chmod 777 /srv
+				## // TODO nodemon needs to write to /srv 
 				systemctl daemon-reload
 
 				systemctl enable node-project.service
