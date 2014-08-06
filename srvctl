@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.06-21:54:00
+# Last update:2014.08.06-21:58:04
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4834,7 +4834,7 @@ set_file $conf 'exports.config = {
 '
 conf="/srv/.log.io/log_server.conf"
 
-set_file log_server.conf 'exports.config = {
+set_file $conf 'exports.config = {
   host: "0.0.0.0",
   port: 28777
 }
