@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.06-19:53:03
+# Last update:2014.08.06-20:05:26
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4845,7 +4845,7 @@ whoami > /var/log/logio/who
 cd /srv
 
 /bin/node /srv/node_modules/log.io/bin/log.io-server 2> /var/log/logio/server-err 1> /var/log/logio/server-log
-/bin/node /srv/node_modules/log.io/bin/log.io-harvester 2> /var/log/logio/server-err 1> /var/log/logio/server-log
+/bin/node /srv/node_modules/log.io/bin/log.io-harvester 2> /var/log/logio/harvester-err 1> /var/log/logio/harvester-log
 '
 
 chmod +x /srv/logio.sh
