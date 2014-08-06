@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.06-19:51:51
+# Last update:2014.08.06-19:53:03
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4829,8 +4829,8 @@ set_file ~/.log.io/web_server.conf 'exports.config = {
 }
 '
 		mkdir -p /var/log/logio
-		chown codepad:codepad /var/log/codepad
-		chmod 750 /var/log/codepad
+		chown codepad:codepad /var/log/logio
+		chmod 750 /var/log/logio
 
 set_file /srv/logio.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
