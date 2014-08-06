@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.06-20:28:54
+# Last update:2014.08.06-21:54:00
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4774,7 +4774,9 @@ then
 		npm install coffee-script
 		npm install log.io
 
-		conf="/root/.log.io/harvester.conf"
+		mkdir -p /srv/.log.io
+
+		conf="/srv/.log.io/harvester.conf"
 
 		set_file $conf 'exports.config = {
   nodeName: "application_server",
@@ -4816,8 +4818,10 @@ echo '}' >> $conf
 
 get_password
 
+conf="/srv/.log.io/web_server.conf"
 
-set_file ~/.log.io/web_server.conf 'exports.config = {
+
+set_file $conf 'exports.config = {
   host: "0.0.0.0",
   port: 9003,
  
@@ -4828,27 +4832,38 @@ set_file ~/.log.io/web_server.conf 'exports.config = {
   },
 }
 '
+conf="/srv/.log.io/log_server.conf"
+
+set_file log_server.conf 'exports.config = {
+  host: "0.0.0.0",
+  port: 28777
+}
+'
+
+
+
 		mkdir -p /var/log/logio
-		chown codepad:codepad /var/log/logio
-		chmod 750 /var/log/logio
+		chown root:srv /var/log/logio
+		chmod 770 /var/log/logio
+		rm -rf  /var/log/logio/*
 
 set_file /srv/logio.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/logio
-chown codepad:srv /var/log/logio
+chown root:srv /var/log/logio
 chmod 750 /var/log/logio
 rm -rf  /var/log/logio/*
 
 whoami > /var/log/logio/who
 
-cd /srv
 
 /bin/node /srv/node_modules/log.io/bin/log.io-server & 2> /var/log/logio/server-err 1> /var/log/logio/server-log
 /bin/node /srv/node_modules/log.io/bin/log.io-harvester 2> /var/log/logio/harvester-err 1> /var/log/logio/harvester-log
 '
 
-chmod +x /srv/logio.sh
+chmod 770 /srv/logio.sh
+chown root:srv /srv/logio.sh
 
 set_file /lib/systemd/system/logio.service '## srvctl generated
 [Unit]
