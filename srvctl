@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.06-18:42:07
-# version 1.43.8
+# Last update:2014.08.06-18:58:02
+# version 1.43.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3103,7 +3103,7 @@ function regenerate_pound_files {
 				set_file $cfg_dir/dev-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: dev.'$_C'"
-					  Redirect "https://'$_C'"
+					  Redirect "https://dev.'$_C'"
 				End'
  
 				set_file $cfg_dir/dev-https-service '## srvctl '$_C' '$_ip'
@@ -3120,12 +3120,12 @@ function regenerate_pound_files {
 				echo 'Include "'$cfg_dir/dev-https-service'"' >> /var/pound/https-domains.cfg
 			fi
 
-			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-log ]
+			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-dev ]
 			then
 				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
-					  Redirect "https://'$_C'"
+					  Redirect "https://log.'$_C'"
 
 				End'
  
