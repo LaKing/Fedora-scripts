@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.06-02:26:37
-# version 1.43.7
+# Last update:2014.08.06-18:42:07
+# version 1.43.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -26,7 +26,7 @@ fi
 ## some formatted date 
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
 MSG="## srvctl modification. $NOW"
-
+DDN=$(dnsdomainname)
 
 ####################################################
 ## Configuration defaults - Overwritten in config!
@@ -3074,21 +3074,36 @@ function regenerate_pound_files {
 		if [ ! -f $SRV/$_C/disabed ]
 		then
 			## Directly addressed pound domains
+			if [ -f $SRV/$_C/pound-enable-subdomain ]
+			then
+				set_file $cfg_dir/subdomain-http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_C'.'$DDN'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_http_port'
+					  End
+				End'
+ 
+				set_file $cfg_dir/subdomain-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_C'.'$DDN'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_https_port'
+					  End
+				End'
 
-			if ! [ -f $SRV/$_C/pound-no-dev ]
+				echo 'Include "'$cfg_dir/subdomain-http-service'"' >> /var/pound/http-domains.cfg
+				echo 'Include "'$cfg_dir/subdomain-https-service'"' >> /var/pound/https-domains.cfg
+			fi
+
+			if [ -f $SRV/$_C/pound-enable-dev ]
 			then
 				set_file $cfg_dir/dev-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: dev.'$_C'"
 					  Redirect "https://'$_C'"
-
-				End
-				Service
-					  HeadRequire "Host: '$_C'.'$(dnsdomainname)'"
-					  BackEnd
-					      Address '$_C'
-					      Port    '$_http_port'
-					  End
 				End'
  
 				set_file $cfg_dir/dev-https-service '## srvctl '$_C' '$_ip'
@@ -3099,17 +3114,33 @@ function regenerate_pound_files {
 					      Port    9001
 					      TimeOut 300
 					  End
-				End
-				Service
-					  HeadRequire "Host: '$_C'.'$CDN'"
-					  BackEnd
-					      Address '$_C'
-					      Port    '$_https_port'
-					  End
 				End'
 
 				echo 'Include "'$cfg_dir/dev-http-service'"' >> /var/pound/http-domains.cfg
 				echo 'Include "'$cfg_dir/dev-https-service'"' >> /var/pound/https-domains.cfg
+			fi
+
+			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-log ]
+			then
+				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: log.'$_C'"
+					  Redirect "https://'$_C'"
+
+				End'
+ 
+				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: log.'$_C'"
+					  BackEnd
+					      Address '$_C'
+					      Port    9003
+					      TimeOut 300
+					  End
+				End'
+
+				echo 'Include "'$cfg_dir/log-http-service'"' >> /var/pound/http-domains.cfg
+				echo 'Include "'$cfg_dir/log-https-service'"' >> /var/pound/https-domains.cfg
 			fi
 
 			if [ -f $SRV/$_C/pound-no-http ]
@@ -4299,9 +4330,91 @@ fi ## MariaDB related fuctions
 hint ##-----------------
 
 
+hint "setup-logio	" "Install log.io, a web-browser based realtime log monitoring tool."
+if [ "$CMD" == "setup-logio" ]
+then
+		## install packages
+		yum -y install nodejs
+		yum -y install npm
 
-hint "add-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
-if [ "$CMD" == "add-codepad" ]
+		cd /srv
+
+		npm install coffee-script
+		npm install log.io
+
+		set_file ~/.log.io/harvester.conf 'exports.config = {
+  nodeName: "application_server",
+  logStreams: {
+    codepad: [
+      "/var/log/codepad/log",
+      "/var/log/codepad/err"
+    ]
+  },
+  server: {
+    host: "0.0.0.0",
+    port: 28777
+  }
+}
+'
+
+get_password
+
+
+set_file ~/.log.io/web_server.conf 'exports.config = {
+  host: "0.0.0.0",
+  port: 9003,
+ 
+  // Enable HTTP Basic Authentication
+  auth: {
+    user: "admin",
+    pass: "'$password'"
+  },
+}
+'
+		mkdir -p /var/log/logio
+		chown codepad:codepad /var/log/codepad
+		chmod 750 /var/log/codepad
+
+set_file /srv/logio.sh '#!/bin/bash
+echo $(whoami)" starting "$0 
+
+mkdir -p /var/log/logio
+chown codepad:srv /var/log/logio
+chmod 750 /var/log/logio
+rm -rf  /var/log/logio/*
+
+whoami > /var/log/logio/who
+
+cd /srv
+
+/bin/node /srv/node_modules/log.io/bin/log.io-server.js 2> /var/log/logio/err 1> /var/log/logio/log
+'
+
+set_file /lib/systemd/system/logio.service '## srvctl generated
+[Unit]
+Description=Log.io, a web-browser based realtime log monitoring tool..
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/srv/logio.sh
+User=srv
+Group=srv
+
+[Install]
+WantedBy=multi-user.target
+'
+
+	systemctl enable logio.service
+	systemctl start logio.service
+	systemctl status logio.service
+
+	msg "Log.io: https://log.$C admin:$password"
+
+fi
+
+hint "setup-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
+if [ "$CMD" == "setup-codepad" ]
 then
 
 		project_type=$2
@@ -4443,7 +4556,7 @@ then
 		chown codepad:codepad /var/log/codepad
 		chmod 750 /var/log/codepad
 
-		set_file /srv/etherpad-lite/bin/codepad.sh '#!/bin/bash
+		set_file /srv/codepad.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/codepad
@@ -4458,7 +4571,7 @@ cd /srv/etherpad-lite
 /bin/node /srv/etherpad-lite/node_modules/ep_etherpad-lite/node/server.js $*  2> /var/log/codepad/err 1> /var/log/codepad/log
 '
 
-		chmod +x /srv/etherpad-lite/bin/codepad.sh
+		chmod +x /srv/codepad.sh
 
 		chown -R codepad:srv /srv/etherpad-lite
 
@@ -4469,10 +4582,11 @@ cd /srv/etherpad-lite
 [Unit]
 Description=Codepad, the etherpad-lite based collaborative code editor.
 After=syslog.target network.target
+After=mariadb.service
 
 [Service]
 Type=simple
-ExecStart=/srv/etherpad-lite/bin/codepad.sh
+ExecStart=/srv/codepad.sh
 User=codepad
 Group=codepad
 
