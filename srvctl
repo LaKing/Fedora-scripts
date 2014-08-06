@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.06-19:09:29
-# version 1.44.0
+# Last update:2014.08.06-19:14:21
+# version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4774,7 +4774,7 @@ then
 		npm install coffee-script
 		npm install log.io
 
-		conf="~/.log.io/harvester.conf"
+		conf="/root/.log.io/harvester.conf"
 
 		set_file $conf 'exports.config = {
   nodeName: "application_server",
@@ -4868,6 +4868,7 @@ WantedBy=multi-user.target
 
 	msg "Log.io: https://log.$C admin:$password"
 
+ok
 fi
 
 
