@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.06-19:14:21
+# Last update:2014.08.06-19:51:51
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -4844,8 +4844,11 @@ whoami > /var/log/logio/who
 
 cd /srv
 
-/bin/node /srv/node_modules/log.io/bin/log.io-server.js 2> /var/log/logio/err 1> /var/log/logio/log
+/bin/node /srv/node_modules/log.io/bin/log.io-server 2> /var/log/logio/server-err 1> /var/log/logio/server-log
+/bin/node /srv/node_modules/log.io/bin/log.io-harvester 2> /var/log/logio/server-err 1> /var/log/logio/server-log
 '
+
+chmod +x /srv/logio.sh
 
 set_file /lib/systemd/system/logio.service '## srvctl generated
 [Unit]
@@ -4906,8 +4909,9 @@ then
 		yum -y install wordpress
 
 		## set params in php.ini, ...  	
-		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
-		sed_file $rootfs/etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
+		sed_file /etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+		sed_file /etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
+		sed_file /etc/php.ini  "post_max_size = 8M" "post_max_size = 25M"
 
 		wd=/root
 		curl http://wordpress.org/latest.zip > $wd/latest.zip
@@ -5046,8 +5050,9 @@ then
 		yum -y install unzip php php-common php-gd php-mcrypt php-pear php-pecl-memcache php-mhash php-mysql php-xml php-mbstring
 
 		## set php.ini, ...  	
-		sed_file $rootfs/etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
-		sed_file $rootfs/etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
+		sed_file /etc/php.ini ";date.timezone =" "date.timezone = $php_timezone"
+		sed_file /etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
+		sed_file /etc/php.ini  "post_max_size = 8M" "post_max_size = 25M"
 
 		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
 		rm -rf $wd/latest.zip
