@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.06-18:58:02
-# version 1.43.9
+# Last update:2014.08.06-19:09:29
+# version 1.44.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4330,88 +4330,6 @@ fi ## MariaDB related fuctions
 hint ##-----------------
 
 
-hint "setup-logio	" "Install log.io, a web-browser based realtime log monitoring tool."
-if [ "$CMD" == "setup-logio" ]
-then
-		## install packages
-		yum -y install nodejs
-		yum -y install npm
-
-		cd /srv
-
-		npm install coffee-script
-		npm install log.io
-
-		set_file ~/.log.io/harvester.conf 'exports.config = {
-  nodeName: "application_server",
-  logStreams: {
-    codepad: [
-      "/var/log/codepad/log",
-      "/var/log/codepad/err"
-    ]
-  },
-  server: {
-    host: "0.0.0.0",
-    port: 28777
-  }
-}
-'
-
-get_password
-
-
-set_file ~/.log.io/web_server.conf 'exports.config = {
-  host: "0.0.0.0",
-  port: 9003,
- 
-  // Enable HTTP Basic Authentication
-  auth: {
-    user: "admin",
-    pass: "'$password'"
-  },
-}
-'
-		mkdir -p /var/log/logio
-		chown codepad:codepad /var/log/codepad
-		chmod 750 /var/log/codepad
-
-set_file /srv/logio.sh '#!/bin/bash
-echo $(whoami)" starting "$0 
-
-mkdir -p /var/log/logio
-chown codepad:srv /var/log/logio
-chmod 750 /var/log/logio
-rm -rf  /var/log/logio/*
-
-whoami > /var/log/logio/who
-
-cd /srv
-
-/bin/node /srv/node_modules/log.io/bin/log.io-server.js 2> /var/log/logio/err 1> /var/log/logio/log
-'
-
-set_file /lib/systemd/system/logio.service '## srvctl generated
-[Unit]
-Description=Log.io, a web-browser based realtime log monitoring tool..
-After=syslog.target network.target
-
-[Service]
-Type=simple
-ExecStart=/srv/logio.sh
-User=srv
-Group=srv
-
-[Install]
-WantedBy=multi-user.target
-'
-
-	systemctl enable logio.service
-	systemctl start logio.service
-	systemctl status logio.service
-
-	msg "Log.io: https://log.$C admin:$password"
-
-fi
 
 hint "setup-codepad [apache|node]	" "Install ep_codepad, an Etherpad based collaborative code editor, and start a new project."
 if [ "$CMD" == "setup-codepad" ]
@@ -4844,6 +4762,113 @@ ok
 fi ## codepad
 
 
+hint "setup-logio	" "Install log.io, a web-browser based realtime log monitoring tool."
+if [ "$CMD" == "setup-logio" ] || [ "$CMD" == "setup-codepad" ]
+then
+		## install packages
+		yum -y install nodejs
+		yum -y install npm
+
+		cd /srv
+
+		npm install coffee-script
+		npm install log.io
+
+		conf="~/.log.io/harvester.conf"
+
+		set_file $conf 'exports.config = {
+  nodeName: "application_server",
+  server: {
+    host: "0.0.0.0",
+    port: 28777
+  },
+  logStreams: {
+    apache: [
+      "/var/log/httpd/access_log",
+      "/var/log/httpd/error_log",
+      "/var/log/httpd/ssl_access_log",
+      "/var/log/httpd/ssl_error_log",
+      "/var/log/httpd/ssl_request_log"
+    ]'
+
+if [ -d /var/log/codepad ]
+then
+	echo 'codepad: [' >> $conf
+	echo '  "/var/log/codepad/log",' >> $conf
+	echo '  "/var/log/codepad/err"' >> $conf
+	echo ']' >> $conf
+
+fi
+
+
+if [ -d /var/log/node-project ]
+then
+	echo 'codepad: [' >> $conf
+	echo '  "/var/log/node-project/log",' >> $conf
+	echo '  "/var/log/node-project/err"' >> $conf
+	echo ']' >> $conf
+fi
+
+## TODO add other log sources here. maillog, .. etc.
+
+echo '  }' >> $conf
+echo '}' >> $conf
+
+get_password
+
+
+set_file ~/.log.io/web_server.conf 'exports.config = {
+  host: "0.0.0.0",
+  port: 9003,
+ 
+  // Enable HTTP Basic Authentication
+  auth: {
+    user: "admin",
+    pass: "'$password'"
+  },
+}
+'
+		mkdir -p /var/log/logio
+		chown codepad:codepad /var/log/codepad
+		chmod 750 /var/log/codepad
+
+set_file /srv/logio.sh '#!/bin/bash
+echo $(whoami)" starting "$0 
+
+mkdir -p /var/log/logio
+chown codepad:srv /var/log/logio
+chmod 750 /var/log/logio
+rm -rf  /var/log/logio/*
+
+whoami > /var/log/logio/who
+
+cd /srv
+
+/bin/node /srv/node_modules/log.io/bin/log.io-server.js 2> /var/log/logio/err 1> /var/log/logio/log
+'
+
+set_file /lib/systemd/system/logio.service '## srvctl generated
+[Unit]
+Description=Log.io, a web-browser based realtime log monitoring tool..
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/srv/logio.sh
+User=srv
+Group=srv
+
+[Install]
+WantedBy=multi-user.target
+'
+
+	systemctl enable logio.service
+	systemctl start logio.service
+	systemctl status logio.service
+
+	msg "Log.io: https://log.$C admin:$password"
+
+fi
 
 
 hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
