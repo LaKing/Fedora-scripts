@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-05:21:49
+# Last update:2014.08.07-17:01:09
 # version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -3178,7 +3178,7 @@ function regenerate_pound_files {
 
 			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-dev ]
 			then
-				## log.io currently broken on https
+				## log.io currently broken on https. https://github.com/NarrativeScience/Log.io/issues/124
 				
 				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
@@ -3191,15 +3191,12 @@ function regenerate_pound_files {
 					  End
 				End'
  
+				## for now, redirect to http
 				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
-					  BackEnd
-					      Address '$_C'
-					      Port    9004
-					      TimeOut 300
-					      HTTPS
-					  End
+					  Redirect "http://log.'$_C'"
+
 				End'
 
 				echo 'Include "'$cfg_dir/log-http-service'"' >> /var/pound/http-domains.cfg
@@ -4415,7 +4412,8 @@ then
 		yum -y install npm
 		yum -y install gzip git-core curl python openssl-devel
 		yum -y install postgresql-devel
-	
+		yum -y install wget		
+
 		npm -g install nodemon
 		
 		## get the latest version
@@ -4871,7 +4869,7 @@ then
 	echo '  "/var/log/node-project/err"' >> $conf
 	echo '],' >> $conf
 
-	chown -R codepad:srv /var/log/node-project
+	chown -R node:srv /var/log/node-project
 	chmod -R 774 /var/log/node-project
 	chmod 774 /var/log/node-project
 fi
@@ -4932,7 +4930,8 @@ cat $conf > /root/.log.io/log_server.conf
 
 
 		chown -R root:srv /srv/.log.io
-		chmod -R 770 /srv/.log.io
+		chmod -R 660 /srv/.log.io
+		chmod 760 /srv/.log.io
 
 		mkdir -p /var/log/logio
 		chown -R root:srv /var/log/logio
@@ -4975,6 +4974,9 @@ WantedBy=multi-user.target
 	systemctl enable logio.service
 	systemctl start logio.service
 	systemctl status logio.service
+
+## TODO: increase font size to 20
+## TODO restart után nem indul
 
 	msg "Log.io: https://log.$C admin:$password"
 
