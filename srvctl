@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-05:16:23
+# Last update:2014.08.07-05:21:49
 # version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -3178,6 +3178,8 @@ function regenerate_pound_files {
 
 			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-dev ]
 			then
+				## log.io currently broken on https
+				
 				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
@@ -3194,7 +3196,7 @@ function regenerate_pound_files {
 					  HeadRequire "Host: log.'$_C'"
 					  BackEnd
 					      Address '$_C'
-					      Port    9003
+					      Port    9004
 					      TimeOut 300
 					      HTTPS
 					  End
