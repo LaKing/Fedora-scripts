@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-03:30:23
+# Last update:2014.08.07-04:51:46
 # version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -3178,14 +3178,14 @@ function regenerate_pound_files {
 
 			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-dev ]
 			then
-				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
-					  Redirect "https://log.'$_C'"
+					  Redirect "http://log.'$_C'"
 
 				End'
  
-				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
 					  BackEnd
@@ -4840,25 +4840,15 @@ then
     host: "0.0.0.0",
     port: 28777
   },
-  logStreams: {
-    apache: [
-      "/var/log/httpd/access_log",
-      "/var/log/httpd/error_log",
-      "/var/log/httpd/ssl_access_log",
-      "/var/log/httpd/ssl_error_log",
-      "/var/log/httpd/ssl_request_log"
-    ]'
+  logStreams: {'
 
-	chown -R root:srv /var/log/httpd
-	chmod -R 664 /var/log/httpd
-	chmod 774 /var/log/httpd
 
 if [ -d /var/log/codepad ]
 then
 	echo 'codepad: [' >> $conf
 	echo '  "/var/log/codepad/log",' >> $conf
 	echo '  "/var/log/codepad/err"' >> $conf
-	echo ']' >> $conf
+	echo '],' >> $conf
 
 	chown -R codepad:srv /var/log/codepad
 	chmod -R 664 /var/log/codepad
@@ -4869,15 +4859,33 @@ fi
 
 if [ -d /var/log/node-project ]
 then
-	echo 'codepad: [' >> $conf
+	echo 'project: [' >> $conf
 	echo '  "/var/log/node-project/log",' >> $conf
 	echo '  "/var/log/node-project/err"' >> $conf
-	echo ']' >> $conf
+	echo '],' >> $conf
 
 	chown -R codepad:srv /var/log/node-project
 	chmod -R 774 /var/log/node-project
 	chmod 774 /var/log/node-project
 fi
+
+if true ## apache has logs
+then
+
+echo 'apache: [' >> $conf
+echo '  "/var/log/httpd/access_log",' >> $conf
+echo '  "/var/log/httpd/error_log",' >> $conf
+echo '  "/var/log/httpd/ssl_access_log",' >> $conf
+echo '  "/var/log/httpd/ssl_error_log",' >> $conf
+echo '  "/var/log/httpd/ssl_request_log"' >> $conf
+echo ']' >> $conf
+
+	chown -R root:srv /var/log/httpd
+	chmod -R 664 /var/log/httpd
+	chmod 774 /var/log/httpd
+
+fi
+
 
 ## TODO add other log sources here. maillog, .. etc.
 
