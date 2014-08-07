@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-04:57:20
+# Last update:2014.08.07-05:08:12
 # version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -3178,28 +3178,21 @@ function regenerate_pound_files {
 
 			if [ -f $SRV/$_C/pound-enable-log ] || [ -f $SRV/$_C/pound-enable-dev ]
 			then
-
-				## log.io seems to be bugged, it does not work over https
-
-				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
-				Service
-					  HeadRequire "Host: log.'$_C'"
-					  ## Redirect "http://log.'$_C'"
-					  BackEnd
-					      Address '$_C'
-					      Port    9003
-					      TimeOut 300
-					  End
-
-				End'
- 
 				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
+					  Redirect "https://log.'$_C'"
+
+				End'
+ 
+				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: log.'$_C'"
 					  BackEnd
 					      Address '$_C'
 					      Port    9003
 					      TimeOut 300
+					      HTTPS
 					  End
 				End'
 
