@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-05:08:12
+# Last update:2014.08.07-05:16:23
 # version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -3181,8 +3181,12 @@ function regenerate_pound_files {
 				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
-					  Redirect "https://log.'$_C'"
-
+					  #Redirect "https://log.'$_C'"
+					  BackEnd
+					      Address '$_C'
+					      Port    9003
+					      TimeOut 300
+					  End
 				End'
  
 				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
