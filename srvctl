@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.07-02:57:00
-# version 1.44.1
+# Last update:2014.08.07-03:00:58
+# version 1.44.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -813,8 +813,23 @@ fi ## adduser
 #fi ## start
 
 ## start or restart service
+hint "SERVICE start" "You can use this command to restart a certain service via systemctl."
+if [ "$2" == "start" ] || [ "$2" == "+" ] 
+then
+	if [ -f "/usr/lib/systemd/system/$1.service" ]
+	then
+
+	systemctl enable $1.service
+	systemctl start  $1.service
+	systemctl status $1.service
+
+	ok
+	fi
+
+fi ## start
+
 hint "SERVICE restart" "You can use this command to restart a certain service via systemctl."
-if [ "$2" == "restart" ] 
+if [ "$2" == "restart" ] || [ "$2" == "++" ] 
 then
 	if [ -f "/usr/lib/systemd/system/$1.service" ]
 	then
@@ -828,6 +843,20 @@ then
 
 fi ## start
 
+hint "SERVICE stop" "You can use this command to restart a certain service via systemctl."
+if [ "$2" == "stop" ]  || [ "$2" == "-" ] 
+then
+	if [ -f "/usr/lib/systemd/system/$1.service" ]
+	then
+
+	systemctl disable $1.service
+	systemctl stop $1.service
+	systemctl status $1.service
+
+	ok
+	fi
+
+fi ## start
 
 hint
 ############################
