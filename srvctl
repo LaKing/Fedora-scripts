@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.07-03:00:58
-# version 1.44.2
+# Last update:2014.08.07-03:17:13
+# version 1.44.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -813,7 +813,7 @@ fi ## adduser
 #fi ## start
 
 ## start or restart service
-hint "SERVICE start" "You can use this command to restart a certain service via systemctl."
+hint "SERVICE OP" "You can start|stop|restart|status the service via systemctl.  +|-|++|?"
 if [ "$2" == "start" ] || [ "$2" == "+" ] 
 then
 	if [ -f "/usr/lib/systemd/system/$1.service" ]
@@ -828,7 +828,7 @@ then
 
 fi ## start
 
-hint "SERVICE restart" "You can use this command to restart a certain service via systemctl."
+
 if [ "$2" == "restart" ] || [ "$2" == "++" ] 
 then
 	if [ -f "/usr/lib/systemd/system/$1.service" ]
@@ -843,7 +843,7 @@ then
 
 fi ## start
 
-hint "SERVICE stop" "You can use this command to restart a certain service via systemctl."
+
 if [ "$2" == "stop" ]  || [ "$2" == "-" ] 
 then
 	if [ -f "/usr/lib/systemd/system/$1.service" ]
@@ -853,6 +853,17 @@ then
 	systemctl stop $1.service
 	systemctl status $1.service
 
+	ok
+	fi
+
+fi ## start
+
+
+if [ "$2" == "stop" ]  || [ "$2" == "?" ] 
+then
+	if [ -f "/usr/lib/systemd/system/$1.service" ]
+	then
+	systemctl status $1.service
 	ok
 	fi
 
@@ -4838,9 +4849,9 @@ then
       "/var/log/httpd/ssl_request_log"
     ]'
 
-	chown -R codepad:srv /var/log/httpd
-	chmod -R 774 /var/log/httpd
-
+	chown -R root:srv /var/log/httpd
+	chmod -R 664 /var/log/httpd
+	chmod 774 /var/log/httpd
 
 if [ -d /var/log/codepad ]
 then
@@ -4850,7 +4861,8 @@ then
 	echo ']' >> $conf
 
 	chown -R codepad:srv /var/log/codepad
-	chmod -R 774 /var/log/codepad
+	chmod -R 664 /var/log/codepad
+	chmod  774 /var/log/codepad
 
 fi
 
@@ -4864,6 +4876,7 @@ then
 
 	chown -R codepad:srv /var/log/node-project
 	chmod -R 774 /var/log/node-project
+	chmod 774 /var/log/node-project
 fi
 
 ## TODO add other log sources here. maillog, .. etc.
