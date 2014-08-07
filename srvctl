@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.07-02:00:44
+# Last update:2014.08.07-02:57:00
 # version 1.44.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -801,15 +801,31 @@ fi ## adduser
 
 
 ## start or restart service
-hint "restart SERVICE" "You can use this command to restart a certain service via systemctl."
-if [ "$CMD" == "restart" ] 
-then
-	argument service
+#hint "restart SERVICE" "You can use this command to restart a certain service via systemctl."
+#if [ "$CMD" == "restart" ] 
+#then
+#	argument service
+#
+#	systemctl enable  $ARG.service
+#	systemctl restart $ARG.service
+#	systemctl status  $ARG.service
+#ok
+#fi ## start
 
-	systemctl enable  $ARG.service
-	systemctl restart $ARG.service
-	systemctl status  $ARG.service
-ok
+## start or restart service
+hint "SERVICE restart" "You can use this command to restart a certain service via systemctl."
+if [ "$2" == "restart" ] 
+then
+	if [ -f "/usr/lib/systemd/system/$1.service" ]
+	then
+
+	systemctl enable  $1.service
+	systemctl restart $1.service
+	systemctl status  $1.service
+
+	ok
+	fi
+
 fi ## start
 
 
@@ -4793,12 +4809,19 @@ then
       "/var/log/httpd/ssl_request_log"
     ]'
 
+	chown -R codepad:srv /var/log/httpd
+	chmod -R 774 /var/log/httpd
+
+
 if [ -d /var/log/codepad ]
 then
 	echo 'codepad: [' >> $conf
 	echo '  "/var/log/codepad/log",' >> $conf
 	echo '  "/var/log/codepad/err"' >> $conf
 	echo ']' >> $conf
+
+	chown -R codepad:srv /var/log/codepad
+	chmod -R 774 /var/log/codepad
 
 fi
 
@@ -4809,12 +4832,17 @@ then
 	echo '  "/var/log/node-project/log",' >> $conf
 	echo '  "/var/log/node-project/err"' >> $conf
 	echo ']' >> $conf
+
+	chown -R codepad:srv /var/log/node-project
+	chmod -R 774 /var/log/node-project
 fi
 
 ## TODO add other log sources here. maillog, .. etc.
 
 echo '  }' >> $conf
 echo '}' >> $conf
+
+cat $conf > /root/.log.io/harvester.conf
 
 get_password
 
@@ -4832,6 +4860,9 @@ set_file $conf 'exports.config = {
   },
 }
 '
+
+cat $conf > /root/.log.io/web_server.conf
+
 conf="/srv/.log.io/log_server.conf"
 
 set_file $conf 'exports.config = {
@@ -4840,19 +4871,23 @@ set_file $conf 'exports.config = {
 }
 '
 
+cat $conf > /root/.log.io/log_server.conf
 
+
+		chown -R root:srv /srv/.log.io
+		chmod -R 770 /srv/.log.io
 
 		mkdir -p /var/log/logio
-		chown root:srv /var/log/logio
-		chmod 770 /var/log/logio
+		chown -R root:srv /var/log/logio
+		chmod -R 770 /var/log/logio
 		rm -rf  /var/log/logio/*
 
 set_file /srv/logio.sh '#!/bin/bash
 echo $(whoami)" starting "$0 
 
 mkdir -p /var/log/logio
-chown root:srv /var/log/logio
-chmod 750 /var/log/logio
+chown -R root:srv /var/log/logio
+chmod -R 770 /var/log/logio
 rm -rf  /var/log/logio/*
 
 whoami > /var/log/logio/who
