@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.08.07-17:01:09
-# version 1.44.3
+# Last update:2014.08.14-00:32:13
+# version 1.44.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2414,7 +2414,7 @@ function generate_exports {
 	## argument container $C
 
 	mkdir -p $SRV/$C/rootfs/var/git
-	chown git:git $SRV/$C/rootfs/var/git
+	chown git:codepad $SRV/$C/rootfs/var/git
 	chown apache:apache $SRV/$C/rootfs/var/www/html
 	chown srv:srv $SRV/$C/rootfs/srv
 
@@ -2433,7 +2433,7 @@ function generate_exports {
 
 function nfs_mount_folder {
 	## $1 container-path (folder $F) user $U on container $C
-
+dbg "@@"
 		F=$(basename $1) 
 
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
@@ -4482,7 +4482,8 @@ then
 {
   "ep_codepad": { 
     "project_path": "'$project_path'",
-    "play_url": "http://'$C'"
+    "play_url": "http://'$C'",
+    "push_action": "cd '$project_path' && git add . && git commit -m codepad-auto && git push"
   },
   "title": "'$C'",
   "favicon": "favicon.ico",
@@ -4703,12 +4704,16 @@ WantedBy=multi-user.target
 	## this directory should be present, but we want to make sure.
 	mkdir -p /var/git
 
-	chown git:git /var/git
+	chown git:codepad /var/git
 	cd /var/git
 
-	git config --global user.name "codepad"
+	git config --global user.name 'codepad'
 	git config --global user.email codepad@$(hostname)
 	git config --global push.default simple
+
+	su codepad -s /bin/bash -c "git config --global user.name 'codepad'"
+	su codepad -s /bin/bash -c "git config --global user.email codepad@$(hostname)"
+	su codepad -s /bin/bash -c "git config --global push.default simple"
 
 	## init bare git repository
 	if [ -z "$(ls /var/git)" ]
@@ -4727,6 +4732,11 @@ WantedBy=multi-user.target
 	mv /srv/git/.git $project_path
 	rm -rf /srv/git
 
+	chown -R git:codepad $project_path/.git
+	chmod -R 775 $project_path/.git
+	chown -R git:codepad /var/git
+	chmod -R 775 /var/git
+
 	cd $project_path
 
 	git add . -A
@@ -4734,7 +4744,7 @@ WantedBy=multi-user.target
 
 	git push
 
-
+	### TODO allow node to run on port 80
 	## iptables to forward port 8000 to port 80
  	#iptables -t nat -L
 
@@ -4748,6 +4758,22 @@ WantedBy=multi-user.target
 
 	systemctl start iptables.service
 	systemctl enable iptables.service
+
+## shortcut to restart codepad
+set_file /bin/rc '#!/bin/bash
+
+systemctl restart codepad.service
+systemctl status codepad.service
+systemctl restart logio.service
+systemctl status logio.service
+
+sleep 2
+
+cat /var/log/codepad/err
+tail /var/log/codepad/log
+'
+
+chmod +x /bin/rc
 
 	## import source files.
 	APIKEY=$(cat /srv/etherpad-lite/APIKEY.txt)
@@ -4982,7 +5008,7 @@ WantedBy=multi-user.target
 
 ok
 fi
-
+-A
 
 hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
 if [ "$CMD" == "add-wordpress" ]
