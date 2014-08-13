@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.14-00:32:13
+# Last update:2014.08.14-00:33:36
 # version 1.44.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -2433,7 +2433,7 @@ function generate_exports {
 
 function nfs_mount_folder {
 	## $1 container-path (folder $F) user $U on container $C
-dbg "@@"
+
 		F=$(basename $1) 
 
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] && ! [ -d "/home/$U/$C/$F" ]
@@ -2443,6 +2443,8 @@ dbg "@@"
 			
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
+		else
+			dbg "$F $U $C $F"
 		fi
 }
 
