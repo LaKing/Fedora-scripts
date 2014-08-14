@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.08.14-00:35:57
+# Last update:2014.08.14-02:00:08
 # version 1.44.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -2443,8 +2443,7 @@ function nfs_mount_folder {
 			
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
-		else
-			dbg "$F $U $C $F"
+
 		fi
 }
 
@@ -5010,7 +5009,6 @@ WantedBy=multi-user.target
 
 ok
 fi
--A
 
 hint "add-wordpress [path]" "Install Wordpress. Optionally to a folder (URI)."
 if [ "$CMD" == "add-wordpress" ]
