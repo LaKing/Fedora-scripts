@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.09.04-17:54:18
+# Last update:2014.09.04-18:18:28
 # version 1.44.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -4240,12 +4240,12 @@ then
 		db_pwd=$password
 
 		SQL="CREATE DATABASE IF NOT EXISTS $db_name"
-		ntc $SQL
+		ntc "$SQL"
 		mysql $MDA -e "$SQL"
 
 
 		SQL="GRANT ALL ON *.* TO '$db_usr'@'localhost' IDENTIFIED BY '$db_pwd'; flush privileges;"
-		ntc $SQL
+		ntc "$SQL"
 		mysql $MDA -e "$SQL"
 
 		## save these params
