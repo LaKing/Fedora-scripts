@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.09.03-16:22:55
+# Last update:2014.09.04-17:54:18
 # version 1.44.4
 #
 # Server Controll script for Fedora with LXC containers
@@ -3783,6 +3783,12 @@ then
 
 	argument C 
 
+	## if thi sis a dev site, use the domain without the dev. prefix
+	if [ ${ARG:0:4} == "dev." ]
+	then
+		C=${ARG:4}
+	fi
+
 	if [ -d $SRV/$C ]; then
 	  err "$SRV/$C already exists! Exiting"
 	  exit 11
@@ -3807,6 +3813,12 @@ then
 
 	log "Container created."
 	## TODO check, if it really is.
+
+	## mark as dev site
+	if [ ${ARG:0:4} == "dev." ]
+	then
+		echo "true" > $SRV/$C/pound-enable-dev
+	fi
 
 	#mkdir -p $SRV/$C 
 	echo $counter > $SRV/$C/config.counter
