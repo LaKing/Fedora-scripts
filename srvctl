@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.09.04-18:18:28
-# version 1.44.4
+# Last update:2014.10.12-23:41:11
+# version 1.44.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -37,7 +37,7 @@ DDN=$(dnsdomainname)
 ## Use with "" if value contains spaces.
 
 ## use latst version or the keyword 'git' 
-LXC_VERSION=1.0.5
+LXC_VERSION=1.0.6
 
 ## logfile
 LOG=/var/log/srvctl.log
@@ -1069,7 +1069,7 @@ ssl_password=ssl_pass_$password
 		err "Due to incompatibility of saslauthd <= 2.1.26 and perdition, a custom version of saslauthd is required, that has to be located at /root/saslauthd. Exiting."
 		exit
 	fi
-
+## TODO saslauthd may hang, research / another implementation is needed.
 
 ## @update-install
 if [ ! "$(lxc-info --version)" == "$LXC_VERSION" ] || $all_arg_set
@@ -4789,73 +4789,6 @@ tail /var/log/codepad/log
 
 chmod +x /bin/rc
 
-	## import source files.
-	APIKEY=$(cat /srv/etherpad-lite/APIKEY.txt)
-	createpad_url='http://127.0.0.1:9001/api/1/createPad'
-
-	function createpad {
-	f=$1
-		ntc ".. adding $f"
-		#filepath=$(echo ${f:2} | sed 's|/|___|g')
-		curl -d "apikey=$APIKEY" --data-urlencode "padID=${f:2}" --data-urlencode "text=$(cat $f)"  $createpad_url
-		echo ''
-	}
-
-	## cd $project_path
-
-	    for f in $(find .)
-	    do
-	    # take action on each file. $f store current file name
-	     if [ -e $f ] 
-	     then
-
-	     ## Process file depending on extension
-
-
-		if [[ $f == *.json ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.md ]]
-		 then
-		    createpad $f
-		 fi
-
-
-		if [[ $f == *.txt ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.js ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.rb ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.html ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.css ]]
-		 then
-		    createpad $f
-		 fi
-
-		if [[ $f == *.php ]]
-		 then
-		    createpad $f
-		 fi
-	    fi
-	    done
-
-
 
 	msg "Codepad: https://dev.$C/admin admin:$adminpass"	
 
@@ -5160,6 +5093,7 @@ then
 		log "Wordpress instance installed. https://"$(hostname)"/$URI/wp-admin admin:$password"
 		
 		## URGENT TODO: fix https for wordpress behind pound
+		## TODO, reset password: UPDATE users SET user_pass = MD5('"(new-password)"') WHERE ID = 1;
 ok
 fi ## install-wordpress
 
