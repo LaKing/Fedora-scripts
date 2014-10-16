@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.12-23:41:11
-# version 1.44.5
+# Last update:2014.10.16-19:49:23
+# version 1.44.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2063,6 +2063,7 @@ fi ## install perdition
 ## @update-install
 
 ## configure DNS server
+## no recursion to prevent DNS amplifiaction attacks
 if [ ! -f /etc/named.conf ] || $all_arg_set
 then
 	log "Installing BIND (named) DNS server."
@@ -2070,6 +2071,12 @@ then
 	yum -y install bind bind-utils
 
 	set_file /etc/named.conf '// srvctl generated named.conf
+
+acl "trusted" {
+     10.10.0.0/16;
+     localhost;
+     localnets;
+ };
 
 options {
     listen-on port 53 { any; };
@@ -2079,6 +2086,8 @@ options {
     statistics-file "/var/named/data/named_stats.txt";
     memstatistics-file "/var/named/data/named_mem_stats.txt";
     allow-query     { any; };
+    allow-recursion { trusted; };
+    allow-query-cache { trusted; };
     recursion yes;
     dnssec-enable yes;
     dnssec-validation yes;
@@ -3203,7 +3212,7 @@ function regenerate_pound_files {
 				echo 'Include "'$cfg_dir/log-http-service'"' >> /var/pound/http-domains.cfg
 				echo 'Include "'$cfg_dir/log-https-service'"' >> /var/pound/https-domains.cfg
 			fi
-
+				### TODO ### Add posibility for custom arguments for pound
 			if [ -f $SRV/$_C/pound-no-http ]
 			then
 				set_file $cfg_dir/http-service '## srvctl '$_C' '$_ip'
