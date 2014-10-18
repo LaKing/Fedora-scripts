@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.18-16:54:03
-# version 1.44.7
+# Last update:2014.10.18-16:56:23
+# version 1.44.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3162,19 +3162,19 @@ function regenerate_pound_files {
 
 				set_file $cfg_dir/subdomain-http-service '## srvctl '$_C' '$_ip'
 				Service
-					  HeadRequire "Host: '$_C'.'$DDN'"
+					  HeadRequire "Host: '$subdomain_hostname'"
 					  BackEnd
 					      Address '$_C'
-					      Port    '$_http_port'
+					      Port    '$subdomain_http_port'
 					  End
 				End'
  
 				set_file $cfg_dir/subdomain-https-service '## srvctl '$_C' '$_ip'
 				Service
-					  HeadRequire "Host: '$_C'.'$DDN'"
+					  HeadRequire "Host: '$subdomain_hostname'"
 					  BackEnd
 					      Address '$_C'
-					      Port    '$_https_port'
+					      Port    '$subdomain_https_port'
 					  End
 				End'
 
