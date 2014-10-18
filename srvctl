@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.18-16:56:23
-# version 1.44.8
+# Last update:2014.10.18-17:28:24
+# version 1.44.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3139,6 +3139,7 @@ function regenerate_pound_files {
 
 		if [ ! -f $SRV/$_C/disabed ]
 		then
+			if false
 			## Directly addressed pound domains
 			if [ -f $SRV/$_C/pound-enable-subdomain ]
 			then
@@ -3180,6 +3181,7 @@ function regenerate_pound_files {
 
 				echo 'Include "'$cfg_dir/subdomain-http-service'"' >> /var/pound/http-domains.cfg
 				echo 'Include "'$cfg_dir/subdomain-https-service'"' >> /var/pound/https-domains.cfg
+			fi
 			fi
 
 			if [ -f $SRV/$_C/pound-enable-dev ]
