@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.16-19:49:23
-# version 1.44.6
+# Last update:2014.10.18-16:54:03
+# version 1.44.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3142,6 +3142,24 @@ function regenerate_pound_files {
 			## Directly addressed pound domains
 			if [ -f $SRV/$_C/pound-enable-subdomain ]
 			then
+				subdomain_hostname=$_C'.'$DDN			
+				if [ -s "$SRV/$_C/pound-enable-subdomain" ]
+				then
+					subdomain_hostname=$(cat $SRV/$_C/pound-enable-subdomain)
+				fi
+
+				subdomain_http_port=8080
+				if [ -f $SRV/$_C/pound-subdomain-http-port ]
+				then
+					subdomain_http_port=$(cat $SRV/$_C/pound-http-port)
+				fi
+
+				subdomain_https_port=8443
+				if [ -f $SRV/$_C/pound-subdomain-https-port ]
+				then
+					subdomain_https_port=$(cat $SRV/$_C/pound-https-port)
+				fi
+
 				set_file $cfg_dir/subdomain-http-service '## srvctl '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_C'.'$DDN'"
