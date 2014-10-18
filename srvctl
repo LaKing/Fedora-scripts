@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.18-17:28:24
+# Last update:2014.10.18-17:29:04
 # version 1.44.9
 #
 # Server Controll script for Fedora with LXC containers
@@ -3139,50 +3139,8 @@ function regenerate_pound_files {
 
 		if [ ! -f $SRV/$_C/disabed ]
 		then
-			if false
-			## Directly addressed pound domains
-			if [ -f $SRV/$_C/pound-enable-subdomain ]
-			then
-				subdomain_hostname=$_C'.'$DDN			
-				if [ -s "$SRV/$_C/pound-enable-subdomain" ]
-				then
-					subdomain_hostname=$(cat $SRV/$_C/pound-enable-subdomain)
-				fi
 
-				subdomain_http_port=8080
-				if [ -f $SRV/$_C/pound-subdomain-http-port ]
-				then
-					subdomain_http_port=$(cat $SRV/$_C/pound-http-port)
-				fi
-
-				subdomain_https_port=8443
-				if [ -f $SRV/$_C/pound-subdomain-https-port ]
-				then
-					subdomain_https_port=$(cat $SRV/$_C/pound-https-port)
-				fi
-
-				set_file $cfg_dir/subdomain-http-service '## srvctl '$_C' '$_ip'
-				Service
-					  HeadRequire "Host: '$subdomain_hostname'"
-					  BackEnd
-					      Address '$_C'
-					      Port    '$subdomain_http_port'
-					  End
-				End'
- 
-				set_file $cfg_dir/subdomain-https-service '## srvctl '$_C' '$_ip'
-				Service
-					  HeadRequire "Host: '$subdomain_hostname'"
-					  BackEnd
-					      Address '$_C'
-					      Port    '$subdomain_https_port'
-					  End
-				End'
-
-				echo 'Include "'$cfg_dir/subdomain-http-service'"' >> /var/pound/http-domains.cfg
-				echo 'Include "'$cfg_dir/subdomain-https-service'"' >> /var/pound/https-domains.cfg
-			fi
-			fi
+			
 
 			if [ -f $SRV/$_C/pound-enable-dev ]
 			then
