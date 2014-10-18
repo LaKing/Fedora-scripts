@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.18-18:13:28
-# version 1.44.9
+# Last update:2014.10.18-19:24:00
+# version 1.45.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -27,6 +27,9 @@ fi
 NOW=$(date +%Y.%m.%d-%H:%M:%S)
 MSG="## srvctl modification. $NOW"
 DDN=$(dnsdomainname)
+
+## if enabled, containers should be accessible on container.yourdomain.net
+ENABLE_CDDN=true
 
 ####################################################
 ## Configuration defaults - Overwritten in config!
@@ -3033,7 +3036,9 @@ function regenerate_pound_files {
 
 	echo 'Include "/var/pound/https-certificates.cfg"' >> /var/pound/https-includes.cfg
 
-	echo 'Include "/var/pound/http-domains.cfg"' >> /var/pound/http-includes.cfg	
+	echo 'Include "/var/pound/http-domains.cfg"' >> /var/pound/http-includes.cfg
+	echo 'Include "/var/pound/http-dddn-domains.cfg"' >> /var/pound/http-includes.cfg	
+	
 	echo 'Include "/var/pound/http-8-domains.cfg"' >> /var/pound/http-includes.cfg
 	echo 'Include "/var/pound/http-7-domains.cfg"' >> /var/pound/http-includes.cfg
 	echo 'Include "/var/pound/http-6-domains.cfg"' >> /var/pound/http-includes.cfg
@@ -3044,6 +3049,7 @@ function regenerate_pound_files {
 	echo 'Include "/var/pound/http-1-domains.cfg"' >> /var/pound/http-includes.cfg
 
 	echo 'Include "/var/pound/https-domains.cfg"' >> /var/pound/https-includes.cfg
+	echo 'Include "/var/pound/https-dddn-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-8-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-7-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-6-domains.cfg"' >> /var/pound/https-includes.cfg
@@ -3140,6 +3146,33 @@ function regenerate_pound_files {
 		if [ ! -f $SRV/$_C/disabed ]
 		then
 
+			## Direct Developer DomainName - useful if your domain is not registered / dns ha problems
+			if $ENABLE_DDDN
+			then
+				set_file $cfg_dir/dddn-http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_C'.'$DDN'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_http_port'
+					  End
+				End'
+ 
+				set_file $cfg_dir/dddn-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$_C'.'$DDN'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$_https_port'
+					      HTTPS
+					  End
+				End'
+
+				echo 'Include "'$cfg_dir/dddn-http-service'"' >> /var/pound/http-dddn-domains.cfg
+				echo 'Include "'$cfg_dir/dddn-https-service'"' >> /var/pound/https-dddn-domains.cfg
+			fi 
+
+
 			## Directly addressed alternative pound domain on custom port
 			if [ -f $SRV/$_C/pound-enable-altdomain ]
 			then
@@ -3176,6 +3209,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$altdomain_https_port'
+					      HTTPS
 					  End
 				End'
 
