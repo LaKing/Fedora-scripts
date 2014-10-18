@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.18-17:29:04
+# Last update:2014.10.18-18:13:28
 # version 1.44.9
 #
 # Server Controll script for Fedora with LXC containers
@@ -3140,6 +3140,48 @@ function regenerate_pound_files {
 		if [ ! -f $SRV/$_C/disabed ]
 		then
 
+			## Directly addressed alternative pound domain on custom port
+			if [ -f $SRV/$_C/pound-enable-altdomain ]
+			then
+				altdomain_hostname=$_C'.'$DDN			
+				if [ ! -z $(cat $SRV/$_C/pound-enable-altdomain) ]
+				then
+					altdomain_hostname=$(cat $SRV/$_C/pound-enable-altdomain)
+				fi
+
+				altdomain_http_port=8080
+				if [ -f $SRV/$_C/pound-altdomain-http-port ]
+				then
+					altdomain_http_port=$(cat $SRV/$_C/pound-http-port)
+				fi
+
+				altdomain_https_port=8443
+				if [ -f $SRV/$_C/pound-altdomain-https-port ]
+				then
+					altdomain_https_port=$(cat $SRV/$_C/pound-https-port)
+				fi
+
+				set_file $cfg_dir/altdomain-http-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$altdomain_hostname'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$altdomain_http_port'
+					  End
+				End'
+ 
+				set_file $cfg_dir/altdomain-https-service '## srvctl '$_C' '$_ip'
+				Service
+					  HeadRequire "Host: '$altdomain_hostname'"
+					  BackEnd
+					      Address '$_C'
+					      Port    '$altdomain_https_port'
+					  End
+				End'
+
+				echo 'Include "'$cfg_dir/altdomain-http-service'"' >> /var/pound/http-domains.cfg
+				echo 'Include "'$cfg_dir/altdomain-https-service'"' >> /var/pound/https-domains.cfg
+			fi
 			
 
 			if [ -f $SRV/$_C/pound-enable-dev ]
