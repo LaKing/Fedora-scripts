@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:30:39
+# Last update:2014.10.21-05:37:19
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3616,8 +3616,11 @@ function regenerate_users_structure {
 			msg "Disabling password authentication for $C"
 			sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
 			ssh $C "systemctl restart sshd.service"
+		else
+			msg "password authentication seems to be disabled. $C"
 		fi
-
+		
+		msg "password authentication seems to be disabled"
 		bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 		echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
@@ -3658,7 +3661,6 @@ function regenerate_users_structure {
 		fi
 	done
 
-	msg "Reload firewall configuration"
 	firewall-cmd --reload
 
 }
