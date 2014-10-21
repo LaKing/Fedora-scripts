@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:37:19
+# Last update:2014.10.21-05:38:57
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3618,6 +3618,7 @@ function regenerate_users_structure {
 			ssh $C "systemctl restart sshd.service"
 		else
 			msg "password authentication seems to be disabled. $C"
+			ssh $C "systemctl restart sshd.service"
 		fi
 		
 		msg "password authentication seems to be disabled"
