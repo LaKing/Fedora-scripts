@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:27:11
+# Last update:2014.10.21-05:30:39
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3604,7 +3604,8 @@ function regenerate_users_structure {
 		## I could only manage dorect port-to-port mapping, therefore Container ssh config needs additional port - and passwording disabled
 
 		## firewall-forward rule
-		firewall-cmd --zone=public --add-forward-port=port=$((22000+$(cat $SRV/$C/config.counter))):proto=tcp:toport=22:proto=tcp:toaddr=$(cat $SRV/$C/config.ipv4) --permanent
+		echo -n '.'
+		firewall-cmd --zone=public --add-forward-port=port=$((22000+$(cat $SRV/$C/config.counter))):proto=tcp:toport=22:proto=tcp:toaddr=$(cat $SRV/$C/config.ipv4) --permanent > /dev/null
 
 		## make sure password authentication is disabled
 		sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
