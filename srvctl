@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:47:11
+# Last update:2014.10.21-05:57:29
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3658,7 +3658,7 @@ function regenerate_users_structure {
 		fi
 	done
 
-	firewall-cmd --reload
+	systemctl restart firewalld.service
 
 }
 
@@ -3931,7 +3931,7 @@ then
 
 	msg "Add firewall configuration"
 	firewall-cmd --zone=public --add-forward-port=port=$((22000+$counter)):proto=tcp:toport=22:proto=tcp:toaddr=$IPv4 --permanent
-	firewall-cmd --reload
+	systemctl restart firewalld.service
 	
 	## Add IP to hosts file
 	echo "$IPv4		$C"  >> /etc/hosts
