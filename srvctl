@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:38:57
+# Last update:2014.10.21-05:46:30
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -3606,22 +3606,19 @@ function regenerate_users_structure {
 		## firewall-forward rule
 		echo -n '.'
 		firewall-cmd --zone=public --add-forward-port=port=$((22000+$(cat $SRV/$C/config.counter))):proto=tcp:toport=22:proto=tcp:toaddr=$(cat $SRV/$C/config.ipv4) --permanent > /dev/null
-
-		## make sure password authentication is disabled
-		sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
-
+		## TODO speed this up - check forward?
 		
 		if [ ! -z $(cat $SRV/$C/rootfs/etc/ssh/sshd_config | grep "PasswordAuthentication yes") ]
 		then
 			msg "Disabling password authentication for $C"
+
+			## make sure password authentication is disabled
 			sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
 			ssh $C "systemctl restart sshd.service"
 		else
 			msg "password authentication seems to be disabled. $C"
-			ssh $C "systemctl restart sshd.service"
 		fi
 		
-		msg "password authentication seems to be disabled"
 		bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 		echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
