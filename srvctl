@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.18-19:24:00
-# version 1.45.0
+# Last update:2014.10.21-05:27:11
+# version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2225,6 +2225,10 @@ log "Running updates"
 freshclam
 yum -y update
 
+## TODO, configure firewalld
+firewall-cmd --zone=external --add-masquerade
+## Open port 22001 to 22000+last container serial-counter
+
 ok
 fi ## update-install
 
@@ -3594,8 +3598,29 @@ function regenerate_users_structure {
 	
 	for C in $(lxc-ls)
 	do
+		## Combine root's added authorised keys, and host's-root's public key, as well as user key's .. 
+		## This will allow direct ssh connection on a srvctl port 22xxx, if firewall is open.
+		## note, firewall needs a complete reload on changes, masquerading needs to be enabled, and tcp port forwarding needs to be set
+		## I could only manage dorect port-to-port mapping, therefore Container ssh config needs additional port - and passwording disabled
+
+		## firewall-forward rule
+		firewall-cmd --zone=public --add-forward-port=port=$((22000+$(cat $SRV/$C/config.counter))):proto=tcp:toport=22:proto=tcp:toaddr=$(cat $SRV/$C/config.ipv4) --permanent
+
+		## make sure password authentication is disabled
+		sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
+
+		
+		if [ ! -z $(cat $SRV/$C/rootfs/etc/ssh/sshd_config | grep "PasswordAuthentication yes") ]
+		then
+			msg "Disabling password authentication for $C"
+			sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
+			ssh $C "systemctl restart sshd.service"
+		fi
+
 		bak $SRV/$C/rootfs/root/.ssh/authorized_keys
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
+		echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
+		cat /root/.ssh/authorized_keys >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
 		echo "/var/srvctl $SRV/$C/rootfs/var/srvctl none ro,bind 0 0" > $SRV/$C/fstab
@@ -3619,6 +3644,7 @@ function regenerate_users_structure {
 		done
  	done
 
+	## generate host's-user's access keysets. 
 	for U in $(ls /home)
 	do
 		## users should be accessible by root with ssh
@@ -3627,10 +3653,12 @@ function regenerate_users_structure {
 		## if the user submitted a public key, add it as well.
 		if [ -f /root/srvctl-users/authorized_keys/$U ]
 		then
-			
 			cat /root/srvctl-users/authorized_keys/$U >> /home/$U/.ssh/authorized_keys
 		fi
 	done
+
+	msg "Reload firewall configuration"
+	firewall-cmd --reload
 
 }
 
@@ -3894,8 +3922,17 @@ then
 	## make root access
 	mkdir -m 600 $rootfs/root/.ssh
 	cat /root/.ssh/id_rsa.pub > $rootfs/root/.ssh/authorized_keys
+	echo '' >>  $rootfs/root/.ssh/authorized_keys
+	cat /root/.ssh/authorized_keys >> $rootfs/root/.ssh/authorized_keys
 	chmod 600 $rootfs/root/.ssh/authorized_keys
+	
+	## disable password authentication on ssh
+	sed_file $rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
 
+	msg "Add firewall configuration"
+	firewall-cmd --zone=public --add-forward-port=port=$((22000+$counter)):proto=tcp:toport=22:proto=tcp:toaddr=$IPv4 --permanent
+	firewall-cmd --reload
+	
 	## Add IP to hosts file
 	echo "$IPv4		$C"  >> /etc/hosts
 	echo "$IPv4		mail.$C"  >> /etc/hosts
