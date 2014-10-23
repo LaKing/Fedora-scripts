@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.10.21-05:57:29
+# Last update:2014.10.23-04:34:48
 # version 1.45.1
 #
 # Server Controll script for Fedora with LXC containers
@@ -2226,8 +2226,6 @@ freshclam
 yum -y update
 
 ## TODO, configure firewalld
-firewall-cmd --zone=external --add-masquerade
-## Open port 22001 to 22000+last container serial-counter
 
 ok
 fi ## update-install
@@ -3555,12 +3553,21 @@ function generate_user_structure ## for user $U, Container $C
 {
 	# echo  "Generating user structure for $U in $C"
 
-		## add users local public key to container root user - for ssh access.
+		## add users host public key to container root user - for ssh access.
 		if [ -f /home/$U/.ssh/id_rsa.pub ]
 		then
 			cat /home/$U/.ssh/id_rsa.pub >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		else
 			err "No id_rsa.pub for user "$U
+		fi
+
+		## add users submitted public key to container root user - for ssh access.
+		if [ -f /root/srvctl-users/authorized_keys/$U ]
+		then
+			cat /root/srvctl-users/authorized_keys/$U >> $SRV/$C/rootfs/root/.ssh/authorized_keys
+		
+			## else
+			## ntc "No public key for user "$U
 		fi
 
 		## Share via mount
@@ -3602,15 +3609,17 @@ function regenerate_users_structure {
 		## This will allow direct ssh connection on a srvctl port 22xxx, if firewall is open.
 		## note, firewall needs a complete reload on changes, masquerading needs to be enabled, and tcp port forwarding needs to be set
 		## I could only manage dorect port-to-port mapping, therefore Container ssh config needs additional port - and passwording disabled
+		## TODO fix this
 
-		## firewall-forward rule
-		echo -n '.'
-		firewall-cmd --zone=public --add-forward-port=port=$((22000+$(cat $SRV/$C/config.counter))):proto=tcp:toport=22:proto=tcp:toaddr=$(cat $SRV/$C/config.ipv4) --permanent > /dev/null
-		## TODO speed this up - check forward?
-		
+		## NOTE on port forwarding. This will allow direct ssh on a custom local port! 
+		## Create the tunnel
+		## ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -L 2222:nameof.container.ve:22 -N -f user@host
+		## connect to the tunnel
+		## ssh -p 2222 user@localhost
+
 		if [ ! -z $(cat $SRV/$C/rootfs/etc/ssh/sshd_config | grep "PasswordAuthentication yes") ]
 		then
-			msg "Disabling password authentication for $C"
+			msg "Disabling password authentication on $C"
 
 			## make sure password authentication is disabled
 			sed_file $SRV/$C/rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
@@ -3618,9 +3627,11 @@ function regenerate_users_structure {
 
 		fi
 		
-		bak $SRV/$C/rootfs/root/.ssh/authorized_keys
+		## TODO delete this temporary line
+		rm $SRV/$C/rootfs/root/.ssh/authorized_keys.bak
+		
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
-		echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
+		#echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		cat /root/.ssh/authorized_keys >> $SRV/$C/rootfs/root/.ssh/authorized_keys
 		chmod 600 $SRV/$C/rootfs/root/.ssh/authorized_keys
 
@@ -3919,19 +3930,14 @@ then
 	IPv4="10.10."$(to_ip $counter)
 	rootfs=$SRV/$C/rootfs
 
-	## make root access
+	## make root's key access
 	mkdir -m 600 $rootfs/root/.ssh
 	cat /root/.ssh/id_rsa.pub > $rootfs/root/.ssh/authorized_keys
-	echo '' >>  $rootfs/root/.ssh/authorized_keys
 	cat /root/.ssh/authorized_keys >> $rootfs/root/.ssh/authorized_keys
 	chmod 600 $rootfs/root/.ssh/authorized_keys
 	
 	## disable password authentication on ssh
 	sed_file $rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
-
-	msg "Add firewall configuration"
-	firewall-cmd --zone=public --add-forward-port=port=$((22000+$counter)):proto=tcp:toport=22:proto=tcp:toaddr=$IPv4 --permanent
-	systemctl restart firewalld.service
 	
 	## Add IP to hosts file
 	echo "$IPv4		$C"  >> /etc/hosts
