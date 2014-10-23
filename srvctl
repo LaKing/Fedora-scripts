@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.23-04:34:48
-# version 1.45.1
+# Last update:2014.10.23-06:31:59
+# version 1.45.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3599,23 +3599,28 @@ function generate_user_structure ## for user $U, Container $C
 		
 }
 
+		## NOTE on port forwarding and ssh usage. This will allow direct ssh on a custom local port! 
+		## Create the tunnel
+		## ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -L 2222:nameof.container.ve:22 -N -f user@host
+		## connect to the tunnel
+		## ssh -p 2222 user@localhost
+
+		## List Open tunnels
+		##  ps ax | grep "ssh " | grep " -L "
+
+		## ssh with compresion
+		## ssh -C -c blowfish
+
+		## kill all L tunnels
+		## kill $(ps ax | grep "ssh " | grep " -L " | cut -f 1 -d " ")
+
+
 function regenerate_users_structure {
 
 	msg "Updateing user-structure."
 	
 	for C in $(lxc-ls)
 	do
-		## Combine root's added authorised keys, and host's-root's public key, as well as user key's .. 
-		## This will allow direct ssh connection on a srvctl port 22xxx, if firewall is open.
-		## note, firewall needs a complete reload on changes, masquerading needs to be enabled, and tcp port forwarding needs to be set
-		## I could only manage dorect port-to-port mapping, therefore Container ssh config needs additional port - and passwording disabled
-		## TODO fix this
-
-		## NOTE on port forwarding. This will allow direct ssh on a custom local port! 
-		## Create the tunnel
-		## ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -L 2222:nameof.container.ve:22 -N -f user@host
-		## connect to the tunnel
-		## ssh -p 2222 user@localhost
 
 		if [ ! -z $(cat $SRV/$C/rootfs/etc/ssh/sshd_config | grep "PasswordAuthentication yes") ]
 		then
