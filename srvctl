@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.10.23-06:31:59
-# version 1.45.2
+# Last update:2014.10.28-22:56:22
+# version 1.45.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -39,8 +39,10 @@ ENABLE_CDDN=true
 ## srvctl config 
 ## Use with "" if value contains spaces.
 
-## use latst version or the keyword 'git' 
-LXC_VERSION=1.0.6
+## use the latst version, options are 'yum' 'git' 'zip' 'src' 
+LXC_INSTALL='yum'
+## eventually specify the version - mandatory for zip, optional for yum
+LXC_VERSION=''
 
 ## logfile
 LOG=/var/log/srvctl.log
@@ -726,7 +728,12 @@ then
   if $onHS
   then 
 
-    msg 'LXC: '$(lxc-info --version)' installed'
+    if [ -z "$(lxc-info --version 2> /dev/null)" ]
+    then
+	err "LXC NOT INSTALLED!"
+    else
+	msg 'LXC: '$(lxc-info --version)' installed'
+    fi
     msg_yum_version_installed Pound
     msg_yum_version_installed postfix
     msg_yum_version_installed perdition
@@ -872,7 +879,7 @@ then
 
 fi ## start
 
-hint
+
 ############################
 ## 
 ##  SERVER SIDE FUNCTIONS
@@ -925,6 +932,29 @@ then
 	w
 ok
 fi
+
+
+## just to make sure, LXC is installed for real
+if [ -z "$(lxc-info --version 2> /dev/null)" ] && ! [ "$CMD" == "update-install" ]
+then	
+
+echo -e "
+ $HINT
+ "
+## re-define 
+function hint {
+	## do nothing
+	echo '' > /dev/null
+}
+
+err "   LXC NOT INSTALLED!"
+msg "	run 'srvctl update-install' to configure this system as container-host."
+
+ok
+fi
+
+hint ''
+
 
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
@@ -1072,69 +1102,102 @@ ssl_password=ssl_pass_$password
 		err "Due to incompatibility of saslauthd <= 2.1.26 and perdition, a custom version of saslauthd is required, that has to be located at /root/saslauthd. Exiting."
 		exit
 	fi
-## TODO saslauthd may hang, research / another implementation is needed.
+
+## TODO saslauthd may hang, research / or implementation fix is needed.
 
 ## @update-install
-if [ ! "$(lxc-info --version)" == "$LXC_VERSION" ] || $all_arg_set
+if [ -z "$(lxc-info --version 2> /dev/null)" ] || $all_arg_set
 then
-log "Installing LXC!"
+	log "Installing LXC!"
 
-	## LXC is also part of docker-io
-	#yum install docker-io
-	    
-	## lxc can be installed as rpm
-	#yum -y install lxc lxc-templates
-
-	## packages needed for compilation and for running
-	log "Install Development Tools"
-	yum -y groupinstall "Development Tools"
-	yum -y install automake
-	yum -y install graphviz
-	yum -y install libcap-devel
-
-
-	cd /root
-	if $all_arg_set
+	if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
 	then
-		rm -rf lxc
-	fi
+		## packages needed for compilation and for running
+		log "Install Development Tools"
+		yum -y groupinstall "Development Tools"
+		yum -y install automake
+		yum -y install graphviz
+		yum -y install libcap-devel
 
-	if [ "$LXC_VERSION" == "git" ]
-	then
-		log "Install LXC via git"
 
-	  ## to compile it from source
-	  git clone git://github.com/lxc/lxc
-	else
-		if [ ! -f /root/lxc/autogen.sh ]
+		cd /root
+
+		if [ "$LXC_INSTALL" == "git" ]
 		then
-			  ## use a version-release
-			  if [ ! -f /root/lxc-$LXC_VERSION.zip ] 
-			  then 
-				log "Downloading LXC $LXC_VERSION"
-			  	wget -O /root/lxc-$LXC_VERSION.zip https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
-			  fi
-			  unzip /root/lxc-$LXC_VERSION.zip
-			  mv /root/lxc-lxc-$LXC_VERSION /root/lxc
-		else
+			log "Install LXC via git"
+		  	git clone git://github.com/lxc/lxc
+		fi
+
+		if [ "$LXC_INSTALL" == "src" ]
+		then
 			log "Installing using existing /root/lxc source."
 		fi
+
+		if [ "$LXC_INSTALL" == "zip" ]
+		then
+
+			if [ $LXC_VERSION == '' ]
+			then
+				err 'LXC_VERSION not specified! CAN NOT use a release! exiting.'
+				exit 10
+			fi
+
+			if $all_arg_set
+			then
+				rm -rf lxc
+			fi
+
+			## use a version-release
+			if [ ! -f /root/lxc-$LXC_VERSION.zip ] 
+			then 
+				msg "Downloading LXC $LXC_VERSION"
+				wget -O /root/lxc-$LXC_VERSION.zip https://github.com/lxc/lxc/archive/lxc-$LXC_VERSION.zip
+			fi
+			
+			unzip /root/lxc-$LXC_VERSION.zip
+			mv /root/lxc-lxc-$LXC_VERSION /root/lxc
+		fi
+	 
+		cd /root/lxc
+
+		if [ ! -f /root/lxc/autogen.sh ]
+		then
+			err "LXC-building: autogen.sh not found!"
+			exit 11
+		fi
+
+		log "LXC-building: autogen"
+		./autogen.sh
+
+		if [ ! -f /root/lxc/configure ]
+		then
+			err "LXC-building: configure not found!"
+			exit 12
+		fi
+
+		log "LXC-building: configure"
+		./configure
+
+		log "LXC-building: make"
+		make
+
+		log "LXC-building: install"
+		make install
+    
+	else
+		## this is the default method
+		log "yum install lxc $LXC_VERSION"
+
+		if [ ! "$LXC_VERSION" == '' ]
+		then
+			yum -y install lxc-$LXC_VERSION
+			yum -y install lxc-templates-$LXC_VERSION
+		else
+			yum -y install lxc
+			yum -y install lxc-templates
+		fi 		
 	fi
 
- 
-	cd /root/lxc
-
-	log "LXC-building: autogen"
-	./autogen.sh
-
-	log "LXC-building: configure"
-	./configure
-
-	log "LXC-building: make"
-	make
-
-	log "LXC-building: install"
-	make install
 
 	add_conf /root/.bash_profile "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib"
 
@@ -1169,7 +1232,7 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 </network>
 '
 
-## TODO, .. set a new bridge for ipv6
+## TODO, .. consider to set a new bridge for ipv6
 
 	ln -s /etc/libvirt/qemu/networks/primary.xml /etc/libvirt/qemu/networks/autostart/primary.xml 2> /dev/null
 
@@ -1185,7 +1248,7 @@ set_file /etc/libvirt/qemu/networks/primary.xml '<network>
 	fi
 
 else
-msg "LXC is OK! ($LXC_VERSION)"
+msg "LXC is OK! "$(lxc-info --version)
 fi ## Install LXC
 
 ## @update-install
@@ -1232,9 +1295,22 @@ fi ## Install LXC
 
 
 
-	## Customisations in our template
+	## We do some customisations in our template
+	## template path is different depending on installation, yum or some src
+
+	## source-based install
 	fedora_template=/usr/local/share/lxc/templates/lxc-fedora
 	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
+
+	if [ -f "/usr/local/share/lxc/templates/lxc-fedora" ]
+	then
+		## source-based install
+		fedora_template=/usr/share/lxc/templates/lxc-fedora
+		srvctl_template=/usr/share/lxc/templates/lxc-fedora-srv
+	fi
+
+	## rpm, based install
+	
 
 ## @update-install
 if [ ! -f $fedora_template ] || $all_arg_set
