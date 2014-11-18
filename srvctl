@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.11.18-13:34:47
+# Last update:2014.11.18-18:21:42
 # version 1.45.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -1193,9 +1193,11 @@ then
 		if [ ! "$LXC_VERSION" == '' ]
 		then
 			yum -y install lxc-$LXC_VERSION
+			yum -y install lxc-extra-$LXC_VERSION
 			yum -y install lxc-templates-$LXC_VERSION
 		else
 			yum -y install lxc
+			yum -y install lxc-extra
 			yum -y install lxc-templates
 		fi 		
 	fi
@@ -3095,6 +3097,8 @@ function regenerate_pound_files {
 	echo $MSG > /var/pound/https-certificates.cfg
 
 	echo $MSG > /var/pound/http-domains.cfg
+	echo $MSG > /var/pound/http-dddn-domains.cfg
+
 	echo $MSG > /var/pound/http-8-domains.cfg
 	echo $MSG > /var/pound/http-7-domains.cfg
 	echo $MSG > /var/pound/http-6-domains.cfg
@@ -3105,6 +3109,8 @@ function regenerate_pound_files {
 	echo $MSG > /var/pound/http-1-domains.cfg
 
 	echo $MSG > /var/pound/https-domains.cfg
+	echo $MSG > /var/pound/https-dddn-domains.cfg
+
 	echo $MSG > /var/pound/https-8-domains.cfg
 	echo $MSG > /var/pound/https-7-domains.cfg
 	echo $MSG > /var/pound/https-6-domains.cfg
@@ -3130,6 +3136,7 @@ function regenerate_pound_files {
 
 	echo 'Include "/var/pound/https-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-dddn-domains.cfg"' >> /var/pound/https-includes.cfg
+
 	echo 'Include "/var/pound/https-8-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-7-domains.cfg"' >> /var/pound/https-includes.cfg
 	echo 'Include "/var/pound/https-6-domains.cfg"' >> /var/pound/https-includes.cfg
@@ -3227,13 +3234,13 @@ function regenerate_pound_files {
 		_http_service_directives=''
 		if [ -f $SRV/$_C/pound-http-service-directives ]
 		then
-			_http_service_directives=$(cat -s $SRV/$_C/pound-http-service-directives)
+			_http_service_directives="$(cat -s $SRV/$_C/pound-http-service-directives)"
 		fi
 
 		_https_service_directives=''
 		if [ -f $SRV/$_C/pound-https-service-directives ]
 		then
-			_https_service_directives=$(cat -s $SRV/$_C/pound-https-service-directives)
+			_https_service_directives="$(cat -s $SRV/$_C/pound-https-service-directives)"
 		fi
 
 		if [ ! -f $SRV/$_C/disabed ]
@@ -3242,7 +3249,7 @@ function regenerate_pound_files {
 			## Direct Developer DomainName - useful if your domain is not registered / dns ha problems
 			if $ENABLE_DDDN
 			then
-				set_file $cfg_dir/dddn-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/dddn-http-service '## srvctl dddn-http-service '$_C' '$_ip' 
 				Service
 					  HeadRequire "Host: '$_C'.'$DDN'"
 					  BackEnd
@@ -3252,7 +3259,7 @@ function regenerate_pound_files {
 					  End
 				End'
  
-				set_file $cfg_dir/dddn-https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/dddn-https-service '## srvctl dddn-https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_C'.'$DDN'"
 					  BackEnd
@@ -3292,16 +3299,16 @@ function regenerate_pound_files {
 				altdomain_http_service_directives=''
 				if [ -f $SRV/$_C/pound-altdomain-http-service-directives ]
 				then
-					altdomain_http_service_directives=$(cat -s $SRV/$_C/pound-altdomain-http-service-directives)
+					altdomain_http_service_directives="$(cat -s $SRV/$_C/pound-altdomain-http-service-directives)"
 				fi
 
 				_https_service_directives=''
 				if [ -f $SRV/$_C/pound-altdomain-https-service-directives ]
 				then
-					altdomain_https_service_directives=$(cat -s $SRV/$_C/pound-altdomain-https-service-directives)
+					altdomain_https_service_directives="$(cat -s $SRV/$_C/pound-altdomain-https-service-directives)"
 				fi
 
-				set_file $cfg_dir/altdomain-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/altdomain-http-service '## srvctl altdomain-http-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$altdomain_hostname'"
 					  BackEnd
@@ -3311,7 +3318,7 @@ function regenerate_pound_files {
 					  End
 				End'
  
-				set_file $cfg_dir/altdomain-https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/altdomain-https-service '## srvctl altdomain-https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$altdomain_hostname'"
 					  BackEnd
@@ -3329,13 +3336,13 @@ function regenerate_pound_files {
 
 			if [ -f $SRV/$_C/pound-enable-dev ]
 			then
-				set_file $cfg_dir/dev-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/dev-http-service '## srvctl dev-http-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: dev.'$_C'"
 					  Redirect "https://dev.'$_C'"
 				End'
  
-				set_file $cfg_dir/dev-https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/dev-https-service '## srvctl dev-https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: dev.'$_C'"
 					  BackEnd
@@ -3353,7 +3360,7 @@ function regenerate_pound_files {
 			then
 				## log.io currently broken on https. https://github.com/NarrativeScience/Log.io/issues/124
 				
-				set_file $cfg_dir/log-http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/log-http-service '## srvctl log-http-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
 					  #Redirect "https://log.'$_C'"
@@ -3365,7 +3372,7 @@ function regenerate_pound_files {
 				End'
  
 				## for now, redirect to http
-				set_file $cfg_dir/log-https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/log-https-service '## srvctl log-https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: log.'$_C'"
 					  Redirect "http://log.'$_C'"
@@ -3378,7 +3385,7 @@ function regenerate_pound_files {
 				### TODO ### Add posibility for custom arguments for pound
 			if [ -f $SRV/$_C/pound-no-http ]
 			then
-				set_file $cfg_dir/http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/http-service '## srvctl http-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_host'"
 					  Redirect "https://'$_host'"
@@ -3386,7 +3393,7 @@ function regenerate_pound_files {
 
 				_http_mark='https'
 			else
-				set_file $cfg_dir/http-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/http-service '## srvctl http-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_host'"
 					  BackEnd
@@ -3400,7 +3407,7 @@ function regenerate_pound_files {
 			if [ -f $SRV/$_C/pound-no-https ]
 			then
 
-				set_file $cfg_dir/https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/https-service '## srvctl https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_host'"
 					  Redirect "http://'$_host'"
@@ -3408,7 +3415,7 @@ function regenerate_pound_files {
 
 				_https_mark='http'
 			else
-				set_file $cfg_dir/https-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/https-service '## srvctl https-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_host'"
 					  BackEnd
@@ -3423,7 +3430,7 @@ function regenerate_pound_files {
 			if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
 			then
 	
-				set_file $cfg_dir/redirect-service '## srvctl '$_C' '$_ip'
+				set_file $cfg_dir/redirect-service '## srvctl redirect-service '$_C' '$_ip'
 				Service
 					  HeadRequire "Host: '$_name'"
 					  Redirect "'$(cat $SRV/$_C/pound-redirect)'"
@@ -3450,7 +3457,7 @@ function regenerate_pound_files {
 				if [ -f $SRV/$_C/pound-redirect ] && [ ! -z $(cat $SRV/$_C/pound-redirect) ]
 				then
 	
-					set_file $cfg_dir/$A-redirect-service '## srvctl '$_C' '$_ip'
+					set_file $cfg_dir/$A-redirect-service '## srvctl '$A'-redirect-service '$_C' '$_ip'
 					Service
 						  HeadRequire "Host: .*'$A'.*"
 						  Redirect "'$(cat $SRV/$_C/pound-redirect)'"
@@ -3462,13 +3469,13 @@ function regenerate_pound_files {
 				else
 
 
-					set_file $cfg_dir/$A-http-service '## srvctl '$_C' '$_ip'
+					set_file $cfg_dir/$A-http-service '## srvctl '$A'-http-service '$_C' '$_ip'
 					Service
 						  HeadRequire "Host: .*'$A'.*"
 						  Redirect "'$_http_mark'://'$_host'"
 					End'
 
-					set_file $cfg_dir/$A-https-service '## srvctl '$_C' '$_ip'
+					set_file $cfg_dir/$A-https-service '## srvctl '$A'-https-service '$_C' '$_ip'
 					Service
 						  HeadRequire "Host: .*'$A'.*"
 						  Redirect "'$_https_mark'://'$_host'"
@@ -3525,13 +3532,15 @@ function regenerate_pound_files {
 
 
 			else
-				## Error in this config, skip it, ..
+				## Error in this config, skip it, .. restore the good ones.
 
 				cat /var/pound/http-includes.lok > /var/pound/http-includes.cfg
 				cat /var/pound/https-includes.lok > /var/pound/https-includes.cfg
 				cat /var/pound/https-certificates.lok > /var/pound/https-certificates.cfg
 
 				cat /var/pound/http-domains.lok > /var/pound/http-domains.cfg
+				cat /var/pound/http-dddn-domains.lok > /var/pound/http-dddn-domains.cfg
+				
 				cat /var/pound/http-8-domains.lok > /var/pound/http-8-domains.cfg
 				cat /var/pound/http-7-domains.lok > /var/pound/http-7-domains.cfg
 				cat /var/pound/http-6-domains.lok > /var/pound/http-6-domains.cfg
@@ -3542,6 +3551,8 @@ function regenerate_pound_files {
 				cat /var/pound/http-1-domains.lok > /var/pound/http-1-domains.cfg
 
 				cat /var/pound/https-domains.lok > /var/pound/https-domains.cfg
+				cat /var/pound/https-dddn-domains.lok > /var/pound/https-dddn-domains.cfg
+
 				cat /var/pound/https-8-domains.lok > /var/pound/https-8-domains.cfg
 				cat /var/pound/https-7-domains.lok > /var/pound/https-7-domains.cfg
 				cat /var/pound/https-6-domains.lok > /var/pound/https-6-domains.cfg
@@ -3559,7 +3570,8 @@ function regenerate_pound_files {
 				cat *
 				echo '--------------------------'
 			fi
-			sleep 1
+			## if no sleep,.. pound.service start request repeated too quickly, refusing to start.
+			sleep 3
 		fi
 		
 
