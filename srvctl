@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.11.18-18:21:42
+# Last update:2014.11.18-18:32:04
 # version 1.45.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -3231,18 +3231,6 @@ function regenerate_pound_files {
 			_https_port=$(cat $SRV/$_C/pound-https-port)
 		fi
 
-		_http_service_directives=''
-		if [ -f $SRV/$_C/pound-http-service-directives ]
-		then
-			_http_service_directives="$(cat -s $SRV/$_C/pound-http-service-directives)"
-		fi
-
-		_https_service_directives=''
-		if [ -f $SRV/$_C/pound-https-service-directives ]
-		then
-			_https_service_directives="$(cat -s $SRV/$_C/pound-https-service-directives)"
-		fi
-
 		if [ ! -f $SRV/$_C/disabed ]
 		then
 
@@ -3255,7 +3243,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_http_port'
-					      '$_http_service_directives'
+					      '$(cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null)'
 					  End
 				End'
  
@@ -3265,7 +3253,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_https_port'
-					      '$_https_service_directives'
+					      '$(cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null)'
 					      HTTPS
 					  End
 				End'
@@ -3295,18 +3283,6 @@ function regenerate_pound_files {
 				then
 					altdomain_https_port=$(cat $SRV/$_C/pound-https-port)
 				fi
-	
-				altdomain_http_service_directives=''
-				if [ -f $SRV/$_C/pound-altdomain-http-service-directives ]
-				then
-					altdomain_http_service_directives="$(cat -s $SRV/$_C/pound-altdomain-http-service-directives)"
-				fi
-
-				_https_service_directives=''
-				if [ -f $SRV/$_C/pound-altdomain-https-service-directives ]
-				then
-					altdomain_https_service_directives="$(cat -s $SRV/$_C/pound-altdomain-https-service-directives)"
-				fi
 
 				set_file $cfg_dir/altdomain-http-service '## srvctl altdomain-http-service '$_C' '$_ip'
 				Service
@@ -3314,7 +3290,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$altdomain_http_port'
-					      '$altdomain_http_service_directives'
+					      '$(cat -s $SRV/$_C/pound-altdomain-http-service-directives 2> /dev/null)'
 					  End
 				End'
  
@@ -3324,7 +3300,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$altdomain_https_port'
-					      '$altdomain_https_service_directives'
+					      '$(cat -s $SRV/$_C/pound-altdomain-https-service-directives 2> /dev/null)'
 					      HTTPS
 					  End
 				End'
@@ -3399,7 +3375,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_http_port'
-					      '$_http_service_directives'
+					      '$(cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null)'
 					  End
 				End'
 			fi
@@ -3421,7 +3397,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_https_port'
-					      '$_https_service_directives'
+					      '$(cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null)'
 					      HTTPS
 					  End
 				End'
