@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.11.18-13:08:54
+# Last update:2014.11.18-13:34:47
 # version 1.45.5
 #
 # Server Controll script for Fedora with LXC containers
@@ -3500,6 +3500,8 @@ function regenerate_pound_files {
 				cat /var/pound/https-certificates.cfg > /var/pound/https-certificates.lok
 
 				cat /var/pound/http-domains.cfg > /var/pound/http-domains.lok
+				cat /var/pound/http-dddn-domains.cfg > /var/pound/http-dddn-domains.lok
+
 				cat /var/pound/http-8-domains.cfg > /var/pound/http-8-domains.lok
 				cat /var/pound/http-7-domains.cfg > /var/pound/http-7-domains.lok
 				cat /var/pound/http-6-domains.cfg > /var/pound/http-6-domains.lok
@@ -3510,6 +3512,8 @@ function regenerate_pound_files {
 				cat /var/pound/http-1-domains.cfg > /var/pound/http-1-domains.lok
 
 				cat /var/pound/https-domains.cfg > /var/pound/https-domains.lok
+				cat /var/pound/https-dddn-domains.cfg > /var/pound/https-dddn-domains.lok
+
 				cat /var/pound/https-8-domains.cfg > /var/pound/https-8-domains.lok
 				cat /var/pound/https-7-domains.cfg > /var/pound/https-7-domains.lok
 				cat /var/pound/https-6-domains.cfg > /var/pound/https-6-domains.lok
@@ -3549,8 +3553,13 @@ function regenerate_pound_files {
 				
 				log "$_C Pound restart FAILED!"
 				systemctl status pound.service
+
+				echo '--------- DEBUG ----------'
+				cd /var/pound/$_C 
+				cat *
+				echo '--------------------------'
 			fi
-			sleep 3
+			sleep 1
 		fi
 		
 
