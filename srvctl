@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.11.18-13:06:52
-# version 1.45.4
+# Last update:2014.11.18-13:08:54
+# version 1.45.5
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3740,9 +3740,6 @@ function regenerate_users_structure {
 			ssh $C "systemctl restart sshd.service"
 
 		fi
-		
-		## TODO delete this temporary line
-		rm $SRV/$C/rootfs/root/.ssh/authorized_keys.bak
 		
 		cat /root/.ssh/id_rsa.pub > $SRV/$C/rootfs/root/.ssh/authorized_keys
 		#echo '' >> $SRV/$C/rootfs/root/.ssh/authorized_keys
