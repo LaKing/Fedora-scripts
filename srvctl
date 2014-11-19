@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.11.19-03:30:42
-# version 1.45.5
+# Last update:2014.11.19-03:35:56
+# version 1.45.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -3243,7 +3243,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_http_port'
-					      '`cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null)"'
 					  End
 				End'
  
@@ -3253,7 +3253,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_https_port'
-					      '`cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null)"'
 					      HTTPS
 					  End
 				End'
@@ -3290,7 +3290,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$altdomain_http_port'
-					      '`cat -s $SRV/$_C/pound-altdomain-http-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-altdomain-http-service-directives 2> /dev/null)"'
 					  End
 				End'
  
@@ -3300,7 +3300,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$altdomain_https_port'
-					      '`cat -s $SRV/$_C/pound-altdomain-https-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-altdomain-https-service-directives 2> /dev/null)"'
 					      HTTPS
 					  End
 				End'
@@ -3375,7 +3375,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_http_port'
-					      '`cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-http-service-directives 2> /dev/null)"'
 					  End
 				End'
 			fi
@@ -3397,7 +3397,7 @@ function regenerate_pound_files {
 					  BackEnd
 					      Address '$_C'
 					      Port    '$_https_port'
-					      '`cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null`'
+					      '"$(cat -s $SRV/$_C/pound-https-service-directives 2> /dev/null)"'
 					      HTTPS
 					  End
 				End'
