@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.11.19-03:35:56
-# version 1.45.6
+# Last update:2014.11.26-16:48:20
+# version 1.45.7
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -895,7 +895,12 @@ then ## no identation.
 
 hint "diagnose	" "Run a set of diagnostic commands."
 if [ "$CMD" == "diagnose" ]
-then
+then	
+	msg "VIRUS CHECK"
+	freshclam 
+	mkdir -p /root/srvctl-karantene
+	clamscan -r --move=/root/srvctl-karantene /home
+	clamscan -r --move=/root/srvctl-karantene /srv
 
 	#echo "Postfix: "$(systemctl is-active postfix.service)	
 	#echo "Dovecot: "$(systemctl is-active dovecot.service)
@@ -4050,10 +4055,15 @@ then
 	## disable password authentication on ssh
 	sed_file $rootfs/etc/ssh/sshd_config "PasswordAuthentication yes" "PasswordAuthentication no"
 	
+
+
 	## Add IP to hosts file
-	echo "$IPv4		$C"  >> /etc/hosts
-	echo "$IPv4		mail.$C"  >> /etc/hosts
-	echo ""  >> /etc/hosts
+	regenerate_etc_hosts
+	
+	### TODO, remove this
+	#echo "$IPv4		$C"  >> /etc/hosts
+	#echo "$IPv4		mail.$C"  >> /etc/hosts
+	#echo ""  >> /etc/hosts
 
 	## set (fix) hostname
 	echo $C > $rootfs/etc/hostname
@@ -4124,8 +4134,9 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	echo "@$C root" > $rootfs/etc/postfix/catchall
 	postmap $rootfs/etc/postfix/catchall
 
-	echo "$C #"  >> /etc/postfix/relaydomains
-	postmap /etc/postfix/relaydomains
+	## TODO remove this as it is part of regenerate_etc_hosts
+	#echo "$C #"  >> /etc/postfix/relaydomains
+	#postmap /etc/postfix/relaydomains
 
 	ln -s '/usr/lib/systemd/system/postfix.service' $rootfs'/etc/systemd/system/multi-user.target.wants/postfix.service'
 
