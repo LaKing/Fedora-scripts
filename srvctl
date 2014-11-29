@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.11.26-16:48:20
-# version 1.45.7
+# Last update:2014.11.29-18:22:37
+# version 1.45.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -2538,8 +2538,20 @@ function nfs_mount_folder {
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] 
 		then
 			mkdir -p /home/$U/$C/$F
-			#chown $U:$U /home/$U/$C/$F
 			
+			if [ "$F" == "html" ]
+			then			
+				chown $U:apache /home/$U/$C/$F
+			fi
+			if [ "$F" == "git" ]
+			then			
+				chown $U:git /home/$U/$C/$F
+			fi
+			if [ "$F" == "srv" ]
+			then			
+				chown $U:srv /home/$U/$C/$F
+			fi
+
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
 
