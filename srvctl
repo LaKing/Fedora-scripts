@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.11.29-18:22:37
+# Last update:2014.11.29-18:42:19
 # version 1.45.8
 #
 # Server Controll script for Fedora with LXC containers
@@ -2538,19 +2538,6 @@ function nfs_mount_folder {
 		if [ -z "$(mount | grep /home/$U/$C/$F )" ] 
 		then
 			mkdir -p /home/$U/$C/$F
-			
-			if [ "$F" == "html" ]
-			then			
-				chown $U:apache /home/$U/$C/$F
-			fi
-			if [ "$F" == "git" ]
-			then			
-				chown $U:git /home/$U/$C/$F
-			fi
-			if [ "$F" == "srv" ]
-			then			
-				chown $U:srv /home/$U/$C/$F
-			fi
 
 			msg "NFS - mount $U $C $F"
 			mount -t nfs $C:$1 /home/$U/$C/$F
@@ -4191,7 +4178,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	cp /var/www/html/logo.png $rootfs/var/www/html
 	cp /var/www/html/favicon.ico $rootfs/var/www/html
 
-	## system users
+	## system users ## TODO double check if this is really happens
 	chown -R apache:apache  $rootfs/var/www/html
 	chown -R srv:srv  $rootfs/srv
 
@@ -4596,6 +4583,7 @@ then
 	then
 
 		yum -y install phpmyadmin
+
 
 		## grant access.
 		## This will grant passwordless setup!		
@@ -5543,5 +5531,6 @@ rm -rf /var/named/srvctl/*.zone
 systemctl start named.service
 systemctl status named.service
 
- 
+## TODO
+## is PHP reallyinstalled with phpmyadmin/wordpress/joomla ...
 
