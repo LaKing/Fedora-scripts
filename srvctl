@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.11.29-18:42:55
-# version 1.45.8
+# Last update:2014.12.02-04:57:11
+# version 1.45.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -346,6 +346,7 @@ function create_certificate { ## for container $C
 
 	mkdir -p $cert_path
 
+	## TODO generate a self signed wildcard certificate!
 
 	set_file $ssl_config "       RANDFILE               = $ssl_random
 
