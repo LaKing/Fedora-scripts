@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.07.24-01:13:10
-# version 1.8.0
+# Last update:2014.12.13-06:11:39
+# version 1.8.1
 #
 # Installer script for Fedora
 #
@@ -592,6 +592,7 @@ function install_office {
     ## The original
     # kingsoft=http://`curl http://wps-community.org/download.html | grep -Po '^.*?\K(?<=http://).*?(?=.rpm)' | grep -m 1 download`.rpm
 
+    ## TODO fix this for fedora 21
     ## Mirrors
     kingsoft=http://d250.hu/scripts/mirrored/kingsoft-office-9.1.0.4280-0.1.a12p4.i686.rpm
     #http://37.247.55.101/a12p4/kingsoft-office-9.1.0.4280-0.1.a12p4.i686.rpm
@@ -662,8 +663,9 @@ function install_skype {
 
 cd $TMP
 
-wget -nc http://download.skype.com/linux/skype-4.2.0.11-fedora.i586.rpm
-yum -y install skype-4.2.0.11-fedora.i586.rpm
+##wget -nc http://download.skype.com/linux/skype-4.2.0.11-fedora.i586.rpm
+wget -nc http://download.skype.com/linux/skype-4.3.0.37-fedora.i586.rpm
+yum -y install skype-4.3.0.37-fedora.i586.rpm
 
     ## If you want to compile from source, ...
     #DISPLAYBAK=$DISPLAY

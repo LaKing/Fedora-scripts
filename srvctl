@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.02-04:57:11
-# version 1.45.9
+# Last update:2014.12.14-15:46:22
+# version 1.46.0
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -5226,7 +5226,7 @@ then
 		sed_file /etc/php.ini  "post_max_size = 8M" "post_max_size = 25M"
 
 		wd=/root
-		curl http://wordpress.org/latest.zip > $wd/latest.zip
+		curl https://wordpress.org/latest.zip > $wd/latest.zip
 	
 		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
 		cp -u -f -r $wd/wordpress/* $dir
@@ -5533,5 +5533,22 @@ systemctl start named.service
 systemctl status named.service
 
 ## TODO
-## is PHP reallyinstalled with phpmyadmin/wordpress/joomla ...
+## is PHP really installed with phpmyadmin/wordpress/joomla ... ?
+
+
+/usr/bin/srvctl: line 170: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+chmod: cannot access ‘/usr/local/share/lxc/templates/lxc-fedora-srv’: No such file or directory
+/usr/bin/srvctl: line 1357: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
+/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
+/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
+/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
+/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
+/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
+/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
+/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
+rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
 
