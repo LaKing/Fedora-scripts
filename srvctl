@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.20-18:03:15
-# version 1.46.5
+# Last update:2014.12.20-18:26:08
+# version 1.46.6
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1305,9 +1305,15 @@ fi ## Install LXC
 
 
 	## default path for containers - source install
-	add_conf "/usr/local/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
+	if [ -f "/usr/local/etc/lxc/default.conf" ]
+	then	
+		set_file "/usr/local/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
+	fi	
 	## package install
-	add_conf "/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
+	if [ -f "/etc/lxc/default.conf" ]
+	then			
+		set_file "/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
+	fi
 
 	## just in case
 	bak /etc/hosts
@@ -1463,13 +1469,13 @@ End
 
 	cat /root/crt.pem > /etc/pound/crt.pem
 	cat /root/key.pem > /etc/pound/key.pem
-	cat /root/ca-bundle.pem > /etc/pound/ca-bundle.pem
+	cat /root/ca-bundle.pem > /etc/pound/ca-bundle.pem 2> /dev/null
 
 	cat /root/crt.pem > /etc/pound/pound.pem
 	echo '' >> /etc/pound/pound.pem
 	cat /root/key.pem >> /etc/pound/pound.pem
 	echo '' >> /etc/pound/pound.pem
-	cat /root/ca-bundle.pem >> /etc/pound/pound.pem
+	cat /root/ca-bundle.pem >> /etc/pound/pound.pem 2> /dev/null
 
 
 	mkdir -p /var/pound
@@ -1798,7 +1804,7 @@ anvil     unix  -       -       n       -       1       anvil
 scache    unix  -       -       n       -       1       scache
 '
 
-	cat /root/ca-bundle.pem > /etc/postfix/ca-bundle.pem
+	cat /root/ca-bundle.pem > /etc/postfix/ca-bundle.pem 2> /dev/null
 	cat /root/crt.pem > /etc/postfix/crt.pem
 	cat /root/key.pem > /etc/postfix/key.pem
 
@@ -2051,7 +2057,7 @@ ssl_no_cn_verify
 ssl_cert_file /etc/perdition/crt.pem
 ssl_key_file /etc/perdition/key.pem
 
-## ...
+## ... ?
 
 '
 
