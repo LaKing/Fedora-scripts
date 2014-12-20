@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.20-16:30:51
-# version 1.46.2
+# Last update:2014.12.20-17:12:20
+# version 1.46.3
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1117,6 +1117,7 @@ ssl_password=ssl_pass_$password
 if [ -z "$(lxc-info --version 2> /dev/null)" ] || $all_arg_set
 then
 	log "Installing LXC!"
+	msg $CDN
 
 	if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
 	then
