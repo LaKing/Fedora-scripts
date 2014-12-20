@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.20-17:51:09
-# version 1.46.3
+# Last update:2014.12.20-17:58:48
+# version 1.46.4
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -182,16 +182,22 @@ function sed_file {
 function add_conf {
     ## check if the content string is present, and add if necessery. Single-line content only.
     ## filename=$1 content=$2
+    if [ -f "$1" ]
+    then
 
-    if grep -q "$2" $1; then
-     echo ''
-     #echo $1" already has "$2
-    else
-     #echo "adding "$2
-      if [ -f $1 ];
-       then bak $1
-      fi
-     echo "$2" >> $1
+	    if grep -q "$2" $1; then
+	     echo ''
+	     #echo $1" already has "$2
+	    else
+	     #echo "adding "$2
+	      if [ -f $1 ];
+	       then bak $1
+	      fi
+	     echo "$2" >> $1
+	    fi
+	
+    else 
+	echo "File not found! $1"
     fi
 }
 
@@ -1321,8 +1327,8 @@ fi ## Install LXC
 	
 
 	## yum-based install
-	fedora_template="$lxc_usr_path/lxc/templates/lxc-fedora"
-	srvctl_template="$lxc_usr_path/lxc/templates/lxc-fedora-srv"
+	fedora_template="$lxc_usr_path/share/lxc/templates/lxc-fedora"
+	srvctl_template="$lxc_usr_path/share/lxc/templates/lxc-fedora-srv"
 
 	## rpm, based install
 	
@@ -1330,7 +1336,7 @@ fi ## Install LXC
 ## @update-install
 if [ ! -f $fedora_template ] || $all_arg_set
 then
-	log "Create Custom template"
+	log "Create Custom template: $srvctl_template"
 
 	set_file $srvctl_template '#!/bin/bash
 
