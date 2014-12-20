@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.12.20-17:12:20
+# Last update:2014.12.20-17:51:09
 # version 1.46.3
 #
 # Server Controll script for Fedora with LXC containers
@@ -638,7 +638,7 @@ lxc.network.ipv4.gateway = auto
 #lxc.network.ipv6.gateway = auto
 
 lxc.rootfs = '$SRV'/'$_c'/rootfs
-lxc.include = /usr/local/share/lxc/config/fedora.common.conf
+lxc.include = '$lxc_usr_path'/local/share/lxc/config/fedora.common.conf
 lxc.utsname = '$_c'
 lxc.autodev = 1
 
@@ -964,6 +964,13 @@ fi
 hint ''
 
 
+## yum and source builds work with different directories.
+lxc_usr_path="/usr"
+if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
+then
+	lxc_usr_path="/usr/share"
+fi
+	
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
@@ -1291,8 +1298,10 @@ fi ## Install LXC
 	fi
 
 
-	## default path for containers
+	## default path for containers - source install
 	add_conf "/usr/local/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
+	## package install
+	add_conf "/etc/lxc/lxc.conf" "lxc.lxcpath=$SRV" 
 
 	## just in case
 	bak /etc/hosts
@@ -1309,23 +1318,11 @@ fi ## Install LXC
 	## We do some customisations in our template
 	## template path is different depending on installation, yum or some src
 
+	
+
 	## yum-based install
-	fedora_template=/usr/share/lxc/templates/lxc-fedora
-	srvctl_template=/usr/share/lxc/templates/lxc-fedora-srv
-
-	if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
-	then
-
-		if [ -f "/usr/local/share/lxc/templates/lxc-fedora" ]
-		then 
-		## source-based install
-		fedora_template=/usr/share/lxc/templates/lxc-fedora
-		srvctl_template=/usr/share/lxc/templates/lxc-fedora-srv
-		else
-			err "Missing lxc-fedora template!"		
-			exit
-		fi
-	fi
+	fedora_template="$lxc_usr_path/lxc/templates/lxc-fedora"
+	srvctl_template="$lxc_usr_path/lxc/templates/lxc-fedora-srv"
 
 	## rpm, based install
 	
@@ -1387,8 +1384,10 @@ then
 
 	## After modifocation of the last line, in a live filesystem, /usr/local/var/cache/lxc/fedora needs to be purged.
 	log "Clearing yum cache for container creation."
-	rm -rf /usr/local/var/cache/lxc/fedora
 
+	## paths are different for src or yum install
+	rm -rf /usr/local/var/cache/lxc/fedora
+	rm -rf /var/cache/lxc/fedora
 
 fi ## if fedora_template does not exists.
 
@@ -1468,6 +1467,7 @@ End
 
 
 	mkdir -p /var/pound
+	mkdir -p /var/www/html
 
 	#  echo $MSG >> /etc/srvctl/pound-include-ca.cfg
 	#  echo 'CAlist "/etc/srvctl/ca-bundle.pem"' >> /etc/srvctl/pound-include-ca.cfg
@@ -2299,9 +2299,9 @@ then
 	ln -s /etc/hosts $scd/hosts	
 	ln -s /etc/pound.cfg $scd/pound.cfg
 
-	ln -s /usr/local/etc/lxc/lxc.conf $scd/lxc.conf
-	ln -s /usr/local/share/lxc/templates/lxc-fedora-srv $scd/lxc-fedora-srv
-	ln -s /usr/local/var/cache/lxc/fedora $scd/cache-lxc-fedora 
+	#ln -s /usr/local/etc/lxc/lxc.conf $scd/lxc.conf
+	#ln -s /usr/local/share/lxc/templates/lxc-fedora-srv $scd/lxc-fedora-srv
+	#ln -s /usr/local/var/cache/lxc/fedora $scd/cache-lxc-fedora 
 fi
 
 
@@ -5556,21 +5556,4 @@ systemctl status named.service
 
 ## TODO
 ## is PHP really installed with phpmyadmin/wordpress/joomla ... ?
-
-
-/usr/bin/srvctl: line 170: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-chmod: cannot access ‘/usr/local/share/lxc/templates/lxc-fedora-srv’: No such file or directory
-/usr/bin/srvctl: line 1357: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
-/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
-/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
-/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
-/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
-/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
-/usr/bin/srvctl: line 177: /usr/local/share/lxc/templates/lxc-fedora-srv.tmp: No such file or directory
-/usr/bin/srvctl: line 178: /usr/local/share/lxc/templates/lxc-fedora-srv: No such file or directory
-rm: cannot remove ‘/usr/local/share/lxc/templates/lxc-fedora-srv.tmp’: No such file or directory
 
