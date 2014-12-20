@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.14-15:46:22
-# version 1.46.0
+# Last update:2014.12.20-16:30:51
+# version 1.46.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -1308,15 +1308,22 @@ fi ## Install LXC
 	## We do some customisations in our template
 	## template path is different depending on installation, yum or some src
 
-	## source-based install
-	fedora_template=/usr/local/share/lxc/templates/lxc-fedora
-	srvctl_template=/usr/local/share/lxc/templates/lxc-fedora-srv
+	## yum-based install
+	fedora_template=/usr/share/lxc/templates/lxc-fedora
+	srvctl_template=/usr/share/lxc/templates/lxc-fedora-srv
 
-	if [ -f "/usr/local/share/lxc/templates/lxc-fedora" ]
+	if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
 	then
+
+		if [ -f "/usr/local/share/lxc/templates/lxc-fedora" ]
+		then 
 		## source-based install
 		fedora_template=/usr/share/lxc/templates/lxc-fedora
 		srvctl_template=/usr/share/lxc/templates/lxc-fedora-srv
+		else
+			err "Missing lxc-fedora template!"		
+			exit
+		fi
 	fi
 
 	## rpm, based install
@@ -5353,11 +5360,30 @@ then
 			dbd=$(cat /etc/hostname | cut -f1 -d"." )'_ja_'$URI		
 		fi
 	
-		wd=/root/joomla
-		mkdir $wd
+		wd=/root/joomla-cms
 		
-		joomla_dl=http://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=http://).*?(?=.zip)' | grep -m 1 download`.zip
-		curl $joomla_dl > $wd/latest.zip 		
+		## download joomla!
+		## from git
+		cd /root  
+		git clone https://github.com/joomla/joomla-cms.git
+		rm -rf $wd/.git
+		cp -u -f -r $wd/* $dir
+		rm -rf $wd			
+
+		## use latest zip release
+		#mkdir -p $wd 
+		#joomla_dl=https://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=https://).*?(?=.zip)' | grep -m 1 download`.zip
+		#curl $joomla_dl > $wd/latest.zip 
+		#
+		#unzip $wd/latest.zip -d $wd >> $wd/unzip.log
+		#rm -rf $wd/latest.zip
+		#rm -rf $wd/unzip.log
+		#cp -u -f -r $wd/* $dir
+		#rm -rf $wd
+		
+
+		chown -R apache:apache $dir
+	
 
 		## for dependencies.
 		yum -y install unzip php php-common php-gd php-mcrypt php-pear php-pecl-memcache php-mhash php-mysql php-xml php-mbstring
@@ -5367,12 +5393,7 @@ then
 		sed_file /etc/php.ini  "upload_max_filesize = 2M" "upload_max_filesize = 25M"
 		sed_file /etc/php.ini  "post_max_size = 8M" "post_max_size = 25M"
 
-		unzip $wd/latest.zip -d $wd >> $wd/unzip.log
-		rm -rf $wd/latest.zip
-		rm -rf $wd/unzip.log
-		cp -u -f -r $wd/* $dir
-		rm -rf $wd
-		chown -R apache:apache $dir
+
 
 		add_mariadb_db
 
@@ -5525,7 +5546,7 @@ mkdir -p /var/named/srvctl
 chown -R named:named /var/named/srvctl
 
 rsync -a /root/dns/etc/srvctl/named.slave.conf.global.r2.d250.hu /etc/srvctl
-rsync -a /root/dns/var/named/srvctl /var/named
+rsync -a /root/dns/var/named/srvctl /var/namedF
 
 rm -rf /var/named/srvctl/*.zone
 
