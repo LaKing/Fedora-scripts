@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.12.20-18:26:08
+# Last update:2014.12.20-18:28:43
 # version 1.46.6
 #
 # Server Controll script for Fedora with LXC containers
@@ -2053,9 +2053,10 @@ ssl_no_cn_verify
 ssl_no_cn_verify
 
 ## SSL files
-'$no_ca_bundle_hashmark'ssl_ca_chain_file /etc/perdition/ca-bundle.pem
 ssl_cert_file /etc/perdition/crt.pem
 ssl_key_file /etc/perdition/key.pem
+
+'$no_ca_bundle_hashmark'ssl_ca_chain_file /etc/perdition/ca-bundle.pem
 
 ## ... ?
 
