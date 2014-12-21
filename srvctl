@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.21-06:49:58
-# version 1.47.0
+# Last update:2014.12.21-21:46:16
+# version 1.47.1
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4696,14 +4696,14 @@ then
 			git clone git://github.com/ether/etherpad-lite.git
 		
 			cd /srv/etherpad-lite 
-			npm install ep_codepad
-			npm install ep_cursortrace
+			#npm install ep_codepad
+			#npm install ep_cursortrace
 
-			## increase import filesize limitation
-			sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
+			### increase import filesize limitation
+			#sed_file /srv/etherpad-lite/src/node/db/PadManager.js '    if(text.length > 100000)' '    if(text.length > 1000000) /* srvctl customization for file import via webAPI*/'
 		
 			### The line containing:  return /^(g.[a-zA-Z0-9]{16}\$)?[^$]{1,50}$/.test(padId); .. but mysql is limited to 100 chars, so patch it.
-			sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
+			#sed_file /srv/etherpad-lite/src/node/db/PadManager.js '{1,50}$/.test(padId);' '{1,100}$/.test(padId); /* srvctl customization for file import via webAPI*/'
 
 		fi	
 
@@ -5018,7 +5018,7 @@ WantedBy=multi-user.target
 
 	iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
 	iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8443
-	iptables -t nat -A PREROUTING -p tcp --dport 250 -j REDIRECT --to-ports 9001
+	#iptables -t nat -A PREROUTING -p tcp --dport 250 -j REDIRECT --to-ports 9001
 
 	iptables-save > /etc/sysconfig/iptables
 
@@ -5049,7 +5049,7 @@ fi ## codepad
 
 
 hint "setup-logio	" "Install log.io, a web-browser based realtime log monitoring tool."
-if [ "$CMD" == "setup-logio" ] || [ "$CMD" == "setup-codepad" ]
+if [ "$CMD" == "setup-logio" ]
 then
 		## install packages
 		yum -y install nodejs
