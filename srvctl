@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.20-18:35:28
-# version 1.46.7
+# Last update:2014.12.21-06:42:25
+# version 1.46.8
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -644,7 +644,7 @@ lxc.network.ipv4.gateway = auto
 #lxc.network.ipv6.gateway = auto
 
 lxc.rootfs = '$SRV'/'$_c'/rootfs
-lxc.include = '$lxc_usr_path'/local/share/lxc/config/fedora.common.conf
+lxc.include = '$lxc_usr_path'/share/lxc/config/fedora.common.conf
 lxc.utsname = '$_c'
 lxc.autodev = 1
 
@@ -974,9 +974,9 @@ hint ''
 lxc_usr_path="/usr"
 if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL" == "zip" ]
 then
-	lxc_usr_path="/usr/share"
+	lxc_usr_path="/usr/local"
 fi
-	
+debug $lxc_usr_path
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
@@ -5375,15 +5375,17 @@ then
 	
 		wd=/root/joomla-cms
 		
-		## download joomla!
+		#### - download joomla!
 		## from git
 		cd /root  
+		yum install git
 		git clone https://github.com/joomla/joomla-cms.git
 		rm -rf $wd/.git
 		cp -u -f -r $wd/* $dir
 		rm -rf $wd			
 
 		## use latest zip release
+		
 		#mkdir -p $wd 
 		#joomla_dl=https://`curl http://www.joomla.org/download.html | grep "Stable-Full_Package.zip" |  grep -Po '^.*?\K(?<=https://).*?(?=.zip)' | grep -m 1 download`.zip
 		#curl $joomla_dl > $wd/latest.zip 
