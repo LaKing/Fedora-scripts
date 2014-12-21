@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.21-06:42:25
-# version 1.46.8
+# Last update:2014.12.21-06:49:07
+# version 1.46.9
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -976,7 +976,7 @@ if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL
 then
 	lxc_usr_path="/usr/local"
 fi
-debug $lxc_usr_path
+dbg $lxc_usr_path
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
