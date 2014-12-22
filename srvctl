@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2014.12.22-03:02:56
-# version 1.47.1
+# Last update:2014.12.22-03:10:40
+# version 1.47.2
 #
 # Server Controll script for Fedora with LXC containers
 #
@@ -4260,7 +4260,7 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 
 	wait_for_ve_connection $C
 
-	echo "Post installation, ..."
+	msg "Post installation, ..."
 
 ## add system users 
 
@@ -4281,6 +4281,15 @@ mydestination = $myhostname, mail.$myhostname, localhost, localhost.localdomain
 	ssh $C "yum -y install dovecot"
 	ssh $C "systemctl enable dovecot.service"
 	ssh $C "systemctl start dovecot.service"
+
+	
+	## if this is a dev. site install codepad
+	if [ ${ARG:0:4} == "dev." ]
+	then
+		msg "Setup codepad"
+		ssh $C "srvctl setup-codepad"
+	fi
+
 
 	if [ ! -z "$U" ]
 	then
