@@ -1,5 +1,5 @@
 #!/bin/bash
-# Last update:2014.12.22-03:10:40
+# Last update:2014.12.22-04:26:07
 # version 1.47.2
 #
 # Server Controll script for Fedora with LXC containers
@@ -976,8 +976,7 @@ if [ "$LXC_INSTALL" == "git" ] || [ "$LXC_INSTALL" == "src" ] || [ "$LXC_INSTALL
 then
 	lxc_usr_path="/usr/local"
 fi
-dbg $LXC_INSTALL
-dbg $lxc_usr_path
+
 
 hint "update-install [all]" "This will update srvctl, recompile LXC and update some related packages if necessery. Use 'all' to force to reinstall everything."
 if [ "$CMD" == "update-install" ]
@@ -4671,6 +4670,8 @@ then
 
 		project_type=$2
 
+		log_path="/var/log/codepad/log"
+
 		## set default project type, if not given in an argument
 		if [ -z "$project_type" ]
 		then
@@ -4731,13 +4732,19 @@ then
 			systemctl restart httpd.service
 			systemctl enable httpd.service
 
-		else
+			log_path="/var/log/httpd/error_log"
+		fi
+
+		if [ "$project_type" == "node" ]
+		then
+
 			systemctl stop httpd.service
 			systemctl disable httpd.service
 
 			mkdir -p $project_path
 			chown srv:codepad $project_path
 			chmod 775 $project_path
+			log_path="/var/log/node-project/log"
 		fi
 
 
@@ -4757,6 +4764,7 @@ then
   "ep_codepad": { 
     "theme": "Cobalt",
     "project_path": "'$project_path'",
+    "log_path": "'$log_path'",
     "play_url": "http://'$C'",
     "push_action": "cd '$project_path' && git add . && git commit -m codepad-auto && git push"
   },
@@ -4922,7 +4930,7 @@ console.log("END");
 '
 			## prepare logging capabilities
 			mkdir -p /var/log/node-project
-			chown node:srv /var/log/node-project
+			chown node:codepad /var/log/node-project
 			chmod 750 /var/log/node-project
 
 			set_file /srv/node-project/run.sh '#!/bin/bash
