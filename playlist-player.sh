@@ -48,7 +48,7 @@ do
 	## hour
 	Hr=$(date +%H)
 
-#### get the DIR directory
+#### get the DIR directory for the lanes
 	## AM
 	if [ "$Hr" -ge "8" ]
 	then
