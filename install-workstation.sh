@@ -1,6 +1,6 @@
 #!/bin/bash
-# Last update:2016.06.23-14:49:28
-# version 1.7.1
+# Last update:2016.06.28-00:01:45
+# version 1.7.2
 #
 # Installer script for Fedora
 #
@@ -151,7 +151,9 @@ if [ "$url_response" -ne "200" ]
 then
    echo "Failed to download latest version of this script." >> $LOG
 else
-   echo "checking: "$0" against "$URL >> $LOG
+   msg update time via NTP
+    ntpdate 0.hu.pool.ntp.org 1.hu.pool.ntp.org
+   msg "checking: "$0" against "$URL >> $LOG
    if  diff  $TMP/install-workstation-latest.sh $0 >> $LOG
    then
     ntc "This is the latest original release of the script"
