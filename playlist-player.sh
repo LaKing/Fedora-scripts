@@ -2,7 +2,7 @@
 
 ## this playlist-player script will play mp3's 
 ## starting a new list in 3 lanes, at 12h 17h 20h
-## clvlc needed - install vlc
+## cvlc needed - install vlc
 
 ## working directory
 WD=$(pwd)

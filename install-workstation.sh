@@ -146,7 +146,7 @@ mkdir -p $TMP
 
 
 ## Update this script if possible
-url_response=$(curl --write-out %{http_code} --silent --output $TMP/install-workstation-latest.sh http://d250.hu/scripts/install-workstation.sh)
+url_response=$(curl --write-out %{http_code} --silent --output $TMP/install-workstation-latest.sh https://raw.githubusercontent.com/LaKing/Fedora-scripts/master/install-workstation.sh)
 if [ "$url_response" -ne "200" ]
 then
    echo "Failed to download latest version of this script." >> $LOG
