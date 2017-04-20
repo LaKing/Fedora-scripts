@@ -1,11 +1,15 @@
 #!/bin/bash
 
-## this playlist-player script will play mp3's 
-## starting a new list in 3 lanes, at 12h 17h 20h
+## use mp3gain to normalize mp3 tracks
+## find . -name *mp3 -exec mp3gain -a -k {} \;
+
+
 ## cvlc needed - install vlc
 
 ## working directory
 WD=$(pwd)
+
+function make_autostart {
 
 ## create autos-start
 mkdir -p ~/.config/autostart
@@ -14,14 +18,33 @@ echo '[Desktop Entry]
 Name=playlist-startup
 GenericName=playlist-startup
 Comment=Start the playlist up at login
-Exec='$WD'/play.sh
+Exec='$WD'/playlist-player.sh
 Terminal=True
 Type=Application
 X-GNOME-Autostart-enabled=true' > ~/.config/autostart/playlist.desktop
 
-## TODO
-## run as a service 
-## or implement singleton / mutex mechnism
+}
+
+## run as a service
+
+function make_service {
+
+echo '[Unit]
+Description=Playlist-player
+
+[Service]
+User=x
+Type=simple
+ExecStart=/bin/bash /home/x/playlist-player.sh
+
+[Install]
+WantedBy=multi-user.target
+' > /usr/lib/systemd/system/playlist.service
+
+}
+
+## make_autostart
+## make_service
 
 
 LOGPATH="$WD/log"
@@ -39,16 +62,10 @@ function msg {
     echo "$NOW $1" >> $LOGPATH/vlc.log
 }
 
-msg "!! RESTART !!"
+function get_3lane_dir {
+## this playlist-player function will pick DIR of mp3's 
+## starting a new list in 3 lanes, at 12h 17h 20h
 
-while true
-do
-	## full date
-	NOW=$(date +%Y.%m.%d-%H:%M:%S)
-	## hour
-	Hr=$(date +%H)
-
-#### get the DIR directory for the lanes
 	## AM
 	if [ "$Hr" -ge "8" ]
 	then
@@ -66,6 +83,26 @@ do
 		DIR="20"
 	    fi
 	fi
+}
+
+
+    ## symlink file-list
+    ## random string generator
+    randa(){ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16};echo;}
+
+msg "!! RESTART !!"
+
+while true
+do
+	## full date
+	NOW=$(date +%Y.%m.%d-%H:%M:%S)
+	## hour
+	Hr=$(date +%H)
+
+	#### get the DIR directory for the lanes
+	DIR=""
+	
+	get_3lane_dir
 
 	## dir for symlinks
 	dir=$VARPATH/$DIR
@@ -77,30 +114,32 @@ do
 	## symlink file-list
 	f=$(ls $dir | sort -R | tail -1 )
 
-	cd $dir
+    if [ "$f" == "" ]
+    then 
+        msg "SYMLINKING"
 
-	if [ "$f" == "" ]
-	then 
-	    n=$DIR"000"
-	    msg "SYMLINKING"
-	    for rf in $dira/*
-	    do 
-		    n=$((n+1))
-		    #echo "Linking $rf" >> /home/x/playlist.log
-		    ln -s "$rf" "$n.mp3"
-	    done
-	else
-	    msg "START #$f - $(readlink $f)"
-	    echo '' > $LOGPATH/vlc.log
+        find $dira -name '*.mp3' -or -name '*.wav' > $WD/playlist.txt
 
-	    ## play!
-	    #cvlc --play-and-exit --quiet "$dir/$f" > /dev/null 2>&1	    
-	    cvlc --verbose 2 --play-and-exit --album-art 0  "$dir/$f" &>> $LOGPATH/vlc.log
-	    
-	    msg "ENDED #$f"
-	    echo "played: $f" >> $LOGPATH/vlc-history.log
-	    rm -rf $f
-	fi
+	while read f
+	do 
+	    echo "Symlinking $f"
+	    ln -s "$f" $VARPATH/$(randa).mp3
+	done < $WD/playlist.txt
+        
+    else
+        msg "START #$f - $(readlink $dir/$f)"
+        echo '' > $LOGPATH/vlc.log
+
+        ## play!
+        #cvlc --play-and-exit --quiet "$dir/$f" > /dev/null 2>&1	    
+        cvlc --verbose 2 --play-and-exit --album-art 0  "$dir/$f" #&>> $LOGPATH/vlc.log
+
+        msg "ENDED #$f"
+        echo "played: $f" >> $LOGPATH/vlc-history.log
+        rm -rf $f
+        sleep 1
+    fi
+
 
 done
 
