@@ -6,8 +6,12 @@
 
 ## cvlc needed - install vlc
 
-## working directory
+## working directory - you may set this to something else
 WD=$(pwd)
+
+LOGPATH="$WD/log"
+MP3PATH="$WD/Music"
+VARPATH="$WD/symlinks"
 
 function make_autostart {
 
@@ -45,11 +49,6 @@ WantedBy=multi-user.target
 
 ## make_autostart
 ## make_service
-
-
-LOGPATH="$WD/log"
-MP3PATH="$WD/Music"
-VARPATH="$WD/symlinks"
 
 mkdir -p $LOGPATH
 mkdir -p $VARPATH
