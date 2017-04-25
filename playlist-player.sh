@@ -134,8 +134,8 @@ do
         cvlc --verbose 2 --play-and-exit --album-art 0  "$dir/$f" #&>> $LOGPATH/vlc.log
 
         msg "ENDED #$f"
-        echo "played: $f" >> $LOGPATH/vlc-history.log
-        rm -rf $f
+        echo "played: $dir/$f" >> $LOGPATH/vlc-history.log
+        rm -rf "$dir/$f"
         sleep 1
     fi
 
