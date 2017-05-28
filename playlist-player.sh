@@ -131,7 +131,7 @@ do
 
         ## play!
         #cvlc --play-and-exit --quiet "$dir/$f" > /dev/null 2>&1	    
-        cvlc --verbose 2 --play-and-exit --album-art 0  "$dir/$f" #&>> $LOGPATH/vlc.log
+        cvlc --verbose 2 --play-and-exit  --no-random --no-loop --no-repeat --album-art 0  "$dir/$f" #&>> $LOGPATH/vlc.log
 
         msg "ENDED #$f"
         echo "played: $dir/$f" >> $LOGPATH/vlc-history.log
